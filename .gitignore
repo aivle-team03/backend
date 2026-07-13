@@ -1,0 +1,54 @@
+# OS 관련
+.DS_Store
+Thumbs.db
+
+# Python 캐시/빌드
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.eggs/
+*.egg
+build/
+dist/
+
+# 가상환경
+.venv/
+venv/
+env/
+ENV/
+
+# 로그/데이터
+*.log
+logs/
+*.sqlite3
+*.db
+
+# 환경 변수
+.env
+.env.local
+.env.*.local
+
+# 테스트/커버리지
+.coverage
+coverage/
+htmlcov/
+.pytest_cache/
+.tox/
+.mypy_cache/
+.dmypy.json
+.pyre/
+
+# IDE/에디터
+.vscode/
+.idea/
+*.swp
+
+# FastAPI 관련
+# Uvicorn, Gunicorn 등 런타임에서 생성되는 파일
+*.pid
+*.sock
+
+# Docker
+docker-compose.override.yml
