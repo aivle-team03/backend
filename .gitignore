@@ -52,3 +52,7 @@ htmlcov/
 
 # Docker
 docker-compose.override.yml
+
+# 기타
+walkthrough.md
+

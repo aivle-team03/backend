@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from models import User
+from app.models.models import User
 from datetime import datetime
 
 def get_users(db: Session):

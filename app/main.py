@@ -1,8 +1,8 @@
 from fastapi import FastAPI, Depends
 from sqlalchemy.orm import Session
-from db import SessionLocal
-from models import User
-from user import get_users
+from app.db.db import SessionLocal, get_db
+from app.models.models import User
+from app.api.routers import api_router
 
 app = FastAPI(
     title="FastAPI Backend",
@@ -10,12 +10,8 @@ app = FastAPI(
     version="1.0.0"
 )
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+app.include_router(api_router, prefix="/api")
+
 
 @app.get("/")
 def read_root():
