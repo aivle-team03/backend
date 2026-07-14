@@ -1,10 +1,10 @@
-import models
+import app.models as models
 import asyncio
-from database import engine, get_db
+from app.database import engine, get_db
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
-from auth_utils import hash_password, verify_password
+from app.auth_utils import hash_password, verify_password
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
