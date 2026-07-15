@@ -1,28 +1,12 @@
-import app.models as models
-import asyncio
-from app.database import engine, get_db
-from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
-from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime
-from app.auth_utils import hash_password, verify_password
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from app.db.db import get_db
+from app.models.models import User
+from app.crud.user import get_users
+from pydantic import BaseModel
+from app.utils.auth_utils import hash_password, verify_password
 
-app = FastAPI(
-    title="FastAPI Backend",
-    description="시설 안전관리 AI 자동화 시스템",
-    version="1.0.0"
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], # 실제 배포 시에는 ["http://localhost:3000"] 처럼 프론트 주소만 적는 게 안전합니다.
-    allow_credentials=True,
-    allow_methods=["*"], # GET, POST, PUT, DELETE 모두 허용
-    allow_headers=["*"], # 모든 헤더 허용
-)
-
-models.Base.metadata.create_all(bind=engine)
+router = APIRouter()
 
 class UserSignup(BaseModel):
     user_id: str
@@ -35,21 +19,16 @@ class UserLogin(BaseModel):
     user_id: str
     password: str
 
-
-@app.get("/")
-def read_root():
-    return {"Hello": "World"}
-
-
-@app.post("/api/auth/signup")
+    
+@router.post("/signup")
 def signup(user_data: UserSignup, db: Session = Depends(get_db)):
     # 1. 이미 존재하는 아이디인지 확인
-    existing_user = db.query(models.User).filter(models.User.user_id == user_data.user_id).first()
+    existing_user = db.query(User).filter(User.user_id == user_data.user_id).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="이미 존재하는 아이디입니다.")
 
     # 2. 비밀번호 암호화 후 저장
-    new_user = models.User(
+    new_user = User(
         user_id=user_data.user_id,
         password=hash_password(user_data.password), # 암호화 적용!
         name=user_data.name,
@@ -58,12 +37,13 @@ def signup(user_data: UserSignup, db: Session = Depends(get_db)):
     )
     db.add(new_user)
     db.commit()
+    db.refresh(new_user)
     return {"message": f"{new_user.name}님, 회원가입이 완료되었습니다."}
 
-@app.post("/api/auth/login")
+@router.post("/login")
 def login(user_data: UserLogin, db: Session = Depends(get_db)):
     # 1. 아이디로 사용자 찾기
-    user = db.query(models.User).filter(models.User.user_id == user_data.user_id).first()
+    user = db.query(User).filter(User.user_id == user_data.user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
 
@@ -82,6 +62,6 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
         }
     }
 
-@app.post("/api/auth/logout")
+@router.post("/logout")
 def logout():
     return {"message": "로그아웃 성공!"}
