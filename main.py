@@ -29,6 +29,7 @@ class UserSignup(BaseModel):
     password: str
     name: str
     role: str = "field_worker"
+    company_code: str
 
 class UserLogin(BaseModel):
     user_id: str
@@ -52,7 +53,8 @@ def signup(user_data: UserSignup, db: Session = Depends(get_db)):
         user_id=user_data.user_id,
         password=hash_password(user_data.password), # 암호화 적용!
         name=user_data.name,
-        role=user_data.role
+        role=user_data.role,
+        company_code=user_data.company_code
     )
     db.add(new_user)
     db.commit()
@@ -75,7 +77,8 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
         "user_info": {
             "name": user.name,
             "role": user.role,
-            "uid": user.uid
+            "uid": user.uid,
+            "company_code": user.company_code
         }
     }
 
