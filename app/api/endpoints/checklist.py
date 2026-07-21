@@ -9,12 +9,14 @@ from app.db.db import get_db
 from app.crud.auth import get_current_user
 from app.models import User
 from app.schemas.checklist import (
+    ChecklistCreate,
     ChecklistResponse,
     ManagerSearchResponse,
     AssignManagerRequest,
     StatusUpdateRequest
 )
 from app.crud.checklist import (
+    create_checklist,
     get_checklists,
     search_managers,
     assign_manager,
@@ -111,3 +113,14 @@ def read_my_checklists(
 ):
     """내 조치 기록 조회 API - 명세서 URL /api/checklists/me (요구사항 ADM-15-54-6)"""
     return get_my_checklists(db, uid=current_user.uid, skip=skip, limit=limit)
+
+@router.post("", response_model=ChecklistResponse, status_code=status.HTTP_201_CREATED)
+def post_checklist(
+    checklist_req: ChecklistCreate,
+    db: Session = Depends(get_db)
+):
+    """
+    조치(체크리스트) 등록 API - (AI 서버 또는 수동 등록용)
+    """
+    db_checklist = create_checklist(db, checklist_req)
+    return db_checklist

@@ -20,7 +20,7 @@ data_router = APIRouter()
 @chatbot_router.post("/query", response_model=ChatbotQueryResponse)
 def post_chatbot_query(query_req: ChatbotQueryRequest):
     """안전 법규 및 사내 소방 매뉴얼 관련 챗봇 질의응답 API - 명세서 URL /api/chatbot/query (요구사항 USR-05-02-13)"""
-    return process_chatbot_query(query_req.question_text)
+    return process_chatbot_query(query_req)
 
 @chatbot_router.get("/recommendations", response_model=RecommendationResponse)
 def read_chatbot_recommendations():
