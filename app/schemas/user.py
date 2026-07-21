@@ -25,3 +25,12 @@ class UserCreate(UserBase):
 class UserLogin(BaseModel):
     user_id: str
     password: str
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str
+
+class PasswordReset(BaseModel):
+    user_id: str
+    name: str
+    new_password: str
