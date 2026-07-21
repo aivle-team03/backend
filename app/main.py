@@ -1,10 +1,17 @@
-import app.models as models
-from app.db.db import engine
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 from sqlalchemy.orm import Session
+import os
+from app.db.db import SessionLocal, get_db, engine, Base
+import app.models
 from app.api.routers import api_router
+from app.core.exceptions import setup_logging, setup_exception_handlers
+
+# 파일 로깅 활성화
+setup_logging()
+
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="FastAPI Backend",
@@ -12,17 +19,25 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# CORS 미들웨어 추가 설정 (프론트엔드 연동 지원)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # 실제 배포 시에는 ["http://localhost:3000"] 처럼 프론트 주소만 적는 게 안전합니다.
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"], # GET, POST, PUT, DELETE 모두 허용
-    allow_headers=["*"], # 모든 헤더 허용
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
+
+# 전역 예외 핸들러 적용
+setup_exception_handlers(app)
+
+# static 디렉토리 생성 및 정적 파일 마운트
+os.makedirs("static/uploads", exist_ok=True)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 app.include_router(api_router, prefix="/api")
 
 
 @app.get("/")
 def read_root():
-    return {"Hello": "World"}
+    return {"message": "MySQL 연결 성공!"}
