@@ -22,11 +22,9 @@ def create_report(
         created_at=datetime.utcnow()
     )
     db.add(report)
-    # [Refactor] 트랜잭션은 닫지 않고 report_id만 확보하여 데이터 정합성 보장
     db.flush() 
 
     if event_ids:
-        # [Refactor] 반복문 대신 add_all 리스트 내포 사용으로 오버헤드 감소
         db.add_all([ReportEventMap(report_id=report.report_id, event_id=eid) for eid in event_ids])
             
     if checklist_ids:
@@ -35,7 +33,6 @@ def create_report(
     db.commit()
     db.refresh(report)
     return report
-
 
 def get_reports(
     db: Session,
@@ -73,13 +70,10 @@ def get_reports(
     items = query.order_by(Report.created_at.desc()).offset((page - 1) * size).limit(size).all()
     return total, items
 
-
 def get_report_by_id(db: Session, report_id: int) -> Optional[Report]:
     return db.query(Report).filter(Report.report_id == report_id).first()
 
-
 def update_report(db: Session, report_id: int, uid: int, content: str) -> Optional[Report]:
-    # [Refactor] 쿼리 조건에 uid를 추가하여 타인의 접근 원천 차단
     report = db.query(Report).filter(Report.report_id == report_id, Report.uid == uid).first()
     if not report:
         return None
@@ -90,15 +84,11 @@ def update_report(db: Session, report_id: int, uid: int, content: str) -> Option
     db.refresh(report)
     return report
 
-
 def delete_report(db: Session, report_id: int, uid: int) -> bool:
-    # [Refactor] 쿼리 조건에 uid를 추가하여 타인의 접근 원천 차단
     report = db.query(Report).filter(Report.report_id == report_id, Report.uid == uid).first()
     if not report:
         return False
         
-    db.query(ReportEventMap).filter(ReportEventMap.report_id == report_id).delete()
-    db.query(ReportChecklistMap).filter(ReportChecklistMap.report_id == report_id).delete()
     db.delete(report)
     db.commit()
     return True
