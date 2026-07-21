@@ -4,8 +4,8 @@ from app.db.db import get_db
 from app.models import User
 from app.crud.user import create_users as crud_create_user, checkid as crud_check_id
 from app.crud.auth import create_access_token, get_current_user
-from app.core.crypt import verify_password
-from app.schemas.user import UserCreate, UserLogin
+from app.core.crypt import verify_password, hash_password
+from app.schemas.user import PasswordReset, UserCreate, UserLogin
 from app.schemas.token import Token
 
 router = APIRouter()
@@ -25,9 +25,9 @@ def signup(user_create: UserCreate, db: Session = Depends(get_db)):
 def checkid(user_id: str, db: Session = Depends(get_db)):
     exists = crud_check_id(db, user_id)
     if exists:
-        return {"message": "success"}  # 아이디가 이미 존재하는 경우
+        return {"message": "duplicated"}  # 아이디가 이미 존재하는 경우
     else:
-        return {"message": "fail"}     # 아이디 사용 가능한 경우
+        return {"message": "available"}     # 아이디 사용 가능한 경우
 
 @router.post("/login", response_model=Token)
 def login(user_login: UserLogin, db: Session = Depends(get_db)):
@@ -57,4 +57,26 @@ def login(user_login: UserLogin, db: Session = Depends(get_db)):
 @router.post("/logout")
 def logout(current_user: User = Depends(get_current_user)):
     """로그아웃 API - JWT 토큰 무효화(요구사항 USR-02-02-3)"""
+    return {"message": "success"}
+
+@router.post("/find/password")
+def reset_password(reset_data: PasswordReset, db: Session = Depends(get_db)):
+    """비밀번호 찾기/재설정 API (로그인 없이 접근 가능)"""
+    
+    # 1. 아이디와 이름이 일치하는 유저 찾기
+    user = db.query(User).filter(
+        User.user_id == reset_data.user_id,
+        User.name == reset_data.name
+    ).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="일치하는 사용자 정보를 찾을 수 없습니다."
+        )
+
+    # 2. 새 비밀번호 해싱 후 DB 업데이트
+    user.password = hash_password(reset_data.new_password)
+    db.commit()
+
     return {"message": "success"}
