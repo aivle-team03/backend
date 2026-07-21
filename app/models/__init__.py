@@ -6,3 +6,4 @@ from app.models.checklist import Checklist
 from app.models.report import Report
 from app.models.report_event_map import ReportEventMap
 from app.models.report_checklist_map import ReportChecklistMap
+from app.models.board import Board
