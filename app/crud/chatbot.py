@@ -1,3 +1,6 @@
+from app.schemas.chatbot import ChatbotQueryRequest
+
+
 MANUALS_DB = [
     {
         "title": "소화기 사용법 및 정기 점검 가이드",
@@ -44,7 +47,10 @@ def search_manuals_and_laws(keyword: str):
         if keyword_lower in item["title"].lower() or keyword_lower in item["content"].lower()
     ]
 
-def process_chatbot_query(question_text: str):
+def process_chatbot_query(query_req: ChatbotQueryRequest):
+    question_text = query_req.question_text
+    history = query_req.history
+    
     question_text_lower = question_text.lower()
     matched_keywords = []
     answer = ""

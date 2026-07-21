@@ -29,3 +29,9 @@ class AssignManagerRequest(BaseModel):
 class StatusUpdateRequest(BaseModel):
     status: str
     reason: Optional[str] = None
+
+class ChecklistCreate(BaseModel):
+    event_id: Optional[int] = None
+    camera_id: Optional[int] = None
+    content: Optional[str] = None
+    image_url: Optional[str] = None

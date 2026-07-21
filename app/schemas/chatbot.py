@@ -1,8 +1,9 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 
 class ChatbotQueryRequest(BaseModel):
     question_text: str
+    history: Optional[List[str]] = []
 
 class ChatbotQueryResponse(BaseModel):
     answer: str
