@@ -15,7 +15,7 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="FastAPI Backend",
-    description="FastAPI 기본 프로젝트 구조",
+    description="시설 안전관리 AI 자동화 시스템",
     version="1.0.0"
 )
 
