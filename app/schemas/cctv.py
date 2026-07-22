@@ -13,3 +13,9 @@ class CCTVResponse(BaseModel):
 
 class CCTVStreamResponse(BaseModel):
     stream_url: str
+
+class CCTVCreate(BaseModel):
+    camera_name: str
+    location: str
+    stream_url: str
+    status: str = "running"

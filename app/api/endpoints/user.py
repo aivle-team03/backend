@@ -14,29 +14,28 @@ def read_user_me(current_user: User = Depends(get_current_user)):
     """내 정보 조회 (마이페이지) API - JWT 인증 필요"""
     return current_user
 
-@router.put("/me/password")
+@router.patch("/me/password")
 def change_password(
     password_data: PasswordChange,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """비밀번호 변경 API - JWT 인증 필요"""
+    """
+    비밀번호 변경 API (부분 업데이트) - JWT 인증 필요
+    """
     
-    # 1. 현재 입력한 비밀번호가 실제 기존 비밀번호와 일치하는지 검증
     if not verify_password(password_data.current_password, current_user.password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="현재 비밀번호가 일치하지 않습니다."
         )
     
-    # 2. 기존 비밀번호와 새 비밀번호가 같은지 확인 (선택 사항)
     if password_data.current_password == password_data.new_password:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="새 비밀번호는 기존 비밀번호와 다르게 설정해야 합니다."
         )
 
-    # 3. 새 비밀번호 해싱 후 DB 업데이트
     current_user.password = hash_password(password_data.new_password)
     db.commit()
 
