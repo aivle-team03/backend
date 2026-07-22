@@ -1,8 +1,8 @@
-from datetime import date
-from typing import Optional
+from datetime import date, timedelta # timedelta : 날짜 간격 계산
+from typing import Optional, List, Dict # List, Dict : 리스트, 딕셔너리
 
-from sqlalchemy import and_, or_
-from sqlalchemy.orm import Session
+from sqlalchemy import and_, or_, func # and_, or_ : 조건 결합, func : 함수 사용
+from sqlalchemy.orm import Session 
 
 from app.models.education import Education
 from app.models.education_status import EducationStatus
@@ -63,8 +63,9 @@ def _status_response(education: Education, status_row: Optional[EducationStatus]
         "video_url": education.video_url,
         "category": education.category,
         "type": education.type,
+        "due_date": education.due_date, # 만료일
         "status": progress_status,
-        "completed_date": status_row.completed_date if status_row else None,
+        "completed_date": status_row.completed_date if status_row else None, # 이수 완료일
     }
 
 
@@ -94,6 +95,118 @@ def get_user_education_statuses(
         _status_response(education, status_row)
         for education, status_row in rows
     ]
+
+
+# 1. 일반 유저: 이번주 마감, 진행 중, 이수 완료 요약 건수
+def get_user_education_summary_counts(db: Session, user: User) -> Dict[str, int]:
+    today = date.today()
+    week_end = today + timedelta(days=7)
+
+    statuses = get_user_education_statuses(db, user=user)
+
+    due_this_week = 0
+    in_progress = 0
+    completed = 0
+
+    for item in statuses:
+        st = item["status"]
+        due = item["due_date"]
+
+        if st == COMPLETED:
+            completed += 1
+        elif st == IN_PROGRESS:
+            in_progress += 1
+
+        if st != COMPLETED and due and today <= due <= week_end:
+            due_this_week += 1
+
+    return {
+        "due_this_week_count": due_this_week,
+        "in_progress_count": in_progress,
+        "completed_count": completed
+    }
+
+
+# 2. 일반 유저: 필수/정기/전체 교육 이수율(%)
+def get_user_completion_rates(db: Session, user: User) -> Dict[str, float]:
+    statuses = get_user_education_statuses(db, user=user)
+
+    essential_total = 0
+    essential_completed = 0
+    regular_total = 0
+    regular_completed = 0
+
+    for item in statuses:
+        edu_type = item["type"]
+        is_done = (item["status"] == COMPLETED)
+
+        if edu_type == "필수":
+            essential_total += 1
+            if is_done:
+                essential_completed += 1
+        elif edu_type == "정기":
+            regular_total += 1
+            if is_done:
+                regular_completed += 1
+
+    total_count = len(statuses)
+    total_completed = sum(1 for i in statuses if i["status"] == COMPLETED)
+
+    return {
+        "essential_rate": round(essential_completed / essential_total * 100, 1) if essential_total else 0.0,
+        "regular_rate": round(regular_completed / regular_total * 100, 1) if regular_total else 0.0,
+        "total_rate": round(total_completed / total_count * 100, 1) if total_count else 0.0,
+    }
+
+
+# 3. 관리자: 직군별 교육 이수 현황 통계
+def get_admin_role_completion_stats(db: Session) -> Dict:
+    roles = ["신규 근로자", "일반 작업자", "특수 작업자", "안전 관리자"]
+    role_results = []
+    
+    grand_target = 0
+    grand_completed = 0
+
+    for r in roles:
+        # 해당 직군 유저 목록
+        users_in_role = db.query(User).filter(User.role == r).all()
+        # 해당 직군 대상 교육 목록
+        edus_in_role = db.query(Education).filter(Education.role == r).all()
+
+        target_count = len(users_in_role) * len(edus_in_role)
+        if target_count == 0:
+            role_results.append({
+                "role": r,
+                "completion_rate": 0.0,
+                "target_count": 0,
+                "completed_count": 0
+            })
+            continue
+
+        completed_count = (
+            db.query(EducationStatus)
+            .join(User, EducationStatus.uid == User.uid)
+            .join(Education, EducationStatus.education_id == Education.education_id)
+            .filter(User.role == r, Education.role == r, EducationStatus.status == COMPLETED)
+            .count()
+        )
+
+        grand_target += target_count
+        grand_completed += completed_count
+
+        rate = round(completed_count / target_count * 100, 1) if target_count else 0.0
+        role_results.append({
+            "role": r,
+            "completion_rate": rate,
+            "target_count": target_count,
+            "completed_count": completed_count
+        })
+
+    total_rate = round(grand_completed / grand_target * 100, 1) if grand_target else 0.0
+    return {
+        "roles": role_results,
+        "total_completion_rate": total_rate
+    }
 
 
 def get_user_education_for_admin(
@@ -170,6 +283,7 @@ def get_education_status_summaries(
                 "role": education.role,
                 "category": education.category,
                 "type": education.type,
+                "due_date": education.due_date,
                 "target_count": target_count,
                 "status_counts": [
                     {"status": status, "count": counts[status]}
@@ -206,3 +320,39 @@ def complete_education(
     db.commit()
     db.refresh(status_row)
     return status_row
+
+
+# 4. AI 교육 자료 자동 생성 로직
+def create_ai_generated_education(
+    db: Session,
+    work_type: str,
+    equipment: str,
+    risk_factor: str
+) -> Dict:
+    title = f"[{work_type}] {equipment} 사용 시 {risk_factor} 사고 예방 안전수칙"
+    summary = f"{work_type} 작업 중 {equipment} 조종 시 발생하기 쉬운 {risk_factor} 사고 방지를 위한 필수 안전 가이드입니다."
+    guidelines = [
+        f"작업 전 {equipment} 기계 장비의 안전점검 및 보호구 착용 확인",
+        f"{work_type} 작업 주변 안전구역 확보 및 서행 운행",
+        f"{risk_factor} 위험요소 사전 제거 및 2인 1조 작업 수행"
+    ]
+
+    new_edu = Education(
+        title=title,
+        role="전체",
+        video_url="/static/videos/ai_safety_sample.mp4",
+        category=work_type,
+        type="필수",
+        due_date=date.today() + timedelta(days=14)
+    )
+    db.add(new_edu)
+    db.commit()
+    db.refresh(new_edu)
+
+    return {
+        "education_id": new_edu.education_id,
+        "title": title,
+        "summary": summary,
+        "safety_guideline": guidelines,
+        "generated_video_url": new_edu.video_url
+    }
