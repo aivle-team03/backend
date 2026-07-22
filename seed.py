@@ -34,7 +34,7 @@ def hash_password(password: str) -> str:
 
 
 def auto_migrate():
-    """DB 스키마 자동 동기화 (신규 테이블 생성 및 기존 테이블 신규 컬럼 ALTER)"""
+    """DB 스키마 자동 동기화 (신규 테이블 생성 및 기존 테이블 신규/변경된 컬럼 ALTER)"""
     Base.metadata.create_all(bind=engine)
     with engine.connect() as conn:
         # 1. board.updated_at 컬럼 추가
@@ -50,6 +50,21 @@ def auto_migrate():
             conn.execute(text("ALTER TABLE education ADD COLUMN due_date DATE NULL;"))
             conn.commit()
             print("education 테이블에 due_date 컬럼 추가 완료.")
+        except Exception:
+            pass
+
+        # 3. cctv 테이블 컬럼 변경 (camera_name -> cctv_name, camera_id -> cctv_id)
+        try:
+            conn.execute(text("ALTER TABLE cctv CHANGE COLUMN camera_name cctv_name VARCHAR(100) NOT NULL;"))
+            conn.commit()
+            print("cctv 테이블에 cctv_name 컬럼 변경 완료.")
+        except Exception:
+            pass
+
+        try:
+            conn.execute(text("ALTER TABLE cctv CHANGE COLUMN camera_id cctv_id BIGINT AUTO_INCREMENT;"))
+            conn.commit()
+            print("cctv 테이블에 cctv_id 컬럼 변경 완료.")
         except Exception:
             pass
 
@@ -102,15 +117,15 @@ def seed():
 
         # 2. CCTV 등록
         cctvs_data = [
-            {"camera_name": "A동 복도 CCTV 1", "location": "A동 복도", "stream_url": "/static/streams/corridor_a1.mp4", "status": "정상"},
-            {"camera_name": "B동 자재창고 CCTV 2", "location": "B동 자재창고", "stream_url": "/static/streams/warehouse_b2.mp4", "status": "정상"},
-            {"camera_name": "C동 하역장 CCTV 3", "location": "C동 하역장", "stream_url": "/static/streams/loading_c3.mp4", "status": "정상"},
-            {"camera_name": "D동 정문 CCTV 4", "location": "D동 정문", "stream_url": "/static/streams/main_gate_d4.mp4", "status": "비정상"}
+            {"cctv_name": "A동 복도 CCTV 1", "location": "A동 복도", "stream_url": "/static/streams/corridor_a1.mp4", "status": "정상"},
+            {"cctv_name": "B동 자재창고 CCTV 2", "location": "B동 자재창고", "stream_url": "/static/streams/warehouse_b2.mp4", "status": "정상"},
+            {"cctv_name": "C동 하역장 CCTV 3", "location": "C동 하역장", "stream_url": "/static/streams/loading_c3.mp4", "status": "정상"},
+            {"cctv_name": "D동 정문 CCTV 4", "location": "D동 정문", "stream_url": "/static/streams/main_gate_d4.mp4", "status": "비정상"}
         ]
         
         cctvs = []
         for c_data in cctvs_data:
-            existing_cctv = db.query(CCTV).filter(CCTV.camera_name == c_data["camera_name"]).first()
+            existing_cctv = db.query(CCTV).filter(CCTV.cctv_name == c_data["cctv_name"]).first()
             if not existing_cctv:
                 new_cctv = CCTV(**c_data)
                 db.add(new_cctv)
@@ -157,7 +172,7 @@ def seed():
                 
                 new_event = Event(
                     category_id=category.category_id,
-                    camera_id=cctv.camera_id,
+                    camera_id=cctv.cctv_id,
                     date=event_date,
                     image_url=f"/static/uploads/dummy_event_{i+1}.jpg"
                 )

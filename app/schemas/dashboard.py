@@ -13,7 +13,7 @@ class DashboardSummaryResponse(BaseModel):
 class RecentEventResponse(BaseModel):
     event_id: int
     category_name: str
-    camera_name: str
+    cctv_name: str
     location: str
     date: datetime
     image_url: Optional[str] = None

@@ -29,7 +29,7 @@ def get_dashboard_summary(db: Session) -> dict:
 def get_recent_events(db: Session, limit: int = 10) -> List[dict]:
     results = db.query(Event, EventCategory, CCTV)\
         .join(EventCategory, Event.category_id == EventCategory.category_id)\
-        .join(CCTV, Event.camera_id == CCTV.camera_id)\
+        .join(CCTV, Event.camera_id == CCTV.cctv_id)\
         .order_by(Event.date.desc())\
         .limit(limit).all()
         
@@ -38,7 +38,7 @@ def get_recent_events(db: Session, limit: int = 10) -> List[dict]:
         out.append({
             "event_id": ev.event_id,
             "category_name": cat.category_name,
-            "camera_name": cam.camera_name,
+            "cctv_name": cam.cctv_name,
             "location": cam.location,
             "date": ev.date,
             "image_url": ev.image_url
@@ -55,7 +55,7 @@ def get_zone_statistics(db: Session):
             continue
         cctv_count = db.query(CCTV).filter(CCTV.location == loc).count()
         cctvs = db.query(CCTV).filter(CCTV.location == loc).all()
-        cctv_ids = [c.camera_id for c in cctvs]
+        cctv_ids = [c.cctv_id for c in cctvs]
         
         if not cctv_ids:
             event_count = 0
