@@ -9,6 +9,7 @@ from app.api.endpoints import chatbot
 from app.api.endpoints import ai_detect
 from app.api.endpoints import board
 from app.api.endpoints import education
+from app.api.endpoints import report
 
 api_router = APIRouter()
 
@@ -24,3 +25,4 @@ api_router.include_router(ai_detect.router, prefix="/ai", tags=["ai"])
 api_router.include_router(board.router, prefix="/boards", tags=["boards"])
 api_router.include_router(education.education_router, prefix="/education", tags=["education"])
 api_router.include_router(education.admin_education_router, prefix="/admin/education", tags=["admin-education"])
+api_router.include_router(report.router, prefix="/report", tags=["report"])
