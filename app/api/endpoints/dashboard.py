@@ -1,16 +1,20 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
 
 from app.db.db import get_db
 from app.schemas.dashboard import (
+    DashboardSummaryResponse,
+    RecentEventResponse,
     ZoneStatsResponse,
     SafetyGradeResponse,
     ReportResponse,
     ReportSummaryResponse
 )
 from app.crud.dashboard import (
+    get_dashboard_summary,
+    get_recent_events,
     get_zone_statistics,
     calculate_safety_grade,
     get_reports_by_date,
@@ -19,15 +23,30 @@ from app.crud.dashboard import (
 
 router = APIRouter()
 
+
+@router.get("/summary", response_model=DashboardSummaryResponse)
+def read_dashboard_summary(db: Session = Depends(get_db)):
+    """감지, 위반, 조치 대기/완료 건수 요약 API - 명세서 URL /api/dashboard/summary"""
+    return get_dashboard_summary(db)
+
+
+@router.get("/recentevents", response_model=List[RecentEventResponse])
+def read_recent_events(limit: int = Query(10, ge=1, le=100), db: Session = Depends(get_db)):
+    """최근 발생한 이상 항목 리스트 조회 API - 명세서 URL /api/dashboard/recentevents"""
+    return get_recent_events(db, limit=limit)
+
+
 @router.get("/zones/stats", response_model=List[ZoneStatsResponse])
 def read_zone_stats(db: Session = Depends(get_db)):
-    """구역별 위험도 통계 API - 명세서 URL /api/dashboard/zones/stats (요구사항 ADM-39-74-32)"""
+    """구역별 위험도 통계 API - 명세서 URL /api/dashboard/zones/stats"""
     return get_zone_statistics(db)
+
 
 @router.get("/safetygrade", response_model=SafetyGradeResponse)
 def read_safety_grade(db: Session = Depends(get_db)):
-    """종합 안전 등급 조회 API - 명세서 URL /api/dashboard/safetygrade (요구사항 ADM-39-75-34)"""
+    """종합 안전 등급 조회 API - 명세서 URL /api/dashboard/safetygrade"""
     return calculate_safety_grade(db)
+
 
 @router.get("/reports", response_model=List[ReportResponse])
 def read_reports(
@@ -50,6 +69,7 @@ def read_reports(
             raise HTTPException(status_code=400, detail="end_date 포맷은 YYYY-MM-DD 여야 합니다.")
             
     return get_reports_by_date(db, start_date=start_dt, end_date=end_dt)
+
 
 @router.get("/reports/summary", response_model=ReportSummaryResponse)
 def read_report_summary(report_id: int, db: Session = Depends(get_db)):

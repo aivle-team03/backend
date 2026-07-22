@@ -1,25 +1,61 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import datetime, timedelta
+from typing import List
 from app.models.cctv import CCTV
 from app.models.event import Event
+from app.models.event_category import EventCategory
 from app.models.checklist import Checklist
 from app.models.report import Report
 
+
+def get_dashboard_summary(db: Session) -> dict:
+    detected_count = db.query(Event).count()
+    
+    violation_count = db.query(Event).join(EventCategory, Event.category_id == EventCategory.category_id)\
+        .filter(EventCategory.category.in_(["위험", "경고"])).count()
+        
+    pending_action_count = db.query(Checklist).filter(Checklist.status.in_(["미조치", "조치 대기", "조치 중"])).count()
+    completed_action_count = db.query(Checklist).filter(Checklist.status.in_(["승인 완료", "완료"])).count()
+    
+    return {
+        "detected_count": detected_count,
+        "violation_count": violation_count,
+        "pending_action_count": pending_action_count,
+        "completed_action_count": completed_action_count
+    }
+
+
+def get_recent_events(db: Session, limit: int = 10) -> List[dict]:
+    results = db.query(Event, EventCategory, CCTV)\
+        .join(EventCategory, Event.category_id == EventCategory.category_id)\
+        .join(CCTV, Event.camera_id == CCTV.cctv_id)\
+        .order_by(Event.date.desc())\
+        .limit(limit).all()
+        
+    out = []
+    for ev, cat, cam in results:
+        out.append({
+            "event_id": ev.event_id,
+            "category_name": cat.category_name,
+            "cctv_name": cam.cctv_name,
+            "location": cam.location,
+            "date": ev.date,
+            "image_url": ev.image_url
+        })
+    return out
+
+
 def get_zone_statistics(db: Session):
-    # 1. 모든 고유 구역명 리스트업
     locations = db.query(CCTV.location).distinct().all()
     results = []
     
-    # 2. 각 구역별로 집계
     for (loc,) in locations:
         if not loc:
             continue
         cctv_count = db.query(CCTV).filter(CCTV.location == loc).count()
-        
-        # 해당 구역의 CCTV들의 ID 목록
         cctvs = db.query(CCTV).filter(CCTV.location == loc).all()
-        cctv_ids = [c.camera_id for c in cctvs]
+        cctv_ids = [c.cctv_id for c in cctvs]
         
         if not cctv_ids:
             event_count = 0
@@ -35,7 +71,6 @@ def get_zone_statistics(db: Session):
                 if status in ["미조치", "조치 대기", "조치 중"]:
                     unresolved_count += 1
                 
-        # 위험도 산출 공식
         risk_index = min(100.0, float(unresolved_count / (cctv_count + 1) * 20.0))
         results.append({
             "location": loc,
@@ -46,16 +81,16 @@ def get_zone_statistics(db: Session):
         
     return results
 
+
 def calculate_safety_grade(db: Session):
-    # 1. 최근 30일 이내 이벤트 조회
     thirty_days_ago = datetime.utcnow() - timedelta(days=30)
     events = db.query(Event).filter(Event.date >= thirty_days_ago).all()
     
     score = 100
     unresolved_count = 0
-    unassigned_count = 0 # 미조치
-    progress_count = 0   # 조치 대기, 조치 중
-    pending_count = 0    # 승인 대기
+    unassigned_count = 0
+    progress_count = 0
+    pending_count = 0
     
     for ev in events:
         latest_chk = db.query(Checklist).filter(Checklist.event_id == ev.event_id)\
@@ -77,7 +112,6 @@ def calculate_safety_grade(db: Session):
             
     score = max(0, score)
     
-    # 등급 환산
     if score >= 95:
         grade = "A"
     elif score >= 85:
@@ -100,11 +134,13 @@ def calculate_safety_grade(db: Session):
         "reason": reason
     }
 
+
 def get_reports_by_date(db: Session, start_date: datetime = None, end_date: datetime = None):
     query = db.query(Report)
     if start_date and end_date:
         query = query.filter(Report.created_at.between(start_date, end_date))
     return query.order_by(Report.created_at.desc()).all()
+
 
 def generate_report_ai_summary(db: Session, report_id: int):
     report = db.query(Report).filter(Report.report_id == report_id).first()

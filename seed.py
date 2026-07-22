@@ -1,64 +1,131 @@
 import sys
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, date, timedelta
 import bcrypt
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
 
 # 프로젝트 루트 경로 sys.path 추가
 sys.path.append("c:/aivle202609/big_project")
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from app.db.db import DATABASE_URL
-from app.models.user import User
-from app.models.cctv import CCTV
-from app.models.event_category import EventCategory
-from app.models.event import Event
-from app.models.checklist import Checklist
-from app.models.report import Report
-from app.models.report_event_map import ReportEventMap
-from app.models.report_checklist_map import ReportChecklistMap
+from app.db.db import DATABASE_URL, Base
+from app.models import (
+    User,
+    CCTV,
+    EventCategory,
+    Event,
+    Checklist,
+    Report,
+    ReportEventMap,
+    ReportChecklistMap,
+    Board,
+    Education,
+    EducationStatus
+)
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)
+
 
 def hash_password(password: str) -> str:
     pwd_bytes = password.encode('utf-8')
     salt = bcrypt.gensalt()
     return bcrypt.hashpw(pwd_bytes, salt).decode('utf-8')
 
+
+def auto_migrate():
+    """DB 스키마 자동 동기화 (신규 테이블 생성 및 기존 테이블 신규/변경된 컬럼 ALTER)"""
+    Base.metadata.create_all(bind=engine)
+    with engine.connect() as conn:
+        # 1. board.updated_at 컬럼 추가
+        try:
+            conn.execute(text("ALTER TABLE board ADD COLUMN updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;"))
+            conn.commit()
+            print("board 테이블에 updated_at 컬럼 추가 완료.")
+        except Exception:
+            pass
+
+        # 2. education.due_date 컬럼 추가
+        try:
+            conn.execute(text("ALTER TABLE education ADD COLUMN due_date DATE NULL;"))
+            conn.commit()
+            print("education 테이블에 due_date 컬럼 추가 완료.")
+        except Exception:
+            pass
+
+        # 3. cctv 테이블 컬럼 변경 (camera_name -> cctv_name, camera_id -> cctv_id)
+        try:
+            conn.execute(text("ALTER TABLE cctv CHANGE COLUMN camera_name cctv_name VARCHAR(100) NOT NULL;"))
+            conn.commit()
+            print("cctv 테이블에 cctv_name 컬럼 변경 완료.")
+        except Exception:
+            pass
+
+        try:
+            conn.execute(text("ALTER TABLE cctv CHANGE COLUMN camera_id cctv_id BIGINT AUTO_INCREMENT;"))
+            conn.commit()
+            print("cctv 테이블에 cctv_id 컬럼 변경 완료.")
+        except Exception:
+            pass
+
+
 def seed():
+    # 0. 스키마 자동 동기화
+    auto_migrate()
+
     db = SessionLocal()
     try:
         print("DB 시딩을 시작합니다...")
 
-        # 1. 관리자 유저 생성
-        admin_user = db.query(User).filter(User.user_id == "admin").first()
-        if not admin_user:
-            admin_user = User(
-                user_id="admin",
-                name="최고관리자",
-                password=hash_password("admin123"),
-                role="admin",
-                company_code="AIVLE_TEAM03"
-            )
-            db.add(admin_user)
-            db.commit()
-            db.refresh(admin_user)
-            print("관리자 계정 생성 완료 (ID: admin / PW: admin123)")
-        else:
-            print("관리자 계정이 이미 존재합니다.")
+        # 1. 유저 계정 생성 (관리자 & 작업자 계정)
+        users_data = [
+            {
+                "user_id": "admin",
+                "name": "최고관리자",
+                "password": hash_password("admin123"),
+                "role": "안전 관리자",
+                "company_code": "AIVLE_TEAM03"
+            },
+            {
+                "user_id": "worker1",
+                "name": "김작업",
+                "password": hash_password("worker123"),
+                "role": "일반 작업자",
+                "company_code": "AIVLE_TEAM03"
+            },
+            {
+                "user_id": "worker2",
+                "name": "이신규",
+                "password": hash_password("worker123"),
+                "role": "신규 근로자",
+                "company_code": "AIVLE_TEAM03"
+            }
+        ]
+
+        users = []
+        for u_data in users_data:
+            u = db.query(User).filter(User.user_id == u_data["user_id"]).first()
+            if not u:
+                u = User(**u_data)
+                db.add(u)
+                db.commit()
+                db.refresh(u)
+            users.append(u)
+
+        admin_user = users[0]
+        print(f"유저 계정 {len(users)}개 세팅 완료.")
 
         # 2. CCTV 등록
         cctvs_data = [
-            {"camera_name": "A동 복도 CCTV 1", "location": "A동 복도", "stream_url": "/static/streams/corridor_a1.mp4", "status": "정상"},
-            {"camera_name": "B동 자재창고 CCTV 2", "location": "B동 자재창고", "stream_url": "/static/streams/warehouse_b2.mp4", "status": "정상"},
-            {"camera_name": "C동 하역장 CCTV 3", "location": "C동 하역장", "stream_url": "/static/streams/loading_c3.mp4", "status": "정상"},
-            {"camera_name": "D동 정문 CCTV 4", "location": "D동 정문", "stream_url": "/static/streams/main_gate_d4.mp4", "status": "비정상"}
+            {"cctv_name": "A동 복도 CCTV 1", "location": "A동 복도", "stream_url": "/static/streams/corridor_a1.mp4", "status": "정상"},
+            {"cctv_name": "B동 자재창고 CCTV 2", "location": "B동 자재창고", "stream_url": "/static/streams/warehouse_b2.mp4", "status": "정상"},
+            {"cctv_name": "C동 하역장 CCTV 3", "location": "C동 하역장", "stream_url": "/static/streams/loading_c3.mp4", "status": "정상"},
+            {"cctv_name": "D동 정문 CCTV 4", "location": "D동 정문", "stream_url": "/static/streams/main_gate_d4.mp4", "status": "비정상"}
         ]
         
         cctvs = []
         for c_data in cctvs_data:
-            existing_cctv = db.query(CCTV).filter(CCTV.camera_name == c_data["camera_name"]).first()
+            existing_cctv = db.query(CCTV).filter(CCTV.cctv_name == c_data["cctv_name"]).first()
             if not existing_cctv:
                 new_cctv = CCTV(**c_data)
                 db.add(new_cctv)
@@ -96,7 +163,6 @@ def seed():
             print("더미 이상 감지 이벤트 및 점검 Checklist 적재를 시작합니다...")
             now = datetime.utcnow()
             
-            # 30일 전부터 오늘까지 골고루 분포된 임의의 날짜에 이벤트 12건 생성
             events = []
             for i in range(12):
                 cctv = cctvs[i % len(cctvs)]
@@ -106,7 +172,7 @@ def seed():
                 
                 new_event = Event(
                     category_id=category.category_id,
-                    camera_id=cctv.camera_id,
+                    camera_id=cctv.cctv_id,
                     date=event_date,
                     image_url=f"/static/uploads/dummy_event_{i+1}.jpg"
                 )
@@ -117,12 +183,6 @@ def seed():
                 
             print(f"이상 감지 이벤트 {len(events)}건 적재 완료.")
             
-            # Checklist 생성 (10건)
-            # 3건: 조치 대기
-            # 3건: 조치 중
-            # 2건: 승인 대기 (작업자가 보고한 상태)
-            # 2건: 승인 완료 (최종 해결 상태)
-            # 2건은 Checklist를 만들지 않아 자동으로 "미조치" 상태가 됨
             status_list = [
                 ("조치 대기", "A동 복도 소화전 장애물 감지, 현장 확인 요청"),
                 ("조치 대기", "B동 창고 통로 물품 차단 감지, 대피로 확보 바람"),
@@ -137,14 +197,14 @@ def seed():
             ]
             
             checklists = []
-            for idx, (status, content) in enumerate(status_list):
+            for idx, (status_val, content) in enumerate(status_list):
                 ev = events[idx]
-                img_url = f"/static/uploads/action_resolved_{idx+1}.jpg" if status in ["승인 대기", "승인 완료"] else None
+                img_url = f"/static/uploads/action_resolved_{idx+1}.jpg" if status_val in ["승인 대기", "승인 완료"] else None
                 
                 chk = Checklist(
                     event_id=ev.event_id,
                     date=ev.date + timedelta(hours=1),
-                    status=status,
+                    status=status_val,
                     uid=admin_user.uid,
                     camera_id=ev.camera_id,
                     content=content,
@@ -156,7 +216,7 @@ def seed():
                 checklists.append(chk)
             print(f"체크리스트 조치 내역 {len(checklists)}건 세팅 완료.")
             
-            # 5. 보고서(Report) 생성
+            # 5. 보고서(Report) 및 매핑 생성
             report1 = Report(
                 uid=admin_user.uid,
                 content="7월 2주차 사내 소방 안전 및 대피로 장애물 점검 주간 리포트입니다. B동 자재창고의 장애물이 빈번히 조치 대기 상태로 전이되어 부서별 안전 교육을 권장합니다.",
@@ -176,17 +236,93 @@ def seed():
             db.refresh(report2)
             print("종합 안전 통계 리포트 2건 생성 완료.")
             
-            # 리포트 맵핑 적재
             map1 = ReportEventMap(report_id=report1.report_id, event_id=events[0].event_id)
             map2 = ReportEventMap(report_id=report1.report_id, event_id=events[1].event_id)
             map3 = ReportChecklistMap(report_id=report1.report_id, checklist_id=checklists[0].checklist_id)
             db.add_all([map1, map2, map3])
             db.commit()
             print("리포트-이벤트/체크리스트 연동 맵 테이블 적재 완료.")
-            
         else:
-            print("이미 데이터베이스에 더미 데이터가 충분히 적재되어 있습니다. 데이터 적재 단계를 생략합니다.")
-            
+            print("이상 감지 이벤트 및 점검 데이터가 이미 존재합니다.")
+
+        # 6. 게시판(Board) 적재
+        if db.query(Board).count() == 0:
+            board1 = Board(
+                uid=admin_user.uid,
+                event_category_id=categories[1].category_id,
+                title="B동 자재창고 통로 박스 적치 조치 요청",
+                board_contents="B동 자재창고 비상구 통로 주변에 불법 가연성 적치물이 쌓여 있어 안전 조치를 요청합니다.",
+                status="조치중",
+                location="B동 자재창고",
+                image_url="/static/uploads/board_sample_1.jpg"
+            )
+            board2 = Board(
+                uid=users[1].uid,
+                event_category_id=categories[0].category_id,
+                title="A동 복도 소화기 배치 재점검 요청",
+                board_contents="소화기 외관 점검 결과 일부 소화기 위치 이동 및 가압 점검이 필요합니다.",
+                status="접수",
+                location="A동 복도",
+                image_url=None
+            )
+            db.add_all([board1, board2])
+            db.commit()
+            print("게시판 더미 데이터 2건 적재 완료.")
+        else:
+            print("게시판 데이터가 이미 존재합니다.")
+
+        # 7. 안전 교육(Education) 및 수강 이수 현황(EducationStatus) 적재
+        if db.query(Education).count() == 0:
+            today = date.today()
+            edu1 = Education(
+                title="사업장 정기 소방 안전 필수 교육 2026",
+                role="전체",
+                video_url="https://youtube.com/watch?v=fire_safety_2026",
+                category="소방안전",
+                type="필수",
+                due_date=today + timedelta(days=7)
+            )
+            edu2 = Education(
+                title="비상구 및 대피로 유지관리 현장 실무 가이드",
+                role="일반 작업자",
+                video_url="https://youtube.com/watch?v=evacuation_guide",
+                category="피난",
+                type="정기",
+                due_date=today + timedelta(days=14)
+            )
+            edu3 = Education(
+                title="신규 근로자 맞춤형 산업안전 기본 수칙",
+                role="신규 근로자",
+                video_url="https://youtube.com/watch?v=ppe_rules",
+                category="산업안전",
+                type="필수",
+                due_date=today + timedelta(days=3)
+            )
+            db.add_all([edu1, edu2, edu3])
+            db.commit()
+            db.refresh(edu1)
+            db.refresh(edu2)
+            db.refresh(edu3)
+            print("안전 교육 데이터 3건 적재 완료.")
+
+            # 유저별 수강 현황 적재
+            statuses = [
+                # admin
+                EducationStatus(uid=admin_user.uid, education_id=edu1.education_id, status="이수", completed_date=today - timedelta(days=2)),
+                EducationStatus(uid=admin_user.uid, education_id=edu2.education_id, status="이수", completed_date=today - timedelta(days=1)),
+                # worker1 (김작업 - 일반 작업자)
+                EducationStatus(uid=users[1].uid, education_id=edu1.education_id, status="진행중", completed_date=None),
+                EducationStatus(uid=users[1].uid, education_id=edu2.education_id, status="미이수", completed_date=None),
+                # worker2 (이신규 - 신규 근로자)
+                EducationStatus(uid=users[2].uid, education_id=edu1.education_id, status="미이수", completed_date=None),
+                EducationStatus(uid=users[2].uid, education_id=edu3.education_id, status="진행중", completed_date=None)
+            ]
+            db.add_all(statuses)
+            db.commit()
+            print("교육 수강 이수 현황 데이터 적재 완료.")
+        else:
+            print("안전 교육 데이터가 이미 존재합니다.")
+
         print("DB 시딩이 성공적으로 완료되었습니다!")
     except Exception as e:
         db.rollback()
@@ -195,8 +331,10 @@ def seed():
     finally:
         db.close()
 
+
 def random_offset_days(i):
     return (i * 2) % 28 + 1
+
 
 if __name__ == "__main__":
     seed()
