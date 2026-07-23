@@ -1,7 +1,9 @@
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status, UploadFile, File, Form, BackgroundTasks
 from sqlalchemy.orm import Session
+import os
+import shutil
 
 from app.crud.auth import get_current_admin, get_current_user
 from app.crud.education import (
@@ -31,6 +33,12 @@ from app.schemas.education import (
     AdminRoleCompletionResponse, # 관리자용 교육 이수 현황 그래프 통계 응답모델
     AIEducationGenerateRequest, # 관리자용 AI 교육 자료 생성 요청모델
     AIEducationGenerateResponse, # 관리자용 AI 교육 자료 생성 응답모델
+)
+from app.schemas.ai_video import VideoGenerateResponse, VideoStatusResponse
+from app.services.video_service import (
+    create_task_record,
+    get_task_status,
+    process_video_generation_pipeline
 )
 
 education_router = APIRouter()
@@ -210,3 +218,68 @@ def post_ai_generate_education(
         equipment=req.equipment,
         risk_factor=req.risk_factor
     )
+
+UPLOAD_DIR = "static/uploads"
+
+@education_router.post("/ai-generate", response_model=VideoGenerateResponse, status_code=status.HTTP_202_ACCEPTED)
+async def post_generate_video(
+    background_tasks: BackgroundTasks,
+    file: Optional[UploadFile] = File(None),
+    title: Optional[str] = Form(None),
+    category: Optional[str] = Form("공통"),
+    type: Optional[str] = Form("필수"),
+    request: Optional[str] = Form(None)
+):
+    """
+    관리자: 교육 문서(PDF/PPTX/TXT) 또는 텍스트 입력으로 AI 영상 자동 제작 비동기 요청 API (Education DB 자동 적재)
+    """
+    if not file and not text_content:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="문서 파일(file) 또는 텍스트 내용(text_content) 중 하나는 필수입니다."
+        )
+
+    task_id = create_task_record()
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+    raw_content = None
+    if file:
+        file_path = os.path.join(UPLOAD_DIR, f"{task_id}_{file.filename}")
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    else:
+        file_path = os.path.join(UPLOAD_DIR, f"{task_id}_text.txt")
+        raw_content = text_content.encode("utf-8")
+        with open(file_path, "wb") as buffer:
+            buffer.write(raw_content)
+
+    # FastAPI BackgroundTasks로 비동기 파이프라인 수행 및 Education DB 저장을 위한 파라미터 전달
+    background_tasks.add_task(
+        process_video_generation_pipeline,
+        task_id=task_id,
+        file_path=file_path,
+        raw_content=raw_content,
+        title=title,
+        category=category,
+        type=type
+    )
+
+    return {
+        "task_id": task_id,
+        "status": "PENDING",
+        "message": "AI 교육 영상 생성 작업이 시작되었습니다. task_id로 진행 상태를 조회하세요."
+    }
+
+
+@education_router.get("/ai-generate/{task_id}/status", response_model=VideoStatusResponse)
+def read_video_status(task_id: str):
+    """
+    AI 교육 영상 제작 작업 처리 상태 및 생성 완료된 video_url / DB education_id 조회 API
+    """
+    status_info = get_task_status(task_id)
+    if not status_info:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 작업(task_id)을 찾을 수 없습니다."
+        )
+    return status_info

@@ -1,0 +1,26 @@
+{
+  "task_id": "task_2afe87601104",
+  "extracted_text": "산업안전보건 수칙 교육 자료 (task_5200940fef72_물류창고 기본 안전관리 매뉴얼(관리자용)-수첩용.pdf)",
+  "scenes": [
+    {
+      "scene": 1,
+      "script": "안녕하세요. 오늘 학습할 내용은 물류창고 지게차 운행 및 적치물 안전 수칙 중심으로 작성해줘 필수 안전 수칙입니다.",
+      "image_prompt": "Industrial safety workplace illustration for 안녕하세요. 오늘 학습할 내용은 물류창고 지게차 운행 , digital art 4k"
+    },
+    {
+      "scene": 2,
+      "script": "작업 투입 전 기계 장비의 사전 안전점검과 규격 보호구 착용 상태를 확인하세요.",
+      "image_prompt": "Industrial safety workplace illustration for 작업 투입 전 기계 장비의 사전 안전점검과 규격 보호구, digital art 4k"
+    },
+    {
+      "scene": 3,
+      "script": "통로 주변에 불법 적치물을 방치하지 말고 비상구 및 소방시설 접근로를 상시 확보하세요.",
+      "image_prompt": "Industrial safety workplace illustration for 통로 주변에 불법 적치물을 방치하지 말고 비상구 및 소, digital art 4k"
+    },
+    {
+      "scene": 4,
+      "script": "위험 요소 발견 시 즉시 작업을 중지하고 현장 안전 관리자에게 보고하시기 바랍니다.",
+      "image_prompt": "Industrial safety workplace illustration for 위험 요소 발견 시 즉시 작업을 중지하고 현장 안전 관, digital art 4k"
+    }
+  ]
+}
