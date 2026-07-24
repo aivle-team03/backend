@@ -93,9 +93,9 @@ async def process_video_generation_pipeline(
             progress = 40 + int((idx + 1) / num_scenes * 35)
             record["progress_percent"] = progress
 
-        # Step 5: 최종 비디오 인코딩 및 합성
+        # Step 5: 최종 비디오 인코딩 및 합성 (비동기 await 필수 호출 및 safe task_id 파일명)
         output_video_path = f"static/videos/{title}.mp4"
-        compose_video(scene_clips, output_video_path)
+        await compose_video(scene_clips, output_video_path)
 
         video_url = f"/static/videos/{title}.mp4"
         record["progress_percent"] = 100
