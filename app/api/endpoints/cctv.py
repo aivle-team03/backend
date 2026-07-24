@@ -4,7 +4,7 @@ from typing import List
 
 from app.db.db import get_db
 from app.schemas.cctv import CCTVResponse, CCTVCreate
-from app.crud.cctv import get_cctv, get_cctvs, create_cctv, delete_cctv
+from app.crud.cctv import get_cctv, get_cctvs, create_cctv, delete_cctv, get_cctv_by_name
 
 router = APIRouter()
 
@@ -42,3 +42,21 @@ def remove_cctv(cctv_id: int, db: Session = Depends(get_db)):
             detail="삭제할 CCTV를 찾을 수 없습니다."
         )
     return {"message": f"CCTV #{cctv_id}가 성공적으로 삭제되었습니다."}
+@router.post("", response_model=CCTVResponse, status_code=status.HTTP_201_CREATED)
+def register_cctv(
+    cctv_in: CCTVCreate,
+    db: Session = Depends(get_db)
+):
+    """
+    CCTV 카메라 신규 등록
+    """
+    # 1. 중복된 이름 검사
+    if get_cctv_by_name(db, cctv_in.camera_name):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="이미 존재하는 CCTV 이름입니다.",
+        )
+
+    # 2. CRUD 함수 호출하여 DB 생성
+    db_cctv = create_cctv(db, cctv_in)
+    return db_cctv

@@ -14,7 +14,7 @@ class Checklist(Base):
     camera_id = Column(BigInteger, ForeignKey("cctv.cctv_id"), nullable=False) # FK (점검 대상 CCTV)
     content = Column(String(255), nullable=False)                             # 내용
     image_url = Column(String(255), nullable=True)                            # 현장 이미지 URL
-    type = Column(String(50), nullable=False, default="ROUTINE")              # 조치 or 점검
+    type = Column(String(50), nullable=False, default="점검")              # 조치 or 점검
 
     event = relationship("Event", back_populates="checklists")
     user = relationship("User", back_populates="checklists")

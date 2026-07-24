@@ -30,7 +30,6 @@ def read_user_me(current_user: User = Depends(get_current_user)):
     """내 정보 조회 (마이페이지) API - JWT 인증 필요"""
     return current_user
 
-
 @router.patch("/me/password")
 def change_password(
     password_data: Union[PasswordChangeRequest, PasswordChange],

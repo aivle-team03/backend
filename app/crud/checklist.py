@@ -44,13 +44,8 @@ def get_action_history_by_role(
 ) -> List[Checklist]:
     query = db.query(Checklist)
 
-    # 🚀 type이 '조치'이거나, 상태가 조치 진행/완료 관련 단계인 건들을 모두 가져옴
-    query = query.filter(
-        or_(
-            Checklist.type == "조치",
-            Checklist.status.in_(["조치 중", "승인 대기", "조치 완료", "승인 완료", "조치 필요"])
-        )
-    )
+    # 조치 이력만 조회 (type='점검'은 절대 포함하지 않음)
+    query = query.filter(Checklist.type == "조치")
 
     # 일반 현장 작업자일 경우 본인 조치 이력만 조회
     if user.role != "안전 관리자":

@@ -83,7 +83,7 @@ def seed():
                 "user_id": "admin",
                 "name": "최고관리자",
                 "password": hash_password("admin123"),
-                "role": "안전 관리자",
+                "role": "admin",
                 "company_code": "AIVLE_TEAM03"
             },
             {
@@ -134,28 +134,7 @@ def seed():
         admin_user = users[0]
         print(f"유저 계정 {len(users)}개 세팅 완료.")
 
-        # 2. CCTV 등록
-        cctvs_data = [
-            {"cctv_name": "A동 복도 CCTV 1", "location": "A동 복도", "stream_url": "/static/streams/corridor_a1.mp4", "status": "정상"},
-            {"cctv_name": "B동 자재창고 CCTV 2", "location": "B동 자재창고", "stream_url": "/static/streams/warehouse_b2.mp4", "status": "정상"},
-            {"cctv_name": "C동 하역장 CCTV 3", "location": "C동 하역장", "stream_url": "/static/streams/loading_c3.mp4", "status": "정상"},
-            {"cctv_name": "D동 정문 CCTV 4", "location": "D동 정문", "stream_url": "/static/streams/main_gate_d4.mp4", "status": "비정상"}
-        ]
-        
-        cctvs = []
-        for c_data in cctvs_data:
-            existing_cctv = db.query(CCTV).filter(CCTV.cctv_name == c_data["cctv_name"]).first()
-            if not existing_cctv:
-                new_cctv = CCTV(**c_data)
-                db.add(new_cctv)
-                db.commit()
-                db.refresh(new_cctv)
-                cctvs.append(new_cctv)
-            else:
-                cctvs.append(existing_cctv)
-        print(f"CCTV {len(cctvs)}대 세팅 완료.")
-
-        # 3. 이벤트 카테고리 등록
+        # 2. 이벤트 카테고리 등록
         categories_data = [
             {"category": "위험", "category_name": "화재 감지"},
             {"category": "주의", "category_name": "불법 적치물 검지"},
@@ -176,6 +155,23 @@ def seed():
                 categories.append(existing_cat)
         print(f"이벤트 카테고리 {len(categories)}종 세팅 완료.")
 
+        # 3. CCTV 1대 등록
+        existing_cctv = db.query(CCTV).first()
+        if not existing_cctv:
+            new_cctv = CCTV(
+                cctv_name="메인 CCTV",
+                location="공장 내부",
+                stream_url="http://docs.evostream.com/sample_content/assets/bunny.mp4",
+                status="정상"
+            )
+            db.add(new_cctv)
+            db.commit()
+            db.refresh(new_cctv)
+            cctv = new_cctv
+        else:
+            cctv = existing_cctv
+        print(f"CCTV 세팅 완료: {cctv.cctv_name} (id={cctv.cctv_id})")
+
         # 4. 이상 감지 이벤트 및 조치 Checklist 적재
         existing_event_count = db.query(Event).count()
         if existing_event_count < 10:
@@ -184,14 +180,13 @@ def seed():
             
             events = []
             for i in range(12):
-                cctv = cctvs[i % len(cctvs)]
                 category = categories[i % len(categories)]
                 date_offset = timedelta(days=random_offset_days(i), hours=i*2)
                 event_date = now - date_offset
                 
                 new_event = Event(
                     category_id=category.category_id,
-                    camera_id=cctv.cctv_id,
+                    cctv_id=cctv.cctv_id,
                     date=event_date,
                     image_url=f"/static/uploads/dummy_event_{i+1}.jpg"
                 )
@@ -225,15 +220,42 @@ def seed():
                     date=ev.date + timedelta(hours=1),
                     status=status_val,
                     uid=admin_user.uid,
-                    camera_id=ev.camera_id,
+                    camera_id=ev.cctv_id,
                     content=content,
-                    image_url=img_url
+                    image_url=img_url,
+                    type="조치"
                 )
                 db.add(chk)
                 db.commit()
                 db.refresh(chk)
                 checklists.append(chk)
             print(f"체크리스트 조치 내역 {len(checklists)}건 세팅 완료.")
+
+            # 4-1. 정기 점검 체크리스트 적재 (type="점검", event_id 없음)
+            inspection_list = [
+                ("점검 대기", "A동 복도 소화기 배치 상태 정기 점검"),
+                ("점검 대기", "B동 자재창고 비상구 개폐 여부 확인"),
+                ("점검 대기", "C동 하역장 안전 표지판 마모 상태 점검"),
+                ("점검 완료", "D동 정문 CCTV 화각 및 녹화 상태 점검 완료"),
+                ("점검 완료", "전 구역 소방 설비 작동 테스트 완료"),
+            ]
+
+            for idx, (insp_status, insp_content) in enumerate(inspection_list):
+                insp_chk = Checklist(
+                    event_id=None,
+                    date=now - timedelta(days=idx, hours=idx * 3),
+                    status=insp_status,
+                    uid=admin_user.uid,
+                    camera_id=cctv.cctv_id,
+                    content=insp_content,
+                    image_url=None,
+                    type="점검"
+                )
+                db.add(insp_chk)
+                db.commit()
+                db.refresh(insp_chk)
+                checklists.append(insp_chk)
+            print(f"정기 점검 체크리스트 {len(inspection_list)}건 추가 세팅 완료.")
             
             # 5. 보고서(Report) 및 매핑 생성
             report1 = Report(
