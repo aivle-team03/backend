@@ -3,6 +3,7 @@ import os
 import re
 import base64
 import urllib.request
+import asyncio
 from typing import List, Dict, Optional
 
 
@@ -13,6 +14,7 @@ PROMPT_TEMPLATE = """
 [작성 기준]
 1. 각 장면의 대본(script)은 1~2문장의 명확하고 간결한 한국어로 작성하세요 (최대 50~65자 이내).
 2. image_prompt는 script에 맞는 이미지를 생성하기 위한 프롬프트를 작성하세요.
+3. image_prompt는 반드시 해당 scene에 있는 script를 기반으로 하는 관련 이미지 프롬프트로 작성하세요.
 
 반드시 아래 JSON 배열 형식으로만 응답해야 하며, 다른 서문이나 설명을 추가하지 마세요:
 [
@@ -30,7 +32,8 @@ PROMPT_TEMPLATE = """
 """
 
 
-def _call_gemini_rest_api(api_key: str, payload: dict, models: List[str]) -> Optional[str]:
+def _call_gemini_rest_api_sync(api_key: str, payload: dict, models: List[str]) -> Optional[str]:
+    """동기식 API 호출 함수 (내부 로직은 기존과 동일)"""
     for model_name in models:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
         headers = {"Content-Type": "application/json"}
@@ -39,90 +42,90 @@ def _call_gemini_rest_api(api_key: str, payload: dict, models: List[str]) -> Opt
             with urllib.request.urlopen(req, timeout=40) as resp:
                 res_data = json.loads(resp.read().decode("utf-8"))
                 text_out = res_data["candidates"][0]["content"]["parts"][0]["text"]
-                print(f"[ScriptGenerator] SUCCESS: Gemini Vision REST API 호출 성공 ({model_name})")
+                print(f"[ScriptGenerator] SUCCESS: Gemini Vision API 호출 성공 ({model_name})")
                 return text_out
         except Exception as e:
             print(f"[ScriptGenerator] Gemini REST API {model_name} 대체: {e}")
     return None
 
+def _clean_and_parse_json(raw_text: str) -> Optional[List[Dict]]:
+    """[Refactor] LLM의 마크다운 포맷팅 및 예외 문자열을 방어하는 완벽한 JSON 파서"""
+    text = raw_text.strip()
+    # 마크다운 코드 블록 제거
+    if text.startswith("```json"):
+        text = text[7:]
+    elif text.startswith("```"):
+        text = text[3:]
+    if text.endswith("```"):
+        text = text[:-3]
+    
+    text = text.strip()
+    
+    try:
+        # 1차 시도: 정제된 텍스트 통째로 파싱
+        return json.loads(text)
+    except json.JSONDecodeError:
+        # 2차 시도: 정규식으로 대괄호 배열 부분만 추출해서 파싱
+        match = re.search(r"\[.*\]", text, re.DOTALL)
+        if match:
+            try:
+                return json.loads(match.group(0))
+            except json.JSONDecodeError as e:
+                print(f"[ScriptGenerator] JSON 정규식 추출 후 파싱 실패: {e}")
+    return None
+
 
 async def generate_script_from_text(
-    text: str,
-    request: Optional[str] = None,
-    file_path: Optional[str] = None
+    text: str, request: Optional[str] = None, file_path: Optional[str] = None
 ) -> List[Dict]:
-    """
-    Gemini Vision REST API를 사용하여 문서(스캔 이미지 PDF 포함)를 장면(Scene)별 대본 및 이미지 프롬프트 JSON으로 전환
-    """
     gemini_api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     models_to_try = ["gemini-flash-latest", "gemini-2.0-flash", "gemini-2.5-flash-lite"]
 
     if gemini_api_key:
         print("[ScriptGenerator] Gemini Vision LLM 파이프라인 가동...")
         
-        # 1. 스캔 이미지 PDF 또는 파일이 존재하는 경우 Gemini Vision REST API 직접 전송 (OCR 및 시각 분석)
-        if file_path and os.path.exists(file_path):
-            ext = os.path.splitext(file_path)[1].lower()
-            mime_type = "application/pdf" if ext == ".pdf" else ("image/png" if ext == ".png" else "image/jpeg")
-            try:
-                with open(file_path, "rb") as f:
-                    b64_data = base64.b64encode(f.read()).decode("utf-8")
+        try:
+            payload = None
+            if file_path and os.path.exists(file_path):
+                ext = os.path.splitext(file_path)[1].lower()
+                mime_type = "application/pdf" if ext == ".pdf" else ("image/png" if ext == ".png" else "image/jpeg")
+                
+                # [Refactor] 파일 읽기 작업도 블로킹이므로 백그라운드 스레드로 넘김
+                def _read_file():
+                    with open(file_path, "rb") as f:
+                        return base64.b64encode(f.read()).decode("utf-8")
+                
+                b64_data = await asyncio.to_thread(_read_file)
                 
                 user_prompt = f"{PROMPT_TEMPLATE}\n첨부된 문서/이미지 파일 내용 전체를 Vision OCR로 정밀 판독하고 문서 전체 주제에 맞는 교육 대본(최대 2줄 분량)을 작성하세요."
-                if request:
-                    user_prompt += f"\n사용자 요청 사항: {request}"
+                if request: user_prompt += f"\n사용자 요청 사항: {request}"
 
                 payload = {
-                    "contents": [
-                        {
-                            "parts": [
-                                {"text": user_prompt},
-                                {
-                                    "inlineData": {
-                                        "mimeType": mime_type,
-                                        "data": b64_data
-                                    }
-                                }
-                            ]
-                        }
-                    ]
+                    "contents": [{
+                        "parts": [
+                            {"text": user_prompt},
+                            {"inlineData": {"mimeType": mime_type, "data": b64_data}}
+                        ]
+                    }]
                 }
+            else:
+                user_prompt = f"{PROMPT_TEMPLATE}\n문서 내용:\n{text[:3000]}\n"
+                if request: user_prompt += f"사용자 요청 사항: {request}\n"
+                payload = {"contents": [{"parts": [{"text": user_prompt}]}]}
+
+            if payload:
+                # [Refactor] urllib 동기 네트워크 호출을 이벤트 루프 블로킹 없이 백그라운드 스레드에서 실행
+                raw_resp = await asyncio.to_thread(_call_gemini_rest_api_sync, gemini_api_key, payload, models_to_try)
                 
-                raw_resp = _call_gemini_rest_api(gemini_api_key, payload, models_to_try)
                 if raw_resp:
-                    match = re.search(r"\[.*\]", raw_resp, re.DOTALL)
-                    if match:
-                        results = json.loads(match.group(0))
-                        if results and len(results) > 0:
-                            return results
-            except Exception as ve:
-                print(f"[ScriptGenerator] Vision 파일 전송 파이프라인 예외: {ve}")
-
-        # 2. 텍스트 중심 Gemini REST API 전송
-        try:
-            user_prompt = f"{PROMPT_TEMPLATE}\n문서 내용:\n{text[:3000]}\n"
-            if request:
-                user_prompt += f"사용자 요청 사항: {request}\n"
-
-            payload = {
-                "contents": [
-                    {
-                        "parts": [{"text": user_prompt}]
-                    }
-                ]
-            }
-            
-            raw_resp = _call_gemini_rest_api(gemini_api_key, payload, models_to_try)
-            if raw_resp:
-                match = re.search(r"\[.*\]", raw_resp, re.DOTALL)
-                if match:
-                    results = json.loads(match.group(0))
-                    if results and len(results) > 0:
+                    results = _clean_and_parse_json(raw_resp)
+                    if results:
                         return results
-        except Exception as te:
-            print(f"[ScriptGenerator] 텍스트 API 전송 예외: {te}")
+                        
+        except Exception as e:
+            print(f"[ScriptGenerator] API 파이프라인 예외 발생: {e}")
     else:
-        print("[ScriptGenerator] NOTICE: GEMINI_API_KEY 환경변수 미설정 (기본 룰기반 Fallback 동작)")
+        print("[ScriptGenerator] NOTICE: GEMINI_API_KEY 미설정 (기본 Fallback 동작)")
 
     # Fallback / Default AI 스크립트 분할 파이프라인
     clean_lines = [

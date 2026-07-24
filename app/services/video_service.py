@@ -79,8 +79,8 @@ async def process_video_generation_pipeline(
             img_path = os.path.join(temp_dir, f"scene_{scene_num}.jpg")
             aud_path = os.path.join(temp_dir, f"scene_{scene_num}.mp3")
 
-            # 이미지 & 오디오 병렬/순차 생성 (장면 번호 및 대본 자막 포함)
-            generate_image_from_prompt(img_prompt, img_path, scene_num=scene_num, script=script_txt)
+            # 이미지 & 오디오 병렬/순차 생성 (async def generate_image_from_prompt 비동기 호출)
+            await generate_image_from_prompt(img_prompt, img_path, scene_num=scene_num, script=script_txt)
             await create_audio_from_text(script_txt, aud_path)
             await asyncio.sleep(0.5)
 
@@ -94,10 +94,10 @@ async def process_video_generation_pipeline(
             record["progress_percent"] = progress
 
         # Step 5: 최종 비디오 인코딩 및 합성
-        output_video_path = f"static/videos/{task_id}.mp4"
+        output_video_path = f"static/videos/{title}.mp4"
         compose_video(scene_clips, output_video_path)
 
-        video_url = f"/static/videos/{task_id}.mp4"
+        video_url = f"/static/videos/{title}.mp4"
         record["progress_percent"] = 100
         record["status"] = "COMPLETED"
         record["video_url"] = video_url
