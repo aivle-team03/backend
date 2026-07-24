@@ -4,7 +4,7 @@ from typing import List
 
 from app.db.db import get_db
 from app.schemas.cctv import CCTVResponse, CCTVCreate
-from app.crud.cctv import get_cctv, get_cctvs, create_cctv
+from app.crud.cctv import get_cctv, get_cctvs, create_cctv, delete_cctv
 
 router = APIRouter()
 
@@ -32,3 +32,13 @@ def read_cctv_detail(cctv_id: int, db: Session = Depends(get_db)):
             detail="CCTV를 찾을 수 없습니다."
         )
     return db_cctv
+
+@router.delete("/{cctv_id}", status_code=status.HTTP_200_OK)
+def remove_cctv(cctv_id: int, db: Session = Depends(get_db)):
+    success = delete_cctv(db, cctv_id=cctv_id)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="삭제할 CCTV를 찾을 수 없습니다."
+        )
+    return {"message": f"CCTV #{cctv_id}가 성공적으로 삭제되었습니다."}

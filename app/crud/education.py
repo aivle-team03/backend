@@ -35,7 +35,9 @@ def get_my_education_list(
     user: User,
     category: Optional[str] = None,
 ):
-    query = db.query(Education).filter(Education.role == user.role)
+    query = db.query(Education).filter(
+        or_(Education.role == user.role, Education.role == "전체")
+    )
     if category:
         query = query.filter(Education.category == category)
     return query.order_by(Education.education_id.asc()).all()
@@ -84,7 +86,7 @@ def get_user_education_statuses(
                 EducationStatus.uid == user.uid,
             ),
         )
-        .filter(Education.role == user.role)
+        .filter(or_(Education.role == user.role, Education.role == "전체"))
     )
     if category:
         query = query.filter(Education.category == category)
@@ -95,7 +97,6 @@ def get_user_education_statuses(
         _status_response(education, status_row)
         for education, status_row in rows
     ]
-
 
 # 1. 일반 유저: 이번주 마감, 진행 중, 이수 완료 요약 건수
 def get_user_education_summary_counts(db: Session, user: User) -> Dict[str, int]:
@@ -168,10 +169,10 @@ def get_admin_role_completion_stats(db: Session) -> Dict:
     grand_completed = 0
 
     for r in roles:
-        # 해당 직군 유저 목록
         users_in_role = db.query(User).filter(User.role == r).all()
-        # 해당 직군 대상 교육 목록
-        edus_in_role = db.query(Education).filter(Education.role == r).all()
+        edus_in_role = db.query(Education).filter(
+            or_(Education.role == r, Education.role == "전체")
+        ).all()
 
         target_count = len(users_in_role) * len(edus_in_role)
         if target_count == 0:
@@ -187,7 +188,11 @@ def get_admin_role_completion_stats(db: Session) -> Dict:
             db.query(EducationStatus)
             .join(User, EducationStatus.uid == User.uid)
             .join(Education, EducationStatus.education_id == Education.education_id)
-            .filter(User.role == r, Education.role == r, EducationStatus.status == COMPLETED)
+            .filter(
+                User.role == r,
+                or_(Education.role == r, Education.role == "전체"),
+                EducationStatus.status == COMPLETED
+            )
             .count()
         )
 
@@ -240,11 +245,19 @@ def get_education_status_summaries(
         education_query = education_query.filter(
             Education.education_id == education_id
         )
-    if role:
-        education_query = education_query.filter(Education.role == role)
+    if role and role != "전체":
+        education_query = education_query.filter(
+            or_(Education.role == role, Education.role == "전체")
+        )
 
     summaries = []
     for education in education_query.order_by(Education.education_id.asc()).all():
+        user_filter = (
+            (User.role == education.role)
+            if education.role != "전체"
+            else True
+        )
+
         rows = (
             db.query(User.uid, EducationStatus.status)
             .outerjoin(
@@ -254,7 +267,7 @@ def get_education_status_summaries(
                     EducationStatus.education_id == education.education_id,
                 ),
             )
-            .filter(User.role == education.role)
+            .filter(user_filter)
             .all()
         )
 

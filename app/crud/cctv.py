@@ -22,3 +22,12 @@ def create_cctv(db: Session, cctv_create: CCTVCreate) -> CCTV:
     db.commit()
     db.refresh(db_cctv)
     return db_cctv
+
+def delete_cctv(db: Session, cctv_id: int) -> bool:
+    db_cctv = db.query(CCTV).filter(CCTV.cctv_id == cctv_id).first()
+    if not db_cctv:
+        return False
+    
+    db.delete(db_cctv)
+    db.commit()
+    return True

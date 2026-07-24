@@ -1,9 +1,9 @@
 import os
 import shutil
 import time
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.orm import Session
-from typing import List, Optional
 
 from app.db.db import get_db
 from app.crud.auth import get_current_user
@@ -17,22 +17,38 @@ from app.schemas.checklist import (
 )
 from app.crud.checklist import (
     create_checklist,
-    get_checklists,
+    get_checklists_by_role,
+    get_action_history_by_role,
     search_managers,
     assign_manager,
     complete_checklist,
     update_checklist_status,
-    get_my_checklists
+    delete_checklist
 )
 
 router = APIRouter()
-
 UPLOAD_DIR = "static/uploads"
 
 @router.get("", response_model=List[ChecklistResponse])
-def read_checklists(type: Optional[str] = None, db: Session = Depends(get_db)):
-    """체크리스트 조회 API - 명세서 URL /api/checklists (요구사항 ADM-23-57-25)"""
-    return get_checklists(db, checklist_type=type)
+def read_checklists(
+    type: Optional[str] = None, 
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    return get_checklists_by_role(db, user=current_user, checklist_type=type)
+
+@router.get("/history", response_model=List[ChecklistResponse])
+def read_action_history(
+    skip: int = 0,
+    limit: int = 100,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    조치 이력 조회 API
+    - 조치가 진행/완료/승인된 항목만 조회
+    """
+    return get_action_history_by_role(db, user=current_user, skip=skip, limit=limit)
 
 @router.get("/managers", response_model=List[ManagerSearchResponse])
 def read_managers(keyword: str, db: Session = Depends(get_db)):
@@ -61,11 +77,8 @@ def patch_complete_checklist(
     image: UploadFile = File(...),
     db: Session = Depends(get_db)
 ):
-    """조치 완료 등록 API - 명세서 URL /api/checklists/{checklist_id}/complete (요구사항 ADM-23-56-28)"""
-    # 1. uploads 폴더 생성 확인
     os.makedirs(UPLOAD_DIR, exist_ok=True)
     
-    # 2. 고유 파일명 생성 및 저장
     ext = os.path.splitext(image.filename)[1]
     filename = f"checklist_{checklist_id}_{int(time.time())}{ext}"
     file_path = os.path.join(UPLOAD_DIR, filename)
@@ -75,7 +88,6 @@ def patch_complete_checklist(
         
     image_url = f"/static/uploads/{filename}"
     
-    # 3. 비즈니스 업데이트 처리
     db_checklist = complete_checklist(db, checklist_id=checklist_id, image_url=image_url, content=content)
     if db_checklist is None:
         raise HTTPException(
@@ -90,7 +102,11 @@ def patch_checklist_status(
     status_req: StatusUpdateRequest,
     db: Session = Depends(get_db)
 ):
-    """조치 승인/반려 API - 명세서 URL /api/checklists/{checklist_id}/status (요구사항 ADM-23-81-29)"""
+    """
+    관리자 승인/반려
+    - 승인 시: status = "승인 완료"
+    - 반려 시: status = "조치 필요" (작업자 체크리스트로 되돌아감)
+    """
     db_checklist = update_checklist_status(
         db,
         checklist_id=checklist_id,
@@ -124,3 +140,13 @@ def post_checklist(
     """
     db_checklist = create_checklist(db, checklist_req)
     return db_checklist
+
+@router.delete("/{checklist_id}", status_code=status.HTTP_200_OK)
+def remove_checklist(checklist_id: int, db: Session = Depends(get_db)):
+    success = delete_checklist(db, checklist_id=checklist_id)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="삭제할 체크리스트 항목을 찾을 수 없습니다."
+        )
+    return {"message": f"체크리스트 #{checklist_id} 항목이 성공적으로 삭제되었습니다."}

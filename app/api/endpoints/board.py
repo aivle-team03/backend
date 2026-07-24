@@ -34,14 +34,17 @@ def post_board(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+
     image_url = None
-    if image:
+    if image and image.filename:
         os.makedirs(UPLOAD_DIR, exist_ok=True)
         ext = os.path.splitext(image.filename)[1]
-        filename = f"board_{int(time.time())}_{image.filename}"
+        filename = f"board_{int(time.time())}{ext}"
         file_path = os.path.join(UPLOAD_DIR, filename)
+        
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(image.file, buffer)
+            
         image_url = f"/static/uploads/{filename}"
 
     return create_board(

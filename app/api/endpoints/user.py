@@ -31,7 +31,6 @@ def read_user_me(current_user: User = Depends(get_current_user)):
     return current_user
 
 
-@router.put("/me/password")
 @router.patch("/me/password")
 def change_password(
     password_data: Union[PasswordChangeRequest, PasswordChange],

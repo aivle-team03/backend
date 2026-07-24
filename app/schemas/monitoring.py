@@ -8,11 +8,12 @@ class EventCategoryInfo(BaseModel):
     category_name: str
 
     class Config:
+        from_attribute = True
         orm_mode = True
 
 class CCTVInfo(BaseModel):
-    cctv_id: int = Field(..., alias="camera_id")
-    camera_name: str
+    cctv_id: int = Field(None, validation_alias="camera_id")
+    cctv_name: str = Field(None, validation_alias="camera_name")
     location: str
 
     class Config:
@@ -20,9 +21,9 @@ class CCTVInfo(BaseModel):
         allow_population_by_field_name = True
 
 class EventDetailResponse(BaseModel):
-    event_id: int
+    event_id: int = Field(None, validation_alias="camera_id")
     category_id: int
-    cctv_id: int = Field(..., alias="camera_id")
+    cctv_id: int
     date: datetime
     image_url: Optional[str] = None
     category: Optional[EventCategoryInfo] = None
@@ -30,6 +31,7 @@ class EventDetailResponse(BaseModel):
     current_status: str = "미조치"
 
     class Config:
+        from_attribute = True
         orm_mode = True
         allow_population_by_field_name = True
 
@@ -48,4 +50,5 @@ class ActionRequestResponse(BaseModel):
     image_url: Optional[str] = None
 
     class Config:
+        from_attribute = True
         orm_mode = True

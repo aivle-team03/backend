@@ -103,7 +103,26 @@ def seed():
         ]
 
         users = []
-        for u_data in users_data:
+        
+        # 필수 기본 유저 3명
+        base_users = [
+            {"user_id": "admin", "name": "최고관리자", "password": hash_password("admin123"), "role": "안전 관리자", "company_code": "AIVLE_TEAM03"},
+            {"user_id": "worker1", "name": "김작업", "password": hash_password("worker123"), "role": "일반 작업자", "company_code": "AIVLE_TEAM03"},
+            {"user_id": "worker2", "name": "이신규", "password": hash_password("worker123"), "role": "신규 근로자", "company_code": "AIVLE_TEAM03"}
+        ]
+        
+        # 더미 유저 27명 추가 생성 (총 30명)
+        for i in range(3, 30):
+            role_type = "일반 작업자" if i % 2 == 0 else "신규 근로자"
+            base_users.append({
+                "user_id": f"worker{i}",
+                "name": f"작업자{i}",
+                "password": hash_password("worker123"),
+                "role": role_type,
+                "company_code": "AIVLE_TEAM03"
+            })
+
+        for u_data in base_users:
             u = db.query(User).filter(User.user_id == u_data["user_id"]).first()
             if not u:
                 u = User(**u_data)
@@ -272,6 +291,9 @@ def seed():
             print("게시판 데이터가 이미 존재합니다.")
 
         # 7. 안전 교육(Education) 및 수강 이수 현황(EducationStatus) 적재
+        # 기존 교육 상태 데이터 초기화 (다시 채우기 위해)
+        db.query(EducationStatus).delete()
+        
         if db.query(Education).count() == 0:
             today = date.today()
             edu1 = Education(
@@ -300,26 +322,58 @@ def seed():
             )
             db.add_all([edu1, edu2, edu3])
             db.commit()
-            db.refresh(edu1)
-            db.refresh(edu2)
-            db.refresh(edu3)
-            print("안전 교육 데이터 3건 적재 완료.")
 
-            # 유저별 수강 현황 적재
-            statuses = [
-                # admin
-                EducationStatus(uid=admin_user.uid, education_id=edu1.education_id, status="이수", completed_date=today - timedelta(days=2)),
-                EducationStatus(uid=admin_user.uid, education_id=edu2.education_id, status="이수", completed_date=today - timedelta(days=1)),
-                # worker1 (김작업 - 일반 작업자)
-                EducationStatus(uid=users[1].uid, education_id=edu1.education_id, status="진행중", completed_date=None),
-                EducationStatus(uid=users[1].uid, education_id=edu2.education_id, status="미이수", completed_date=None),
-                # worker2 (이신규 - 신규 근로자)
-                EducationStatus(uid=users[2].uid, education_id=edu1.education_id, status="미이수", completed_date=None),
-                EducationStatus(uid=users[2].uid, education_id=edu3.education_id, status="진행중", completed_date=None)
-            ]
+        edus = db.query(Education).all()
+        today = date.today()
+
+        if edus:
+            statuses = []
+            # 1번 교육: 30명 중 이수 18명, 진행중 8명, 미이수 4명
+            for idx, u in enumerate(users):
+                if idx < 18:
+                    st = "이수"
+                    c_date = today - timedelta(days=idx % 5 + 1)
+                elif idx < 26:
+                    st = "진행중"
+                    c_date = None
+                else:
+                    st = "미이수"
+                    c_date = None
+                statuses.append(EducationStatus(uid=u.uid, education_id=edus[0].education_id, status=st, completed_date=c_date))
+
+            # 2번 교육: 30명 중 이수 22명, 진행중 5명, 미이수 3명
+            if len(edus) > 1:
+                for idx, u in enumerate(users):
+                    if idx < 22:
+                        st = "이수"
+                        c_date = today - timedelta(days=idx % 3 + 1)
+                    elif idx < 27:
+                        st = "진행중"
+                        c_date = None
+                    else:
+                        st = "미이수"
+                        c_date = None
+                    statuses.append(EducationStatus(uid=u.uid, education_id=edus[1].education_id, status=st, completed_date=c_date))
+
+            if len(edus) > 2:
+                new_workers = [u for u in users if u.role == "신규 근로자"]
+                
+                for idx, u in enumerate(new_workers):
+                    if idx < 10:
+                        st = "이수"
+                        c_date = today - timedelta(days=idx % 2 + 1)
+                    elif idx < 13:
+                        st = "진행중"
+                        c_date = None
+                    else:
+                        st = "미이수"
+                        c_date = None
+                    statuses.append(EducationStatus(uid=u.uid, education_id=edus[2].education_id, status=st, completed_date=c_date))
+
+
             db.add_all(statuses)
             db.commit()
-            print("교육 수강 이수 현황 데이터 적재 완료.")
+            print("교육 수강 이수 현황 데이터 풍성하게 적재 완료!")
         else:
             print("안전 교육 데이터가 이미 존재합니다.")
 

@@ -10,10 +10,11 @@ class Checklist(Base):
     event_id = Column(BigInteger, ForeignKey("event.event_id"), nullable=True) # FK (Nullable)
     date = Column(DateTime, nullable=False)                                   # 점검 일시
     status = Column(String(50), nullable=False)                               # 조치 상태
-    uid = Column(BigInteger, ForeignKey("user.uid"), nullable=False)          # FK (점검자)
+    uid = Column(BigInteger, ForeignKey("user.uid"), nullable=True)          # FK (점검자)
     camera_id = Column(BigInteger, ForeignKey("cctv.cctv_id"), nullable=False) # FK (점검 대상 CCTV)
     content = Column(String(255), nullable=False)                             # 내용
     image_url = Column(String(255), nullable=True)                            # 현장 이미지 URL
+    type = Column(String(50), nullable=False, default="ROUTINE")              # 조치 or 점검
 
     event = relationship("Event", back_populates="checklists")
     user = relationship("User", back_populates="checklists")

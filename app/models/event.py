@@ -8,7 +8,7 @@ class Event(Base):
 
     event_id = Column(BigInteger, primary_key=True)                           # PK
     category_id = Column(BigInteger, ForeignKey("event_category.category_id"), nullable=False) # FK
-    camera_id = Column(BigInteger, ForeignKey("cctv.cctv_id"), nullable=False) # FK
+    cctv_id = Column(BigInteger, ForeignKey("cctv.cctv_id"), nullable=False) # FK
     date = Column(DateTime, nullable=False)                                   # 감지 일시
     image_url = Column(String(255), nullable=True)                            # 이미지 URL
 
