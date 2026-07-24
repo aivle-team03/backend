@@ -45,11 +45,17 @@ def auto_migrate():
         except Exception:
             pass
 
-        # 2. education.due_date 컬럼 추가
+        # 2. education.due_date 및 role 컬럼 변경
         try:
             conn.execute(text("ALTER TABLE education ADD COLUMN due_date DATE NULL;"))
             conn.commit()
-            print("education 테이블에 due_date 컬럼 추가 완료.")
+        except Exception:
+            pass
+
+        try:
+            conn.execute(text("ALTER TABLE education MODIFY COLUMN role VARCHAR(50) NULL;"))
+            conn.commit()
+            print("education 테이블 컬럼 조정 완료.")
         except Exception:
             pass
 
