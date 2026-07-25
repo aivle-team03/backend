@@ -43,7 +43,7 @@ def get_reports(
     writer: Optional[str] = None,
     keyword: Optional[str] = None
 ):
-    query = db.query(Report)
+    query = db.query(Report, User.name.label("writer_name")).outerjoin(User, Report.uid == User.uid)
 
     if start_date:
         s_dt = datetime.strptime(start_date, "%Y-%m-%d")
@@ -52,7 +52,7 @@ def get_reports(
         e_dt = datetime.strptime(end_date + " 23:59:59", "%Y-%m-%d %H:%M:%S")
         query = query.filter(Report.created_at <= e_dt)
     if writer:
-        query = query.join(User, Report.uid == User.uid).filter(
+        query = query.filter(
             or_(
                 User.name.like(f"%{writer}%"),
                 User.user_id.like(f"%{writer}%")
@@ -67,7 +67,20 @@ def get_reports(
         )
 
     total = query.count()
-    items = query.order_by(Report.created_at.desc()).offset((page - 1) * size).limit(size).all()
+    rows = query.order_by(Report.created_at.desc()).offset((page - 1) * size).limit(size).all()
+
+    items = []
+    for report, writer_name in rows:
+        item_dict = {
+            "report_id": report.report_id,
+            "uid": report.uid,
+            "content": report.content,
+            "summary": report.summary,
+            "created_at": report.created_at,
+            "writer": writer_name or "작성자 미상",
+        }
+        items.append(item_dict)
+
     return total, items
 
 def get_report_by_id(db: Session, report_id: int) -> Optional[Report]:

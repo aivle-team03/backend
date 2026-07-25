@@ -21,11 +21,9 @@ class EducationResponse(BaseModel):
 
     education_id: int
     title: str
-    role: str
     video_url: str
     category: str
     type: str
-    due_date: Optional[date] = None 
 
 
 class EducationStatusResponse(EducationResponse):
@@ -50,7 +48,6 @@ class UserEducationResponse(BaseModel):
     uid: int
     user_id: str
     name: str
-    role: str
     educations: List[EducationStatusResponse]
 
 class EducationStatusCount(BaseModel):
@@ -61,10 +58,8 @@ class EducationStatusCount(BaseModel):
 class EducationStatusSummaryResponse(BaseModel):
     education_id: int
     title: str
-    role: str
     category: str
     type: str
-    due_date: Optional[date] = None
     target_count: int
     status_counts: List[EducationStatusCount]
     completion_rate: float
@@ -81,7 +76,6 @@ class EducationCompletionResponse(BaseModel):
 
 # 관리자용 직군별 이수 현황 통계
 class AdminRoleCompletionItem(BaseModel):
-    role: str
     completion_rate: float
     target_count: int
     completed_count: int

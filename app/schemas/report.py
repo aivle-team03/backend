@@ -18,6 +18,7 @@ class ReportDetailResponse(BaseModel):
     created_at: datetime
     event_ids: List[int] = []
     checklist_ids: List[int] = []
+    writer: Optional[str] = None
 
     class Config:
         from_attributes = True

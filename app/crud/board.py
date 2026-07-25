@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from typing import Optional
 from app.models.board import Board
+from app.models.user import User
 
 # 생성
 def create_board(
@@ -39,7 +40,7 @@ def get_boards(
     location: Optional[str] = None,
     keyword: Optional[str] = None
 ):
-    query = db.query(Board)
+    query = db.query(Board, User.name.label("writer_name")).outerjoin(User, Board.uid == User.uid)
 
     if category:
         query = query.filter(Board.event_category_id == category)
@@ -56,12 +57,53 @@ def get_boards(
         )
 
     total = query.count()
-    items = query.order_by(Board.created_at.desc()).offset((page - 1) * size).limit(size).all()
+    rows = query.order_by(Board.created_at.desc()).offset((page - 1) * size).limit(size).all()
+
+    items = []
+    for board, writer_name in rows:
+        item_dict = {
+            "board_id": board.board_id,
+            "uid": board.uid,
+            "writer": writer_name or "작성자 미상",
+            "title": board.title,
+            "board_contents": board.board_contents,
+            "event_category_id": board.event_category_id,
+            "status": board.status,
+            "location": board.location,
+            "image_url": board.image_url,
+            "created_at": board.created_at,
+            "updated_at": getattr(board, "updated_at", None),
+        }
+        items.append(item_dict)
+
     return total, items
 
 # 게시글 ID로 상세 조회
-def get_board_by_id(db: Session, board_id: int) -> Optional[Board]:
-    return db.query(Board).filter(Board.board_id == board_id).first()
+def get_board_by_id(db: Session, board_id: int):
+    row = (
+        db.query(Board, User.name.label("writer_name"))
+        .outerjoin(User, Board.uid == User.uid)
+        .filter(Board.board_id == board_id)
+        .first()
+    )
+
+    if not row:
+        return None
+
+    board, writer_name = row
+    return {
+        "board_id": board.board_id,
+        "uid": board.uid,
+        "writer": writer_name or "작성자 미상",  # 👈 상세 조회 시에도 작성자 이름 제공
+        "title": board.title,
+        "board_contents": board.board_contents,
+        "event_category_id": board.event_category_id,
+        "status": board.status,
+        "location": board.location,
+        "image_url": board.image_url,
+        "created_at": board.created_at,
+        "updated_at": getattr(board, "updated_at", None),
+    }
 
 # 게시글 수정
 def update_board(
