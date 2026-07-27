@@ -6,7 +6,8 @@ from typing import Optional
 class UserBase(BaseModel):
     user_id: str
     name: str
-    role: str
+    role: Optional[str] = None
+    category: Optional[str] = None
     company_code: Optional[str] = None
 
 
@@ -27,6 +28,7 @@ class UserName(BaseModel):
 
 class UserCreate(UserBase):
     password: str
+    code: Optional[str] = None                                                # 회원가입 코드 (입력 시 역할/카테고리 자동 부여)
 
 
 class UserLogin(BaseModel):
@@ -62,4 +64,5 @@ class PasswordFindResponse(BaseModel):
 
 
 class UserRoleUpdateRequest(BaseModel):
-    role: str
+    role: Optional[str] = None
+    category: Optional[str] = None

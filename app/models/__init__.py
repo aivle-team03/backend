@@ -9,3 +9,4 @@ from app.models.report_checklist_map import ReportChecklistMap
 from app.models.board import Board
 from app.models.education import Education
 from app.models.education_status import EducationStatus
+from app.models.signup_code import SignupCode

@@ -12,9 +12,10 @@ from app.core.crypt import verify_password
 
 load_dotenv()
 
-SECRET_KEY = os.getenv("SECRET_KEY")
-ALGORITHM = os.getenv("ALGORITHM")
+SECRET_KEY = os.getenv("SECRET_KEY") or "super-secret-key-12345"
+ALGORITHM = os.getenv("ALGORITHM") or "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+
 
 # 토큰 추출 도구 (요청 헤더에서 토큰 꺼냄)
 bearer_scheme = HTTPBearer()
@@ -53,9 +54,12 @@ def get_current_user(
 
 
 def get_current_admin(current_user: User = Depends(get_current_user)):
-    if current_user.role != "admin":
+    """안전관리자(총책임자) 권한 확인 - role이 '안전관리자'인 경우에만 접근 허용"""
+    if current_user.role != "안전관리자":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="관리자 권한이 필요합니다",
+            detail="안전관리자(총책임자) 권한이 필요합니다",
         )
     return current_user
+
+

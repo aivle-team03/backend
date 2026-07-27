@@ -6,7 +6,8 @@ from app.db.db import Base
 class Event(Base):
     __tablename__ = "event"
 
-    event_id = Column(BigInteger, primary_key=True)                           # PK
+    event_id = Column(BigInteger, primary_key=True, autoincrement=True)             # PK
+
     category_id = Column(BigInteger, ForeignKey("event_category.category_id"), nullable=False) # FK
     camera_id = Column(BigInteger, ForeignKey("cctv.cctv_id"), nullable=False) # FK
     date = Column(DateTime, nullable=False)                                   # 감지 일시

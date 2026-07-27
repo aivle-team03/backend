@@ -6,7 +6,8 @@ from app.db.db import Base
 class Report(Base):
     __tablename__ = "report"
 
-    report_id = Column(BigInteger, primary_key=True)
+    report_id = Column(BigInteger, primary_key=True, autoincrement=True)
+
     uid = Column(BigInteger, ForeignKey("user.uid"), nullable=False)
     content = Column(Text, nullable=False)
     summary = Column(String(100), nullable=False)
