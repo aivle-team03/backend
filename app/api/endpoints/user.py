@@ -12,17 +12,34 @@ from app.schemas.user import (
     PasswordFindResponse,
     UserRoleUpdateRequest
 )
-from app.crud.auth import get_current_user
+from app.schemas.signup_code import (
+    SignupCodeCreate,
+    SignupCodeResponse,
+    CategoryListResponse
+)
+from app.crud.auth import get_current_user, get_current_admin
 from app.crud.user import (
     get_users,
     change_user_password,
     find_user_password,
-    update_user_role
+    update_user_role,
+    update_user_category_and_role
+)
+from app.crud.signup_code import (
+    create_signup_code,
+    get_all_signup_codes,
+    get_available_categories
 )
 from app.models import User
 
 router = APIRouter()
+admin_router = APIRouter()
+
+# 구버전 호환용 라우터 (기존 API 명세 유지용)
 admin_user_router = APIRouter()
+
+# 허용 역할 목록 (단일 소스)
+VALID_ROLES = ["안전관리자", "관제사", "현장관리자", "일반유저"]
 
 
 @router.get("/me", response_model=UserResponse)
@@ -97,15 +114,125 @@ def read_users(db: Session = Depends(get_db)):
     return get_users(db)
 
 
-# 관리자 전용 사용자 권한 관리 API
-@admin_user_router.patch("/{uid}/role", response_model=UserResponse)
-def patch_admin_user_role(
-    uid: int = Path(...),
-    req: UserRoleUpdateRequest = ...,
-    db: Session = Depends(get_db)
+# =========================================================
+# 안전관리자(총책임자) 전용 API 라우터 (/api/admin)
+# =========================================================
+
+@admin_router.get("/categories", response_model=CategoryListResponse)
+def get_categories(admin_user: User = Depends(get_current_admin)):
+    """
+    일반유저 지정용 장비 카테고리 목록 조회
+    GET /api/admin/categories
+    """
+    return {"categories": get_available_categories()}
+
+
+@admin_router.post("/invite-codes", response_model=SignupCodeResponse)
+def post_create_invite_code(
+    req: SignupCodeCreate,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_current_admin)
 ):
-    """사용자 권한(현장/통합) 관리 API - 명세서 URL /api/admin/users/{uid}/role"""
-    u = update_user_role(db, uid=uid, role=req.role)
+    """
+    안전관리자 전용: 고유 회원가입 코드 생성
+    POST /api/admin/invite-codes
+    - role: 안전관리자 | 관제사 | 현장관리자 | 일반유저
+    - category: 일반유저 선택 시 필수 (지게차, 화물트럭, 토잉카 등)
+    """
+    if req.role not in VALID_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"유효하지 않은 역할입니다. 선택 가능한 역할: {', '.join(VALID_ROLES)}"
+        )
+    if req.role == "일반유저":
+        if not req.category:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="일반유저 선택 시 카테고리는 필수 입력사항입니다."
+            )
+        valid_categories = get_available_categories()
+        if req.category not in valid_categories:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"유효하지 않은 카테고리입니다. 선택 가능한 카테고리: {', '.join(valid_categories)}"
+            )
+    return create_signup_code(db, role=req.role, category=req.category)
+
+
+@admin_router.get("/invite-codes", response_model=List[SignupCodeResponse])
+def get_invite_codes(
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_current_admin)
+):
+    """
+    안전관리자 전용: 발급된 전체 회원가입 코드 목록 조회
+    GET /api/admin/invite-codes
+    """
+    return get_all_signup_codes(db)
+
+
+@admin_router.get("/users", response_model=List[UserResponse])
+def get_admin_users(
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_current_admin)
+):
+    """
+    안전관리자 전용: 전체 유저 목록(역할, 카테고리 포함) 조회
+    GET /api/admin/users
+    """
+    return get_users(db)
+
+
+@admin_router.patch("/users/{uid}", response_model=UserResponse)
+def patch_admin_user(
+    uid: int = Path(..., description="수정할 유저의 UID"),
+    req: UserRoleUpdateRequest = ...,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_current_admin)
+):
+    """
+    안전관리자 전용: 유저 역할 및 카테고리 변경
+    PATCH /api/admin/users/{uid}
+    - role: 변경할 역할 (안전관리자 | 관제사 | 현장관리자 | 일반유저), 생략 가능
+    - category: 변경할 카테고리 (일반유저인 경우), 생략 가능
+    """
+    # 역할 유효성 검증
+    if req.role is not None and req.role not in VALID_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"유효하지 않은 역할입니다. 선택 가능한 역할: {', '.join(VALID_ROLES)}"
+        )
+    # 카테고리 유효성 검증 (일반유저가 아닌 역할에 카테고리를 지정하려는 경우 경고)
+    if req.category is not None:
+        valid_categories = get_available_categories()
+        if req.category not in valid_categories:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"유효하지 않은 카테고리입니다. 선택 가능한 카테고리: {', '.join(valid_categories)}"
+            )
+
+    u = update_user_category_and_role(db, uid=uid, category=req.category, role=req.role)
     if not u:
         raise HTTPException(status_code=404, detail="해당 사용자를 찾을 수 없습니다.")
     return u
+
+
+# 기존 API 명세 호환용 (admin_user_router - /api/admin/users/{uid}/role)
+@admin_user_router.patch("/{uid}/role", response_model=UserResponse)
+def patch_admin_user_role_legacy(
+    uid: int = Path(...),
+    req: UserRoleUpdateRequest = ...,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_current_admin)
+):
+    """기존 API 명세 호환용 역할 변경 API - PATCH /api/admin/users/{uid}/role"""
+    if req.role is not None and req.role not in VALID_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"유효하지 않은 역할입니다. 선택 가능한 역할: {', '.join(VALID_ROLES)}"
+        )
+    u = update_user_category_and_role(db, uid=uid, category=req.category, role=req.role)
+    if not u:
+        raise HTTPException(status_code=404, detail="해당 사용자를 찾을 수 없습니다.")
+    return u
+
