@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.db.db import get_db
 from app.crud.auth import get_current_user
+from app.models import Board
 from app.models import User
 from app.schemas.board import BoardResponse, BoardListResponse, BoardStatusUpdateRequest
 from app.crud.board import (
@@ -34,14 +35,17 @@ def post_board(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+
     image_url = None
-    if image:
+    if image and image.filename:
         os.makedirs(UPLOAD_DIR, exist_ok=True)
         ext = os.path.splitext(image.filename)[1]
-        filename = f"board_{int(time.time())}_{image.filename}"
+        filename = f"board_{int(time.time())}{ext}"
         file_path = os.path.join(UPLOAD_DIR, filename)
+        
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(image.file, buffer)
+            
         image_url = f"/static/uploads/{filename}"
 
     return create_board(
@@ -135,12 +139,10 @@ def patch_board_status(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # 관리자 전용 권한 확인 조건 추가 필요 시 사용
-    # if current_user.role != "ADMIN":
-    #     raise HTTPException(status_code=403, detail="관리자 권한이 필요합니다.")
-        
-    board = get_board_by_id(db, board_id)
-    if not board:
+    board_obj = db.query(Board).filter(Board.board_id == board_id).first()
+    
+    if not board_obj:
         raise HTTPException(status_code=404, detail="게시글을 찾을 수 없습니다.")
 
-    return update_board_status(db, board, status=status_req.status)
+    updated_board = update_board_status(db, board_obj, status=status_req.status)
+    return updated_board

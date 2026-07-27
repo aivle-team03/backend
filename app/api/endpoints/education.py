@@ -16,7 +16,6 @@ from app.crud.education import (
     get_user_education_statuses,
     get_user_education_summary_counts, # 유저용 교육 요약 건수
     get_user_completion_rates, # 유저용 교육 이수 현황 백분율 조회
-    get_admin_role_completion_stats, # 관리자용 교육 이수 현황 그래프 통계 조회
     create_ai_generated_education, # 관리자용 AI 교육 자료 생성
 )
 from app.db.db import get_db
@@ -124,18 +123,6 @@ def post_my_education_complete(
 # 2. 관리자용 API (/api/admin/education)
 # ==========================================
 
-@admin_education_router.get(
-    "/role-stats",
-    response_model=AdminRoleCompletionResponse,
-    summary="[관리자] 직군별 이수 현황 그래프 통계 조회",
-)
-def read_admin_role_completion_stats(
-    current_admin: User = Depends(get_current_admin),
-    db: Session = Depends(get_db),
-):
-    """관리자 페이지 좌측 상단 '교육 이수 현황' (신규 근로자, 일반 작업자, 특수 작업자, 안전 관리자, 전체 %)"""
-    return get_admin_role_completion_stats(db)
-
 
 @admin_education_router.get(
     "/status",
@@ -148,7 +135,6 @@ def read_education_status_summary(
         None,
         alias="status",
     ),
-    role: Optional[str] = Query(None),
     current_admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
@@ -165,7 +151,6 @@ def read_education_status_summary(
         completion_status=(
             completion_filter.value if completion_filter else None
         ),
-        role=role,
     )
 
 
@@ -207,7 +192,7 @@ def read_user_education(
     summary="[관리자] AI 교육 자료 생성",
 )
 def post_ai_generate_education(
-    req: AIEducationGenerateRequest,
+    req: AIEducationGenerateRequest,    
     current_admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):

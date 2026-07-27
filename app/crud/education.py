@@ -35,7 +35,6 @@ def get_my_education_list(
     user: User,
     category: Optional[str] = None,
 ):
-    query = db.query(Education).filter(Education.role == user.role)
     if category:
         query = query.filter(Education.category == category)
     return query.order_by(Education.education_id.asc()).all()
@@ -59,11 +58,9 @@ def _status_response(education: Education, status_row: Optional[EducationStatus]
     return {
         "education_id": education.education_id,
         "title": education.title,
-        "role": education.role,
         "video_url": education.video_url,
         "category": education.category,
         "type": education.type,
-        "due_date": education.due_date, # 만료일
         "status": progress_status,
         "completed_date": status_row.completed_date if status_row else None, # 이수 완료일
     }
@@ -84,7 +81,6 @@ def get_user_education_statuses(
                 EducationStatus.uid == user.uid,
             ),
         )
-        .filter(Education.role == user.role)
     )
     if category:
         query = query.filter(Education.category == category)
@@ -96,29 +92,21 @@ def get_user_education_statuses(
         for education, status_row in rows
     ]
 
-
 # 1. 일반 유저: 이번주 마감, 진행 중, 이수 완료 요약 건수
 def get_user_education_summary_counts(db: Session, user: User) -> Dict[str, int]:
-    today = date.today()
-    week_end = today + timedelta(days=7)
-
     statuses = get_user_education_statuses(db, user=user)
 
-    due_this_week = 0
+    due_this_week = 0  # due_date가 없어졌으므로 기본 0건 처리 (필요시 '미이수' 건수 등으로 대체 가능)
     in_progress = 0
     completed = 0
 
     for item in statuses:
         st = item["status"]
-        due = item["due_date"]
 
         if st == COMPLETED:
             completed += 1
         elif st == IN_PROGRESS:
             in_progress += 1
-
-        if st != COMPLETED and due and today <= due <= week_end:
-            due_this_week += 1
 
     return {
         "due_this_week_count": due_this_week,
@@ -158,57 +146,6 @@ def get_user_completion_rates(db: Session, user: User) -> Dict[str, float]:
         "total_rate": round(total_completed / total_count * 100, 1) if total_count else 0.0,
     }
 
-
-# 3. 관리자: 직군별 교육 이수 현황 통계
-def get_admin_role_completion_stats(db: Session) -> Dict:
-    roles = ["신규 근로자", "일반 작업자", "특수 작업자", "안전 관리자"]
-    role_results = []
-    
-    grand_target = 0
-    grand_completed = 0
-
-    for r in roles:
-        # 해당 직군 유저 목록
-        users_in_role = db.query(User).filter(User.role == r).all()
-        # 해당 직군 대상 교육 목록
-        edus_in_role = db.query(Education).filter(Education.role == r).all()
-
-        target_count = len(users_in_role) * len(edus_in_role)
-        if target_count == 0:
-            role_results.append({
-                "role": r,
-                "completion_rate": 0.0,
-                "target_count": 0,
-                "completed_count": 0
-            })
-            continue
-
-        completed_count = (
-            db.query(EducationStatus)
-            .join(User, EducationStatus.uid == User.uid)
-            .join(Education, EducationStatus.education_id == Education.education_id)
-            .filter(User.role == r, Education.role == r, EducationStatus.status == COMPLETED)
-            .count()
-        )
-
-        grand_target += target_count
-        grand_completed += completed_count
-
-        rate = round(completed_count / target_count * 100, 1) if target_count else 0.0
-        role_results.append({
-            "role": r,
-            "completion_rate": rate,
-            "target_count": target_count,
-            "completed_count": completed_count
-        })
-
-    total_rate = round(grand_completed / grand_target * 100, 1) if grand_target else 0.0
-    return {
-        "roles": role_results,
-        "total_completion_rate": total_rate
-    }
-
-
 def get_user_education_for_admin(
     db: Session,
     user: User,
@@ -219,7 +156,6 @@ def get_user_education_for_admin(
         "uid": user.uid,
         "user_id": user.user_id,
         "name": user.name,
-        "role": user.role,
         "educations": get_user_education_statuses(
             db,
             user=user,
@@ -228,23 +164,20 @@ def get_user_education_for_admin(
         ),
     }
 
-
 def get_education_status_summaries(
     db: Session,
     education_id: Optional[int] = None,
     completion_status: Optional[str] = None,
-    role: Optional[str] = None,
 ):
     education_query = db.query(Education)
     if education_id is not None:
         education_query = education_query.filter(
             Education.education_id == education_id
         )
-    if role:
-        education_query = education_query.filter(Education.role == role)
 
     summaries = []
     for education in education_query.order_by(Education.education_id.asc()).all():
+
         rows = (
             db.query(User.uid, EducationStatus.status)
             .outerjoin(
@@ -254,7 +187,6 @@ def get_education_status_summaries(
                     EducationStatus.education_id == education.education_id,
                 ),
             )
-            .filter(User.role == education.role)
             .all()
         )
 
@@ -280,10 +212,8 @@ def get_education_status_summaries(
             {
                 "education_id": education.education_id,
                 "title": education.title,
-                "role": education.role,
                 "category": education.category,
                 "type": education.type,
-                "due_date": education.due_date,
                 "target_count": target_count,
                 "status_counts": [
                     {"status": status, "count": counts[status]}
@@ -339,11 +269,9 @@ def create_ai_generated_education(
 
     new_edu = Education(
         title=title,
-        role="전체",
         video_url="/static/videos/ai_safety_sample.mp4",
         category=work_type,
         type="필수",
-        due_date=date.today() + timedelta(days=14)
     )
     db.add(new_edu)
     db.commit()

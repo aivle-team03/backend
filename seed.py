@@ -122,7 +122,26 @@ def seed():
 
 
         users = []
-        for u_data in users_data:
+        
+        # 필수 기본 유저 3명
+        base_users = [
+            {"user_id": "admin", "name": "최고관리자", "password": hash_password("admin123"), "role": "안전 관리자", "company_code": "AIVLE_TEAM03"},
+            {"user_id": "worker1", "name": "김작업", "password": hash_password("worker123"), "role": "일반 작업자", "company_code": "AIVLE_TEAM03"},
+            {"user_id": "worker2", "name": "이신규", "password": hash_password("worker123"), "role": "신규 근로자", "company_code": "AIVLE_TEAM03"}
+        ]
+        
+        # 더미 유저 27명 추가 생성 (총 30명)
+        for i in range(3, 30):
+            role_type = "일반 작업자" if i % 2 == 0 else "신규 근로자"
+            base_users.append({
+                "user_id": f"worker{i}",
+                "name": f"작업자{i}",
+                "password": hash_password("worker123"),
+                "role": role_type,
+                "company_code": "AIVLE_TEAM03"
+            })
+
+        for u_data in base_users:
             u = db.query(User).filter(User.user_id == u_data["user_id"]).first()
             if not u:
                 u = User(**u_data)
@@ -134,28 +153,7 @@ def seed():
         admin_user = users[0]
         print(f"유저 계정 {len(users)}개 세팅 완료.")
 
-        # 2. CCTV 등록
-        cctvs_data = [
-            {"cctv_name": "A동 복도 CCTV 1", "location": "A동 복도", "stream_url": "/static/streams/corridor_a1.mp4", "status": "정상"},
-            {"cctv_name": "B동 자재창고 CCTV 2", "location": "B동 자재창고", "stream_url": "/static/streams/warehouse_b2.mp4", "status": "정상"},
-            {"cctv_name": "C동 하역장 CCTV 3", "location": "C동 하역장", "stream_url": "/static/streams/loading_c3.mp4", "status": "정상"},
-            {"cctv_name": "D동 정문 CCTV 4", "location": "D동 정문", "stream_url": "/static/streams/main_gate_d4.mp4", "status": "비정상"}
-        ]
-        
-        cctvs = []
-        for c_data in cctvs_data:
-            existing_cctv = db.query(CCTV).filter(CCTV.cctv_name == c_data["cctv_name"]).first()
-            if not existing_cctv:
-                new_cctv = CCTV(**c_data)
-                db.add(new_cctv)
-                db.commit()
-                db.refresh(new_cctv)
-                cctvs.append(new_cctv)
-            else:
-                cctvs.append(existing_cctv)
-        print(f"CCTV {len(cctvs)}대 세팅 완료.")
-
-        # 3. 이벤트 카테고리 등록
+        # 2. 이벤트 카테고리 등록
         categories_data = [
             {"category": "위험", "category_name": "화재 감지"},
             {"category": "주의", "category_name": "불법 적치물 검지"},
@@ -176,6 +174,23 @@ def seed():
                 categories.append(existing_cat)
         print(f"이벤트 카테고리 {len(categories)}종 세팅 완료.")
 
+        # 3. CCTV 1대 등록
+        existing_cctv = db.query(CCTV).first()
+        if not existing_cctv:
+            new_cctv = CCTV(
+                cctv_name="메인 CCTV",
+                location="공장 내부",
+                stream_url="http://docs.evostream.com/sample_content/assets/bunny.mp4",
+                status="정상"
+            )
+            db.add(new_cctv)
+            db.commit()
+            db.refresh(new_cctv)
+            cctv = new_cctv
+        else:
+            cctv = existing_cctv
+        print(f"CCTV 세팅 완료: {cctv.cctv_name} (id={cctv.cctv_id})")
+
         # 4. 이상 감지 이벤트 및 조치 Checklist 적재
         existing_event_count = db.query(Event).count()
         if existing_event_count < 10:
@@ -184,14 +199,13 @@ def seed():
             
             events = []
             for i in range(12):
-                cctv = cctvs[i % len(cctvs)]
                 category = categories[i % len(categories)]
                 date_offset = timedelta(days=random_offset_days(i), hours=i*2)
                 event_date = now - date_offset
                 
                 new_event = Event(
                     category_id=category.category_id,
-                    camera_id=cctv.cctv_id,
+                    cctv_id=cctv.cctv_id,
                     date=event_date,
                     image_url=f"/static/uploads/dummy_event_{i+1}.jpg"
                 )
@@ -225,15 +239,42 @@ def seed():
                     date=ev.date + timedelta(hours=1),
                     status=status_val,
                     uid=admin_user.uid,
-                    camera_id=ev.camera_id,
+                    camera_id=ev.cctv_id,
                     content=content,
-                    image_url=img_url
+                    image_url=img_url,
+                    type="조치"
                 )
                 db.add(chk)
                 db.commit()
                 db.refresh(chk)
                 checklists.append(chk)
             print(f"체크리스트 조치 내역 {len(checklists)}건 세팅 완료.")
+
+            # 4-1. 정기 점검 체크리스트 적재 (type="점검", event_id 없음)
+            inspection_list = [
+                ("점검 대기", "A동 복도 소화기 배치 상태 정기 점검"),
+                ("점검 대기", "B동 자재창고 비상구 개폐 여부 확인"),
+                ("점검 대기", "C동 하역장 안전 표지판 마모 상태 점검"),
+                ("점검 완료", "D동 정문 CCTV 화각 및 녹화 상태 점검 완료"),
+                ("점검 완료", "전 구역 소방 설비 작동 테스트 완료"),
+            ]
+
+            for idx, (insp_status, insp_content) in enumerate(inspection_list):
+                insp_chk = Checklist(
+                    event_id=None,
+                    date=now - timedelta(days=idx, hours=idx * 3),
+                    status=insp_status,
+                    uid=admin_user.uid,
+                    camera_id=cctv.cctv_id,
+                    content=insp_content,
+                    image_url=None,
+                    type="점검"
+                )
+                db.add(insp_chk)
+                db.commit()
+                db.refresh(insp_chk)
+                checklists.append(insp_chk)
+            print(f"정기 점검 체크리스트 {len(inspection_list)}건 추가 세팅 완료.")
             
             # 5. 보고서(Report) 및 매핑 생성
             report1 = Report(
@@ -291,6 +332,9 @@ def seed():
             print("게시판 데이터가 이미 존재합니다.")
 
         # 7. 안전 교육(Education) 및 수강 이수 현황(EducationStatus) 적재
+        # 기존 교육 상태 데이터 초기화 (다시 채우기 위해)
+        db.query(EducationStatus).delete()
+        
         if db.query(Education).count() == 0:
             today = date.today()
             edu1 = Education(
@@ -319,26 +363,58 @@ def seed():
             )
             db.add_all([edu1, edu2, edu3])
             db.commit()
-            db.refresh(edu1)
-            db.refresh(edu2)
-            db.refresh(edu3)
-            print("안전 교육 데이터 3건 적재 완료.")
 
-            # 유저별 수강 현황 적재
-            statuses = [
-                # admin
-                EducationStatus(uid=admin_user.uid, education_id=edu1.education_id, status="이수", completed_date=today - timedelta(days=2)),
-                EducationStatus(uid=admin_user.uid, education_id=edu2.education_id, status="이수", completed_date=today - timedelta(days=1)),
-                # worker1 (김작업 - 일반 작업자)
-                EducationStatus(uid=users[1].uid, education_id=edu1.education_id, status="진행중", completed_date=None),
-                EducationStatus(uid=users[1].uid, education_id=edu2.education_id, status="미이수", completed_date=None),
-                # worker2 (이신규 - 신규 근로자)
-                EducationStatus(uid=users[2].uid, education_id=edu1.education_id, status="미이수", completed_date=None),
-                EducationStatus(uid=users[2].uid, education_id=edu3.education_id, status="진행중", completed_date=None)
-            ]
+        edus = db.query(Education).all()
+        today = date.today()
+
+        if edus:
+            statuses = []
+            # 1번 교육: 30명 중 이수 18명, 진행중 8명, 미이수 4명
+            for idx, u in enumerate(users):
+                if idx < 18:
+                    st = "이수"
+                    c_date = today - timedelta(days=idx % 5 + 1)
+                elif idx < 26:
+                    st = "진행중"
+                    c_date = None
+                else:
+                    st = "미이수"
+                    c_date = None
+                statuses.append(EducationStatus(uid=u.uid, education_id=edus[0].education_id, status=st, completed_date=c_date))
+
+            # 2번 교육: 30명 중 이수 22명, 진행중 5명, 미이수 3명
+            if len(edus) > 1:
+                for idx, u in enumerate(users):
+                    if idx < 22:
+                        st = "이수"
+                        c_date = today - timedelta(days=idx % 3 + 1)
+                    elif idx < 27:
+                        st = "진행중"
+                        c_date = None
+                    else:
+                        st = "미이수"
+                        c_date = None
+                    statuses.append(EducationStatus(uid=u.uid, education_id=edus[1].education_id, status=st, completed_date=c_date))
+
+            if len(edus) > 2:
+                new_workers = [u for u in users if u.role == "신규 근로자"]
+                
+                for idx, u in enumerate(new_workers):
+                    if idx < 10:
+                        st = "이수"
+                        c_date = today - timedelta(days=idx % 2 + 1)
+                    elif idx < 13:
+                        st = "진행중"
+                        c_date = None
+                    else:
+                        st = "미이수"
+                        c_date = None
+                    statuses.append(EducationStatus(uid=u.uid, education_id=edus[2].education_id, status=st, completed_date=c_date))
+
+
             db.add_all(statuses)
             db.commit()
-            print("교육 수강 이수 현황 데이터 적재 완료.")
+            print("교육 수강 이수 현황 데이터 풍성하게 적재 완료!")
         else:
             print("안전 교육 데이터가 이미 존재합니다.")
 
