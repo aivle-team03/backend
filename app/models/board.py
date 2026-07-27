@@ -8,6 +8,7 @@ class Board(Base):
 
 # ERD기반으로 추가하였습니다. 추후 수정 가능 
     board_id = Column(BigInteger, primary_key=True, autoincrement=True)  # PK
+    company_id = Column(BigInteger, ForeignKey("company.company_id"), nullable=False)       # 회사 아이디
     uid = Column(BigInteger, ForeignKey("user.uid"), nullable=False)     # 작성자 FK
     event_category_id = Column(BigInteger, ForeignKey("event_category.category_id"), nullable=True) # 카테고리 FK
     title = Column(String(200), nullable=False)                          # 제목
@@ -20,3 +21,4 @@ class Board(Base):
 
     user = relationship("User", backref="boards")
     event_category = relationship("EventCategory", backref="boards")
+    company = relationship("Company")

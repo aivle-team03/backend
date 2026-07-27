@@ -12,6 +12,7 @@ class ReportUpdateRequest(BaseModel):
 
 class ReportDetailResponse(BaseModel):
     report_id: int
+    company_id: int
     uid: int
     content: str
     summary: Optional[str] = None

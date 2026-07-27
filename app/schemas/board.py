@@ -6,6 +6,7 @@ from datetime import datetime
 # 게시글 응답 기본 스키마
 class BoardResponse(BaseModel):
     board_id: int
+    company_id: int
     uid: int
     writer: Optional[str] = None
     title: str

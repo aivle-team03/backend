@@ -12,6 +12,7 @@ class DashboardSummaryResponse(BaseModel):
 
 class RecentEventResponse(BaseModel):
     event_id: int
+    company_id: int
     category_name: str
     cctv_name: str
     location: str
@@ -37,6 +38,7 @@ class SafetyGradeResponse(BaseModel):
 
 class ReportResponse(BaseModel):
     report_id: int
+    company_id: int
     uid: int
     content: str
     summary: str
@@ -48,5 +50,6 @@ class ReportResponse(BaseModel):
 
 class ReportSummaryResponse(BaseModel):
     report_id: int
+    company_id: int
     summary: str
     ai_analysis: str

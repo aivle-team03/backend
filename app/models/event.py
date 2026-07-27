@@ -7,6 +7,7 @@ class Event(Base):
     __tablename__ = "event"
 
     event_id = Column(BigInteger, primary_key=True)                           # PK
+    company_id = Column(BigInteger, ForeignKey("company.company_id"), nullable=False)  #회사 아이디
     category_id = Column(BigInteger, ForeignKey("event_category.category_id"), nullable=False) # FK
     cctv_id = Column(BigInteger, ForeignKey("cctv.cctv_id"), nullable=False) # FK
     date = Column(DateTime, nullable=False)                                   # 감지 일시
@@ -16,3 +17,4 @@ class Event(Base):
     cctv = relationship("CCTV", back_populates="events")
     checklists = relationship("Checklist", back_populates="event")
     report_maps = relationship("ReportEventMap", back_populates="event")
+    company = relationship("Company")

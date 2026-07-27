@@ -1,4 +1,4 @@
-from sqlalchemy import Column, BigInteger, String
+from sqlalchemy import Column, BigInteger, String, ForeignKey
 from sqlalchemy.orm import relationship
 from app.db.db import Base
 
@@ -11,6 +11,9 @@ class CCTV(Base):
     location = Column(String(255), nullable=False)                      # 위치
     stream_url = Column(String(255), nullable=False)                    # 스트림 URL
     status = Column(String(50), nullable=False)                         # 상태
+    company_id = Column(BigInteger, ForeignKey("company.company_id"), nullable=False)       # 회사 아이디
+
 
     events = relationship("Event", back_populates="cctv")
     checklists = relationship("Checklist", back_populates="cctv")
+    company = relationship("Company")

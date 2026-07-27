@@ -4,6 +4,7 @@ from typing import Optional
 
 class EventCategoryInfo(BaseModel):
     category_id: int
+    company_id: int
     category: str
     category_name: str
 
@@ -13,6 +14,7 @@ class EventCategoryInfo(BaseModel):
 
 class CCTVInfo(BaseModel):
     cctv_id: int = Field(None, validation_alias="camera_id")
+    company_id: int
     cctv_name: str = Field(None, validation_alias="camera_name")
     location: str
 
@@ -22,6 +24,7 @@ class CCTVInfo(BaseModel):
 
 class EventDetailResponse(BaseModel):
     event_id: int = Field(None, validation_alias="camera_id")
+    company_id: int
     category_id: int
     cctv_id: int
     date: datetime
@@ -41,6 +44,7 @@ class ActionRequest(BaseModel):
 
 class ActionRequestResponse(BaseModel):
     checklist_id: int
+    company_id: int
     event_id: int
     date: datetime
     status: str

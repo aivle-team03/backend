@@ -7,6 +7,7 @@ BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
 
 class ChecklistResponse(BaseModel):
     checklist_id: int
+    company_id: int
     event_id: Optional[int] = None
     date: datetime
     status: str
@@ -27,6 +28,7 @@ class ChecklistResponse(BaseModel):
 
 class ManagerSearchResponse(BaseModel):
     uid: int
+    company_id: int
     user_id: str
     name: str
 
