@@ -47,8 +47,10 @@ def get_action_history_by_role(
     # 조치 이력만 조회 (type='점검'은 절대 포함하지 않음)
     query = query.filter(Checklist.type == "조치")
 
+    query = query.filter(Checklist.status.in_(["승인 대기", "승인 완료"]))
+
     # 일반 현장 작업자일 경우 본인 조치 이력만 조회
-    if user.role != "안전 관리자":
+    if user.role != "admin":
         query = query.filter(Checklist.uid == user.uid)
 
     return query.order_by(Checklist.date.desc()).offset(skip).limit(limit).all()
