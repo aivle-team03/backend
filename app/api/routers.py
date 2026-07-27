@@ -16,7 +16,9 @@ api_router = APIRouter()
 
 api_router.include_router(user.router, prefix="/users", tags=["users"])
 api_router.include_router(user.admin_user_router, prefix="/admin/users", tags=["admin-users"])
+api_router.include_router(user.admin_router, prefix="/admin", tags=["admin"])
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
+
 api_router.include_router(cctv.router, prefix="/cctvs", tags=["cctvs"])
 api_router.include_router(monitoring.router, prefix="/monitoring", tags=["monitoring"])
 api_router.include_router(checklist.router, prefix="/checklists", tags=["checklists"])

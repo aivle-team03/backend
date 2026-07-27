@@ -19,7 +19,12 @@ def signup(user_create: UserCreate, db: Session = Depends(get_db)):
             detail="이미 존재하는 아이디입니다."
         )
     db_user = crud_create_user(db, user_create)
-    return {"message": "success", "user_id": db_user.user_id}
+    return {
+        "message": "success",
+        "user_id": db_user.user_id,
+        "role": db_user.role,
+        "category": db_user.category
+    }
 
 @router.get("/checkid")
 def checkid(user_id: str, db: Session = Depends(get_db)):
@@ -28,6 +33,23 @@ def checkid(user_id: str, db: Session = Depends(get_db)):
         return {"message": "duplicated"}  # 아이디가 이미 존재하는 경우
     else:
         return {"message": "available"}     # 아이디 사용 가능한 경우
+
+@router.get("/verify-code")
+def verify_code(code: str, db: Session = Depends(get_db)):
+    """회원가입 입력 코드 유효성 검증 및 역할/카테고리 사전 확인 API"""
+    from app.crud.signup_code import get_signup_code_by_code
+    code_obj = get_signup_code_by_code(db, code)
+    if not code_obj:
+        raise HTTPException(status_code=400, detail="유효하지 않은 회원가입 코드입니다.")
+    if code_obj.is_used:
+        raise HTTPException(status_code=400, detail="이미 사용된 회원가입 코드입니다.")
+    return {
+        "message": "valid",
+        "code": code_obj.code,
+        "role": code_obj.role,
+        "category": code_obj.category
+    }
+
 
 @router.post("/login", response_model=Token)
 def login(user_login: UserLogin, db: Session = Depends(get_db)):

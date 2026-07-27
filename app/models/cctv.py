@@ -6,7 +6,8 @@ from app.db.db import Base
 class CCTV(Base):
     __tablename__ = "cctv"
 
-    cctv_id = Column(BigInteger, primary_key=True, autoincrement=True)  # PK
+    cctv_id = Column(BigInteger, primary_key=True, autoincrement=True)              # PK
+
     cctv_name = Column(String(100), nullable=False)                    # CCTV 이름
     location = Column(String(255), nullable=False)                      # 위치
     stream_url = Column(String(255), nullable=False)                    # 스트림 URL

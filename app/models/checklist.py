@@ -6,7 +6,8 @@ from app.db.db import Base
 class Checklist(Base):
     __tablename__ = "checklist"
 
-    checklist_id = Column(BigInteger, primary_key=True)                       # PK
+    checklist_id = Column(BigInteger, primary_key=True, autoincrement=True)         # PK
+
     event_id = Column(BigInteger, ForeignKey("event.event_id"), nullable=True) # FK (Nullable)
     date = Column(DateTime, nullable=False)                                   # 점검 일시
     status = Column(String(50), nullable=False)                               # 조치 상태
@@ -15,7 +16,10 @@ class Checklist(Base):
     content = Column(String(255), nullable=False)                             # 내용
     image_url = Column(String(255), nullable=True)                            # 현장 이미지 URL
     type = Column(String(50), nullable=False, default="점검")              # 조치 or 점검
+<<<<<<< HEAD
     company_id = Column(BigInteger, ForeignKey("company.company_id"), nullable=False)  #회사 아이디
+=======
+>>>>>>> 7ed113320afa3b57587df0d79e1737a2c6d68b8d
 
     event = relationship("Event", back_populates="checklists")
     user = relationship("User", back_populates="checklists")
