@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from app.db.db import get_db
+from app.crud.auth import get_current_user
+from app.models.user import User
 from app.schemas.monitoring import EventDetailResponse, ActionRequest, ActionRequestResponse
 from app.crud.monitoring import get_monitoring_events, get_monitoring_event_by_id, create_action_request
 
@@ -14,14 +16,15 @@ def read_monitoring_events(
     status: Optional[str] = None,
     skip: int = 0,
     limit: int = 100,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    events = get_monitoring_events(db, cctv_id=cctv_id, status=status, skip=skip, limit=limit)
+    events = get_monitoring_events(db, company_id=current_user.company_id, cctv_id=cctv_id, status=status, skip=skip, limit=limit)
     return events
 
 @router.get("/events/{event_id}", response_model=EventDetailResponse)
-def read_monitoring_event(event_id: int, db: Session = Depends(get_db)):
-    event = get_monitoring_event_by_id(db, event_id=event_id)
+def read_monitoring_event(event_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    event = get_monitoring_event_by_id(db, event_id=event_id, company_id=current_user.company_id)
     if event is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -30,13 +33,14 @@ def read_monitoring_event(event_id: int, db: Session = Depends(get_db)):
     return event
 
 @router.post("/events/{event_id}/request", response_model=ActionRequestResponse)
-def post_action_request(event_id: int, action_req: ActionRequest, db: Session = Depends(get_db)):
+def post_action_request(event_id: int, action_req: ActionRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """현장 조치 요청 발송 API - 명세서 URL /api/monitoring/events/{event_id}/request (요구사항 ADM-39-80-37)"""
     db_checklist = create_action_request(
         db,
         event_id=event_id,
         target_uid=action_req.target_uid,
-        message=action_req.message
+        message=action_req.message,
+        company_id=current_user.company_id
     )
     if db_checklist is None:
         raise HTTPException(

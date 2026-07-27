@@ -41,13 +41,14 @@ def get_current_user(
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
-        if user_id is None:
+        company_id: int = payload.get("company_id")
+        if user_id is None or company_id is None:
             raise credentials_exception
     except JWTError:
         raise credentials_exception
 
     user = db.query(User).filter(User.uid == int(user_id)).first()
-    if user is None:
+    if user is None or user.company_id != company_id:
         raise credentials_exception
 
     return user

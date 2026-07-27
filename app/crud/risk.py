@@ -28,15 +28,18 @@ def calculate_risk_level(level: int, frequency: int) -> str:
     else:
         return "하"
 
-def get_risk_category_list(db: Session) -> List[RiskFactorResponse]:
+def get_risk_category_list(db: Session, company_id: int) -> List[RiskFactorResponse]:
     """
     복잡한 대시보드 객체 대신, 단순 카테고리 리스트 배열만 반환
     """
-    categories = db.query(EventCategory).all()
+    categories = db.query(EventCategory).filter(
+        (EventCategory.company_id == company_id) | (EventCategory.company_id.is_(None))
+    ).all() if hasattr(EventCategory, "company_id") else db.query(EventCategory).all()
 
     # Event 카운트 집계
     event_counts = (
         db.query(Event.category_id, func.count(Event.event_id).label("cnt"))
+        .filter(Event.company_id == company_id) 
         .group_by(Event.category_id)
         .all()
     )
@@ -61,12 +64,15 @@ def get_risk_category_list(db: Session) -> List[RiskFactorResponse]:
     return risk_factors
 
 
-def get_risk_dashboard_data(db: Session) -> RiskManagementDashboardResponse:
-    categories = db.query(EventCategory).all()
+def get_risk_dashboard_data(db: Session, company_id: int) -> RiskManagementDashboardResponse:
+    categories = db.query(EventCategory).filter(
+        (EventCategory.company_id == company_id) | (EventCategory.company_id.is_(None))
+    ).all() if hasattr(EventCategory, "company_id") else db.query(EventCategory).all()
 
     # 1. 카테고리별 Event 빈도(count) 집계
     event_counts = (
         db.query(Event.category_id, func.count(Event.event_id).label("cnt"))
+        .filter(Event.company_id == company_id)
         .group_by(Event.category_id)
         .all()
     )
@@ -106,8 +112,10 @@ def get_risk_dashboard_data(db: Session) -> RiskManagementDashboardResponse:
     )
 
 
-def update_event_category_level(db: Session, category_id: int, new_level: int) -> EventCategory:
+def update_event_category_level(db: Session, category_id: int, new_level: int, company_id: int) -> EventCategory:
     category = db.query(EventCategory).filter(EventCategory.category_id == category_id).first()
+    if hasattr(EventCategory, "company_id"):
+        query = query.filter(EventCategory.company_id == company_id)
     if category:
         category.level = new_level
         db.commit()
@@ -115,20 +123,26 @@ def update_event_category_level(db: Session, category_id: int, new_level: int) -
     return category
 
 
-def create_event_category(db: Session, payload: EventCategoryCreate) -> EventCategory:
+def create_event_category(db: Session, payload: EventCategoryCreate, company_id: int) -> EventCategory:
     new_cat = EventCategory(
         category=payload.category,
         category_name=payload.category_name,
         level=payload.level,
     )
+    if hasattr(EventCategory, "company_id"):
+        new_cat["company_id"] = company_id
     db.add(new_cat)
     db.commit()
     db.refresh(new_cat)
     return new_cat
 
 
-def delete_event_category(db: Session, category_id: int) -> bool:
+def delete_event_category(db: Session, category_id: int, company_id: int) -> bool:
     category = db.query(EventCategory).filter(EventCategory.category_id == category_id).first()
+
+    if hasattr(EventCategory, "company_id"):
+        query = query.filter(EventCategory.company_id == company_id)
+        
     if not category:
         return False
     

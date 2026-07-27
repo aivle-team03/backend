@@ -13,6 +13,7 @@ class UserBase(BaseModel):
 
 class UserResponse(UserBase):
     uid: int
+    company_id: int
     created_at: datetime
 
     class Config:
@@ -65,4 +66,4 @@ class PasswordFindResponse(BaseModel):
 
 class UserRoleUpdateRequest(BaseModel):
     role: Optional[str] = None
-    category: Optional[str] = None
+    category: Optional[str] = None

@@ -12,7 +12,7 @@ def get_checklists_by_role(
     user: User, 
     checklist_type: Optional[str] = None
 ) -> List[Checklist]:
-    query = db.query(Checklist)
+    query = db.query(Checklist).filter(Checklist.company_id == user.company_id)
 
     if user.role != "안전 관리자":
         query = query.filter(Checklist.uid == user.uid)
@@ -42,33 +42,39 @@ def get_action_history_by_role(
     skip: int = 0, 
     limit: int = 100
 ) -> List[Checklist]:
-    query = db.query(Checklist)
-
-    # 조치 이력만 조회 (type='점검'은 절대 포함하지 않음)
-    query = query.filter(Checklist.type == "조치")
-
-    query = query.filter(Checklist.status.in_(["승인 대기", "승인 완료"]))
+    query = db.query(Checklist).filter(
+        Checklist.company_id == user.company_id,
+        Checklist.type == "조치",
+        Checklist.status.in_(["승인 대기", "승인 완료"])
+    )
 
     # 일반 현장 작업자일 경우 본인 조치 이력만 조회
-    if user.role != "admin":
+    if user.role != "안전관리자":
         query = query.filter(Checklist.uid == user.uid)
 
     return query.order_by(Checklist.date.desc()).offset(skip).limit(limit).all()
 
-def search_managers(db: Session, keyword: str):
+def search_managers(db: Session, keyword: str, company_id: int):
     return db.query(User).filter(
+        User.company_id == company_id,
         or_(
             User.name.contains(keyword),
             User.user_id.contains(keyword)
         )
     ).all()
 
-def assign_manager(db: Session, checklist_id: int, user_id: str):
-    user = db.query(User).filter(User.user_id == user_id).first()
+def assign_manager(db: Session, checklist_id: int, user_id: str, company_id: int):
+    user = db.query(User).filter(
+        User.user_id == user_id,
+        User.company_id == company_id
+    ).first()
     if not user:
         return None
         
-    db_checklist = db.query(Checklist).filter(Checklist.checklist_id == checklist_id).first()
+    db_checklist = db.query(Checklist).filter(
+        Checklist.checklist_id == checklist_id,
+        Checklist.company_id == company_id
+    ).first()
     if not db_checklist:
         return None
         
@@ -82,9 +88,13 @@ def complete_checklist(
     db: Session, 
     checklist_id: int, 
     image_url: str, 
-    content: str
+    content: str,
+    company_id: int
 ) -> Optional[Checklist]:
-    db_checklist = db.query(Checklist).filter(Checklist.checklist_id == checklist_id).first()
+    db_checklist = db.query(Checklist).filter(
+        Checklist.checklist_id == checklist_id,
+        Checklist.company_id == company_id
+    ).first()
     if not db_checklist:
         return None
         
@@ -100,9 +110,13 @@ def update_checklist_status(
     db: Session, 
     checklist_id: int, 
     status: str, 
+    company_id: int,
     reason: Optional[str] = None
 ) -> Optional[Checklist]:
-    db_checklist = db.query(Checklist).filter(Checklist.checklist_id == checklist_id).first()
+    db_checklist = db.query(Checklist).filter(
+        Checklist.checklist_id == checklist_id,
+        Checklist.company_id == company_id
+    ).first()
     if not db_checklist:
         return None
         
@@ -117,12 +131,25 @@ def update_checklist_status(
     db.refresh(db_checklist)
     return db_checklist
 
-def get_my_checklists(db: Session, uid: int, skip: int = 0, limit: int = 100):
-    return db.query(Checklist).filter(Checklist.uid == uid)\
-             .order_by(Checklist.date.desc())\
-             .offset(skip).limit(limit).all()
+def get_my_checklists(db: Session, uid: int, company_id: int, skip: int = 0, limit: int = 100):
+    return (
+        db.query(Checklist)
+        .filter(
+            Checklist.uid == uid,
+            Checklist.company_id == company_id
+        )
+        .order_by(Checklist.date.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
 
-def create_checklist(db: Session, checklist_in: ChecklistCreate) -> Checklist:
+def create_checklist(
+    db: Session, 
+    checklist_in: ChecklistCreate, 
+    company_id: int, 
+    uid: int
+) -> Checklist:
     evt_id = getattr(checklist_in, 'event_id', None)
     if evt_id == 0:
         evt_id = None
@@ -132,6 +159,8 @@ def create_checklist(db: Session, checklist_in: ChecklistCreate) -> Checklist:
         chk_type = "조치" if evt_id is not None else "점검"
 
     db_checklist = Checklist(
+        company_id=company_id,
+        uid=uid,
         event_id=evt_id,
         camera_id=checklist_in.camera_id,
         content=checklist_in.content,
@@ -139,7 +168,6 @@ def create_checklist(db: Session, checklist_in: ChecklistCreate) -> Checklist:
         status="미조치" if chk_type == "조치" else "점검 대기",
         type=chk_type,
         date=datetime.now(),
-        uid=1
     )
     
     db.add(db_checklist)
@@ -147,8 +175,11 @@ def create_checklist(db: Session, checklist_in: ChecklistCreate) -> Checklist:
     db.refresh(db_checklist)
     return db_checklist
 
-def delete_checklist(db: Session, checklist_id: int) -> bool:
-    db_checklist = db.query(Checklist).filter(Checklist.checklist_id == checklist_id).first()
+def delete_checklist(db: Session, checklist_id: int, company_id: int) -> bool:
+    db_checklist = db.query(Checklist).filter(
+        Checklist.checklist_id == checklist_id,
+        Checklist.company_id == company_id
+    ).first()    
     if not db_checklist:
         return False
     

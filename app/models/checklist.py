@@ -16,10 +16,7 @@ class Checklist(Base):
     content = Column(String(255), nullable=False)                             # 내용
     image_url = Column(String(255), nullable=True)                            # 현장 이미지 URL
     type = Column(String(50), nullable=False, default="점검")              # 조치 or 점검
-<<<<<<< HEAD
     company_id = Column(BigInteger, ForeignKey("company.company_id"), nullable=False)  #회사 아이디
-=======
->>>>>>> 7ed113320afa3b57587df0d79e1737a2c6d68b8d
 
     event = relationship("Event", back_populates="checklists")
     user = relationship("User", back_populates="checklists")
