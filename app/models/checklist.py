@@ -6,7 +6,8 @@ from app.db.db import Base
 class Checklist(Base):
     __tablename__ = "checklist"
 
-    checklist_id = Column(BigInteger, primary_key=True)                       # PK
+    checklist_id = Column(BigInteger, primary_key=True, autoincrement=True)         # PK
+
     event_id = Column(BigInteger, ForeignKey("event.event_id"), nullable=True) # FK (Nullable)
     date = Column(DateTime, nullable=False)                                   # 점검 일시
     status = Column(String(50), nullable=False)                               # 조치 상태

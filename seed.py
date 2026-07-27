@@ -74,6 +74,15 @@ def auto_migrate():
         except Exception:
             pass
 
+        # 4. user 테이블 category 컬럼 추가
+        try:
+            conn.execute(text("ALTER TABLE user ADD COLUMN category VARCHAR(100) NULL;"))
+            conn.commit()
+            print("user 테이블에 category 컬럼 추가 완료.")
+        except Exception:
+            pass
+
+
 
 def seed():
     # 0. 스키마 자동 동기화
@@ -89,24 +98,28 @@ def seed():
                 "user_id": "admin",
                 "name": "최고관리자",
                 "password": hash_password("admin123"),
-                "role": "admin",
+                "role": "안전관리자",
+                "category": None,
                 "company_code": "AIVLE_TEAM03"
             },
             {
                 "user_id": "worker1",
                 "name": "김작업",
                 "password": hash_password("worker123"),
-                "role": "일반 작업자",
+                "role": "일반유저",
+                "category": "지게차",
                 "company_code": "AIVLE_TEAM03"
             },
             {
                 "user_id": "worker2",
                 "name": "이신규",
                 "password": hash_password("worker123"),
-                "role": "신규 근로자",
+                "role": "일반유저",
+                "category": "화물트럭",
                 "company_code": "AIVLE_TEAM03"
             }
         ]
+
 
         users = []
         
