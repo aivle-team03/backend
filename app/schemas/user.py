@@ -6,6 +6,7 @@ from typing import Optional
 class UserBase(BaseModel):
     user_id: str
     name: str
+    company_id: Optional[int] = None
     role: Optional[str] = None
     category: Optional[str] = None
     company_code: Optional[str] = None
