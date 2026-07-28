@@ -5,50 +5,72 @@
 ![MySQL](https://img.shields.io/badge/MySQL-4479A1?style=for-the-badge&logo=mysql&logoColor=white)
 ![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-D71F00?style=for-the-badge&logo=sqlalchemy&logoColor=white)
 ![JWT](https://img.shields.io/badge/JWT-black?style=for-the-badge&logo=JSON%20web%20tokens)
+![Pydantic](https://img.shields.io/badge/Pydantic-E92063?style=for-the-badge&logo=pydantic&logoColor=white)
 
 > **AIVLE Team 03 백엔드 서비스**  
-> 사업장 내 이상 상황(화재, 적치물, 보호구 미착용 등)을 실시간 모니터링하고, 현장 조치 체크리스트 전이 관리, 구역별 안전 위험도 계산, 소방 법규 챗봇 및 AI 조치 검증을 제공하는 RESTful 백엔드 API 서버입니다.
+> 사업장 내 이상 상황(화재, 적치물, 보호구 미착용 등)을 실시간 모니터링하고, 현장 조치 체크리스트 전이 관리, 구역별 안전 위험도 연산, 소방 법규/매뉴얼 챗봇, AI 비전 감지 및 조치 검증, 안전 교육 & AI 영상 생성 파이프라인, 보고서 PDF 생성까지 통합 제공하는 RESTful 백엔드 API 서버입니다.
 
 ---
 
 ## 📌 주요 기능 (Key Features)
 
-### 🔑 1. 인증/인가 및 사용자 관리 (`/api/auth`, `/api/users`)
-- JWT Access/Refresh 토큰 기반 사용자 인증 및 비밀번호 Bcrypt 암호화
-- 회원가입, 로그인, 아이디 중복 확인, 내 정보 및 사용자 목록 조회
+### 🔑 1. 인증/인가 및 권한별 사용자 관리 (`/api/auth`, `/api/users`, `/api/admin`)
+- **JWT 토큰 인증**: Access/Refresh 토큰 기반 사용자 인증 및 비밀번호 Bcrypt 암호화
+- **회원가입 & 초대 코드**: 안전관리자 전용 회원가입 고유 초대 코드 생성 및 유효성 검증 (`/api/auth/verify-code`)
+- **역할 및 카테고리 관리**: 역할(안전관리자, 관제사, 현장관리자, 일반유저) 및 장비 카테고리(지게차, 화물트럭, 토잉카 등) 지정/수정 (`/api/admin/users/{uid}`)
+- **마이페이지 & 계정 관리**: 내 정보 조회, 비밀번호 변경 (`/api/users/me/password`), 알림 설정 ON/OFF (`/api/users/me/notifications`), 비밀번호 찾기
 
 ### 📹 2. CCTV 모니터링 관리 (`/api/cctvs`)
-- 구역별 CCTV 대수, 실시간 스트리밍 URL, 정상/비정상 작동 상태 관리 및 CRUD 제공
+- 구역별 CCTV 대수, 실시간 스트리밍 URL, 위치, 작동 상태(정상/비정상) CRUD 관리
 
 ### 🚨 3. 이상 상황 모니터링 및 현장 조치 요청 (`/api/monitoring`)
-- 이상 감지 이벤트 발생 이력 조회 및 모니터링
-- 관리자가 이상 이벤트 발견 시 현장 조치자 지정 및 메시지 할당 ➡️ `Checklist` 조치 레코드 자동 생성
+- 실시간 이상 감지 이벤트 발생 이력 조회 및 모니터링
+- 관리자가 이상 이벤트 발견 시 현장 조치 담당자 지정 및 메시지 할당 ➡️ `Checklist` 조치 레코드 자동 생성
 
 ### 📋 4. 체크리스트 & 현장 조치 생명주기 관리 (`/api/checklists`)
-- **상태 흐름**: `조치 대기` ➡️ `조치 중` ➡️ `승인 대기` ➡️ `승인 완료` (또는 `반려`)
-- 현장 작업자의 조치 사진/설명 업로드 (`multipart/form-data`) 및 관리자 검토/승인 워크플로우
-- 업로드 정적 자원 서빙 (`/static/uploads`)
+- **상태 흐름**: `조치 필요/대기` ➡️ `조치 중` ➡️ `승인 대기` ➡️ `승인 완료` (또는 `반려`)
+- **조치 담당자 연동**: 조치 담당자 검색 (`/api/checklists/managers`) 및 담당자 배정 (`/api/checklists/{id}/assign`)
+- **현장 조치 보고**: 작업자의 조치 사진/설명 업로드 (`multipart/form-data`) 및 관리자 검토/승인 워크플로우
+- **이력 및 내 조치**: 조치 완료/이력 조회 및 로그인된 사용자의 담당 체크리스트 목록 제공 (`/api/checklists/me`)
 
-### 📊 5. 대시보드 통계 & 종합 안전 등급 (`/api/dashboard`)
+### ⚠️ 5. 위험요인 & 매트릭스 관리 (`/api/risk`)
+- 위험요인 (Event Category) 목록 조회 (`/api/risk/list`)
+- 카테고리별 위험 강도(1~10 Level) 수정 및 신규 위험요인 카테고리 추가/삭제
+
+### 📄 6. 안전 보고서 관리 & PDF 다운로드 (`/api/report`)
+- 이상 감지 이벤트 및 조치 체크리스트 항목을 선택하여 자동 보고서 생성 (`POST /api/report`)
+- 보고서 목록/상세 조회, 수정, 삭제
+- **PDF 동적 다운로드**: 보고서 상세 내용을 표준 PDF 문서 형태로 다운로드 서빙 (`GET /api/report/{id}/download`)
+
+### 📊 7. 대시보드 통계 & 종합 안전 등급 (`/api/dashboard`)
 - **구역별 실시간 위험 지수**: CCTV 위치 단위 미해결 이벤트 비율 기반 위험도 연산 (0~100점)
-- **종합 안전 등급 계산**: 최근 30일 이내 감지 이벤트의 미해결 상태별 감점 수식(100점 만점 척도) 적용 ➡️ **A ~ F 등급** 자동 산출 및 원인 분석 요약
+- **종합 안전 등급 계산**: 최근 30일 이내 감지 이벤트의 미해결 상태별 감점 수식 적용 ➡️ **A ~ F 등급** 자동 산출 및 원인 분석 요약
 - 기간별 통계 리포트 조회 및 AI 분석 보고서 요약 텍스트 제공
 
-### 🤖 6. 소방안전 챗봇 & 법규/매뉴얼 검색 (`/api/chatbot`, `/api/data`)
+### 🎓 8. 안전 교육 관리 & AI 영상 제작 파이프라인 (`/api/education`, `/api/admin/education`)
+- **유저 수강 관리**: 개인별 마감/진행/완료 교육 요약, 교육 목록 조회, 필수/정기 교육 이수율(%) 연산 및 80% 이상 수강 시 완료 처리 (`/api/education/{id}/complete`)
+- **관리자 이수 현황**: 대상자별/유저별 이수 상태 상세 조회 (`/api/admin/education/status`)
+- **AI 교육 콘텐츠 및 영상 생성**: 작업 유형, 사용 장비, 위험 요인 기반 AI 교육 자료 자동 생성 및 문서(PDF/PPTX/TXT)/텍스트 입력을 기반으로 한 비동기 AI 교육 영상 자동 제작 파이프라인 (`BackgroundTasks` 연동)
+
+### 📌 9. 공지사항 & 안전 게시판 (`/api/boards`)
+- 사내 공지 및 안전 제보/커뮤니티 게시판 CRUD
+- 키워드, 카테고리, 위치, 조치 상태별 게시글 검색 및 현장 사진 파일 첨부 업로드 기능 제공
+
+### 🤖 10. 소방안전 챗봇 & 법규/매뉴얼 검색 (`/api/chatbot`, `/api/data`)
 - 소방/안전 키워드 기반 자연어 질의응답 매칭 엔진
 - 초기 추천 질문 목록(4종) 제공
 - 소방시설법, 산업안전보건법 및 사내 소방 매뉴얼 키워드 검색 지원
 
-### 🧠 7. AI 비전 탐지 & 조치 결과 검증 (`/api/ai`)
+### 🧠 11. AI 비전 탐지 & 조치 결과 검증 (`/api/ai`)
 - **소방시설 탐지**: 이미지 내 소화기 등의 바운딩 박스(`bbox`) 및 신뢰도 탐지
 - **위험요소 탐지**: 비상구 통로 불법 적치물/장애물 검지 및 위험 수준(`High`/`Low`) 판정
-- **화재 징후 탐지**: CCTV 프레임(이미지) 내 농연(Smoke) 및 불꽃 징후 감지 및 비상 경보 메시지 리턴
+- **화재 징후 탐지**: CCTV 프레임 내 농연(Smoke) 및 불꽃 징후 감지 및 비상 경보 메시지 리턴
 - **조치결과 재확인**: 조치 전/후 사진 2장을 수신하여 시각적 유사도 분석 및 위험 요소 해결 여부 AI 검증
 
-### ⚙️ 8. 글로벌 예외 처리 & 파일 로깅 시스템
+### ⚙️ 12. 글로벌 예외 처리 & 파일 로깅 & CORS
 - 서버 전역 예외(`HTTPException`, `RequestValidationError`, `Exception`)를 통일된 JSON 구조로 가공하여 전달
 - `RotatingFileHandler` 기반 `logs/app.log` 로그 자동 적재 및 관리 (5MB 백업 파일 회전)
-- 프론트엔드 크로스 도메인 연동 지원을 위한 **CORS 미들웨어** 탑재
+- 프론트엔드 연동을 위한 전역 **CORS 미들웨어** 탑재 및 정적 파일 서빙 (`/static/uploads`)
 
 ---
 
@@ -59,28 +81,30 @@
 | **Language** | Python 3.10+ |
 | **Framework** | FastAPI |
 | **Database & ORM** | MySQL, SQLAlchemy, PyMySQL |
-| **Auth & Security** | PyJWT, Passlib (Bcrypt), Python-Multipart |
-| **Validation** | Pydantic v2 |
+| **Auth & Security** | PyJWT / python-jose, Passlib (Bcrypt), Python-Multipart |
+| **Validation & Serialization** | Pydantic v2 |
 | **Server Engine** | Uvicorn, WatchFiles |
+| **Async Tasks & File Processing** | FastAPI BackgroundTasks, Python Standard File I/O |
 
 ---
 
 ## 📂 프로젝트 구조 (Directory Structure)
 
 ```text
-big_project/
+backend/
 ├── app/
 │   ├── api/
-│   │   ├── endpoints/        # API 라우터 컨트롤러 (auth, cctv, chatbot, checklist, dashboard, monitoring, user, ai_detect)
+│   │   ├── endpoints/        # API 라우터 컨트롤러 (auth, user, cctv, monitoring, checklist, risk, report, dashboard, education, board, chatbot, ai_detect)
 │   │   └── routers.py        # 통합 API 라우터 매핑
 │   ├── core/                 # 암호화(crypt), 전역 예외/로깅(exceptions)
-│   ├── crud/                 # DB 비즈니스 로직 / CRUD
-│   ├── db/                   # DB 연결 세션 및 Base 선언
-│   ├── models/               # SQLAlchemy ORM 모델 (User, CCTV, Event, Checklist, Report, Map 등)
+│   ├── crud/                 # DB 비즈니스 로직 / CRUD 모듈
+│   ├── db/                   # DB 연결 세션 및 Base 선언 (db.py)
+│   ├── models/               # SQLAlchemy ORM 모델 (User, CCTV, Event, Checklist, Report, Board, Education, SignupCode 등)
 │   ├── schemas/              # Pydantic DTO 데이터 스키마
+│   ├── services/             # 비동기 AI 영상 생성 서비스 파이프라인 (video_service.py 등)
 │   └── main.py               # FastAPI 애플리케이션 엔트리포인트
 ├── logs/                     # 서버 런타임 회전 파일 로그 (app.log)
-├── static/uploads/           # 현장 조치 업로드 이미지 서빙 디렉토리
+├── static/uploads/           # 현장 조치 및 게시판 업로드 이미지/파일 서빙 디렉토리
 ├── seed.py                   # DB 자동 시딩 스크립트 (더미 데이터 일괄 적재)
 ├── .env                      # 환경 변수 설정
 ├── requirements.txt          # 파이썬 의존성 패키지
@@ -120,7 +144,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES=30
 
 ### 3. 데이터베이스 초기 시딩 (Optional)
 
-개발 및 테스트용 모의 데이터(CCTV 4대, 이상 이벤트 12건, 조치 체크리스트 10건, 리포트 등)를 일괄적재합니다.
+개발 및 테스트용 모의 데이터(유저, CCTV, 이상 이벤트, 체크리스트, 리포트, 교육, 게시글 등)를 일괄 적재합니다.
 
 ```bash
 python seed.py
@@ -142,24 +166,65 @@ uvicorn app.main:app --reload
 
 | Category | Method | Endpoint | Description |
 | :--- | :---: | :--- | :--- |
-| **Auth** | `POST` | `/api/auth/login` | 로그인 및 JWT 토큰 발급 |
-| | `POST` | `/api/auth/signup` | 신규 회원가입 |
+| **Auth** | `POST` | `/api/auth/signup` | 신규 회원가입 |
+| | `GET` | `/api/auth/verify-code` | 회원가입 코드 유효성 검증 |
 | | `GET` | `/api/auth/checkid` | 사용자 아이디 중복 확인 |
-| **Users** | `GET` | `/api/users/me` | 내 정보 조회 |
-| | `GET` | `/api/users/` |전체 사용자 목록 조회 |
-| **CCTV** | `GET` | `/api/cctvs/` | CCTV 목록 및 상태 조회 |
-| | `POST` | `/api/cctvs/` | 신규 CCTV 등록 |
+| | `POST` | `/api/auth/login` | 로그인 및 JWT Access Token 발급 |
+| | `POST` | `/api/auth/logout` | 로그아웃 (토큰 무효화) |
+| | `POST` | `/api/auth/find/password` | 비밀번호 찾기/재설정 |
+| **Users** | `GET` | `/api/users/me` | 로그인 사용자 내 정보 조회 |
+| | `PATCH` | `/api/users/me/password` | 내 비밀번호 변경 |
+| | `PATCH` | `/api/users/me/notifications` | 항목별 알림 수신 여부 설정 |
+| | `GET` | `/api/users/find/password` | 아이디/이름으로 비밀번호 찾기 메일 안내 |
+| | `GET` | `/api/users` | 전체 사용자 목록 조회 |
+| **Admin** | `GET` | `/api/admin/categories` | 장비 카테고리 목록 조회 |
+| | `POST` | `/api/admin/invite-codes` | 가입 회원가입 초대 코드 생성 |
+| | `GET` | `/api/admin/invite-codes` | 발급된 회원가입 초대 코드 목록 조회 |
+| | `GET` | `/api/admin/users` | 관리자용 전체 유저 목록 조회 |
+| | `PATCH` | `/api/admin/users/{uid}` | 유저 역할 및 장비 카테고리 수정 |
+| **CCTV** | `GET` | `/api/cctvs` | CCTV 목록 및 상태 조회 |
+| | `POST` | `/api/cctvs` | 신규 CCTV 등록 |
 | | `GET` | `/api/cctvs/{camera_id}` | 특정 CCTV 상세 조회 |
 | **Monitoring** | `GET` | `/api/monitoring/events` | 이상 감지 이벤트 목록 조회 |
 | | `POST` | `/api/monitoring/events/{event_id}/request` | 현장 조치 요청 (체크리스트 생성) |
-| **Checklist** | `GET` | `/api/checklists/` | 전체 체크리스트 목록 조회 |
-| | `GET` | `/api/checklists/my` | 내 조치 할당 목록 조회 |
-| | `POST` | `/api/checklists/{id}/report` | 현장 조치 사진/내용 업로드 완료 보고 |
-| | `PATCH` | `/api/checklists/{id}/status` | 관리자 검토 (승인 완료 / 반려) |
+| **Checklist** | `GET` | `/api/checklists` | 전체 체크리스트 목록 조회 |
+| | `GET` | `/api/checklists/history` | 조치 완료 및 승인 이력 조회 |
+| | `GET` | `/api/checklists/managers` | 현장 조치 담당자 검색 |
+| | `GET` | `/api/checklists/me` | 내 조치 기록 조회 |
+| | `POST` | `/api/checklists` | 체크리스트 등록 (수동/AI 생성) |
+| | `PATCH` | `/api/checklists/{id}/assign` | 체크리스트 담당자 배정 |
+| | `PATCH` | `/api/checklists/{id}/complete` | 조치 완료 보고 (사진/내용 업로드) |
+| | `PATCH` | `/api/checklists/{id}/status` | 관리자 승인 완료 또는 반려 |
+| | `DELETE`| `/api/checklists/{id}` | 체크리스트 항목 삭제 |
+| **Risk** | `GET` | `/api/risk/list` | 위험요인 카테고리 목록 조회 |
+| | `PATCH` | `/api/risk/category/{id}/level` | 카테고리별 위험 강도(1~10) 수정 |
+| | `POST` | `/api/risk/category` | 신규 위험요인 카테고리 등록 |
+| | `DELETE`| `/api/risk/category/{id}` | 위험요인 카테고리 삭제 |
+| **Report** | `POST` | `/api/report` | 이벤트/체크리스트 기반 안전 보고서 생성 |
+| | `GET` | `/api/report` | 보고서 목록 조회 (검색/필터) |
+| | `GET` | `/api/report/{id}` | 보고서 상세 조회 |
+| | `PUT` | `/api/report/{id}` | 보고서 내용 수정 |
+| | `DELETE`| `/api/report/{id}` | 보고서 삭제 |
+| | `GET` | `/api/report/{id}/download` | 보고서 PDF 파일 동적 다운로드 |
 | **Dashboard**| `GET` | `/api/dashboard/zones/stats` | 구역별 위험도 집계 통계 |
-| | `GET` | `/api/dashboard/safetygrade` | 30일 이내 이벤트 기반 종합 안전 등급 (A~F) |
+| | `GET` | `/api/dashboard/safetygrade` | 최근 30일 기반 종합 안전 등급 (A~F) |
 | | `GET` | `/api/dashboard/reports` | 기간별 통계 보고서 조회 |
 | | `GET` | `/api/dashboard/reports/summary` | 보고서 AI 분석 요약 |
+| **Education**| `GET` | `/api/education/summary` | 유저 상단 요약 건수 (마감, 진행중, 이수) |
+| | `GET` | `/api/education/status` | 유저 내 교육 리스트 조회 |
+| | `GET` | `/api/education/completion-rates` | 유저 필수/정기/전체 교육 이수율(%) |
+| | `POST` | `/api/education/{id}/complete` | 비디오 수강 이수 완료 처리 |
+| | `GET` | `/api/admin/education/status` | 관리자 대상자별 교육 리스트/이수 요약 |
+| | `GET` | `/api/admin/education/{uid}` | 관리자 특정 유저 교육 상세 조회 |
+| | `POST` | `/api/admin/education/ai-generate` | 관리자 AI 교육 자료 자동 생성 |
+| | `POST` | `/api/education/ai-generate` | 문서/텍스트 기반 AI 교육 영상 생성 비동기 요청 |
+| | `GET` | `/api/education/ai-generate/{task_id}/status` | AI 교육 영상 생성 작업 진행 상태 조회 |
+| **Board** | `POST` | `/api/boards` | 게시글 등록 (사진 파일 첨부) |
+| | `GET` | `/api/boards` | 게시글 목록 조회 (검색/필터ing) |
+| | `GET` | `/api/boards/{id}` | 게시글 상세 조회 |
+| | `PATCH` | `/api/boards/{id}` | 게시글 수정 |
+| | `DELETE`| `/api/boards/{id}` | 게시글 삭제 |
+| | `PATCH` | `/api/boards/{id}/status` | 게시글 처리 상태 변경 |
 | **Chatbot** | `POST` | `/api/chatbot/query` | 안전 질의응답 챗봇 |
 | | `GET` | `/api/chatbot/recommendations` | 추천 질문 목록 (4종) |
 | **Data** | `GET` | `/api/data/manuals` | 소방법/산업안전 매뉴얼 검색 |
@@ -183,3 +248,4 @@ uvicorn app.main:app --reload
   }
 }
 ```
+
