@@ -14,6 +14,7 @@ class EventCategoryLevelUpdate(BaseModel):
 
 class RiskFactorResponse(BaseModel):
     category_id: int
+    company_id: int
     category: str           # 유형 (예: 소방)
     category_name: str      # 항목 (예: 화재)
     risk_level: str         # 위험도 ('상', '중', '하')

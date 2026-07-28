@@ -22,6 +22,7 @@ def signup(user_create: UserCreate, db: Session = Depends(get_db)):
     return {
         "message": "success",
         "user_id": db_user.user_id,
+        "company_id": db_user.company_id,
         "role": db_user.role,
         "category": db_user.category
     }
@@ -46,6 +47,7 @@ def verify_code(code: str, db: Session = Depends(get_db)):
     return {
         "message": "valid",
         "code": code_obj.code,
+        "company_id": code_obj.company_id,
         "role": code_obj.role,
         "category": code_obj.category
     }
@@ -69,7 +71,12 @@ def login(user_login: UserLogin, db: Session = Depends(get_db)):
         )
     
     # JWT Access Token 생성 (sub에 PK인 uid의 문자열 저장)
-    access_token = create_access_token(data={"sub": str(user.uid)})
+    access_token = create_access_token(
+        data={
+            "sub": str(user.uid),
+            "company_id": user.company_id
+        }
+    )
     
     return {
         "access_token": access_token,

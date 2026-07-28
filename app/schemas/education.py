@@ -20,6 +20,7 @@ class EducationResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     education_id: int
+    company_id: Optional[int] = None
     title: str
     video_url: str
     category: str
@@ -46,6 +47,7 @@ class UserCompletionRatesResponse(BaseModel):
 
 class UserEducationResponse(BaseModel):
     uid: int
+    company_id: int
     user_id: str
     name: str
     educations: List[EducationStatusResponse]
@@ -57,6 +59,7 @@ class EducationStatusCount(BaseModel):
 
 class EducationStatusSummaryResponse(BaseModel):
     education_id: int
+    company_id: Optional[int] = None
     title: str
     category: str
     type: str
@@ -95,6 +98,7 @@ class AIEducationGenerateRequest(BaseModel):
 
 class AIEducationGenerateResponse(BaseModel):
     education_id: Optional[int] = None
+    company_id: Optional[int] = None
     title: str
     summary: str
     safety_guideline: List[str]

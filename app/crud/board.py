@@ -8,6 +8,7 @@ from app.models.user import User
 # 생성
 def create_board(
     db: Session,
+    company_id: int,
     uid: int,
     title: str,
     board_contents: str,
@@ -17,6 +18,7 @@ def create_board(
     image_url: Optional[str]
 ) -> Board:
     db_board = Board(
+        company_id=company_id,
         uid=uid,
         title=title,
         board_contents=board_contents,
@@ -33,6 +35,7 @@ def create_board(
 # 조회
 def get_boards(
     db: Session,
+    company_id: int,
     page: int = 1,
     size: int = 10,
     category: Optional[int] = None,
@@ -40,7 +43,7 @@ def get_boards(
     location: Optional[str] = None,
     keyword: Optional[str] = None
 ):
-    query = db.query(Board, User.name.label("writer_name")).outerjoin(User, Board.uid == User.uid)
+    query = db.query(Board, User.name.label("writer_name")).outerjoin(User, Board.uid == User.uid).filter(Board.company_id == company_id)
 
     if category:
         query = query.filter(Board.event_category_id == category)
@@ -63,6 +66,7 @@ def get_boards(
     for board, writer_name in rows:
         item_dict = {
             "board_id": board.board_id,
+            "company_id": board.company_id,
             "uid": board.uid,
             "writer": writer_name or "작성자 미상",
             "title": board.title,
@@ -79,11 +83,14 @@ def get_boards(
     return total, items
 
 # 게시글 ID로 상세 조회
-def get_board_by_id(db: Session, board_id: int):
+def get_board_by_id(db: Session, board_id: int, company_id: int):
     row = (
         db.query(Board, User.name.label("writer_name"))
         .outerjoin(User, Board.uid == User.uid)
-        .filter(Board.board_id == board_id)
+        .filter(
+            Board.board_id == board_id,
+            Board.company_id == company_id
+        )
         .first()
     )
 
@@ -93,8 +100,9 @@ def get_board_by_id(db: Session, board_id: int):
     board, writer_name = row
     return {
         "board_id": board.board_id,
+        "company_id": board.company_id,
         "uid": board.uid,
-        "writer": writer_name or "작성자 미상",  # 👈 상세 조회 시에도 작성자 이름 제공
+        "writer": writer_name or "작성자 미상",
         "title": board.title,
         "board_contents": board.board_contents,
         "event_category_id": board.event_category_id,

@@ -10,6 +10,7 @@ sys.path.append("c:/aivle202609/big_project")
 
 from app.db.db import DATABASE_URL, Base
 from app.models import (
+    Company,
     User,
     CCTV,
     EventCategory,
@@ -20,7 +21,8 @@ from app.models import (
     ReportChecklistMap,
     Board,
     Education,
-    EducationStatus
+    EducationStatus,
+    SignupCode
 )
 
 engine = create_engine(DATABASE_URL)
@@ -82,6 +84,20 @@ def auto_migrate():
         except Exception:
             pass
 
+        try:
+            conn.execute(text("ALTER TABLE user ADD COLUMN company_id BIGINT NULL;"))
+            conn.commit()
+            print("user 테이블에 company_id 컬럼 추가 완료.")
+        except Exception:
+            pass
+
+        try:
+            conn.execute(text("ALTER TABLE signup_code ADD COLUMN company_id BIGINT NOT NULL;"))
+            conn.commit()
+            print("signup_code 테이블에 company_id 컬럼 추가 완료.")
+        except Exception:
+            pass
+
 
 
 def seed():
@@ -92,15 +108,53 @@ def seed():
     try:
         print("DB 시딩을 시작합니다...")
 
+        company = db.query(Company).filter(Company.company_id == 1).first()
+        if not company:
+            company = Company(
+                company_id=1,  # ID를 1로 명시
+                company_name="AIVLE TEAM 03"
+            )
+            db.add(company)
+            db.commit()      # 👈 여기서 DB에 실제 회사가 저장되어야 FK 에러가 안 납니다!
+            db.refresh(company)
+            print("기본 회사 (Company ID: 1) 세팅 완료.")
+
+        company_id = company.company_id
+
+        admin_invite_code = db.query(SignupCode).filter(SignupCode.code == "INV-ADMIN01").first()
+        if not admin_invite_code:
+            admin_invite_code = SignupCode(
+                company_id=company_id,
+                code="INV-ADMIN01",
+                role="안전관리자",
+                category=None,
+                is_used=True
+            )
+            db.add(admin_invite_code)
+
+        worker_invite_code = db.query(SignupCode).filter(SignupCode.code == "INV-WORKER1").first()
+        if not worker_invite_code:
+            worker_invite_code = SignupCode(
+                company_id=company_id,
+                code="INV-WORKER1",
+                role="일반유저",
+                category="지게차",
+                is_used=False
+            )
+            db.add(worker_invite_code)
+        db.commit()
+        print("초대 코드 (SignupCode) 세팅 완료.")
+
         # 1. 유저 계정 생성 (관리자 & 작업자 계정)
-        users_data = [
+        base_users = [
             {
                 "user_id": "admin",
                 "name": "최고관리자",
                 "password": hash_password("admin123"),
                 "role": "안전관리자",
                 "category": None,
-                "company_code": "AIVLE_TEAM03"
+                "company_code": "AIVLE_TEAM03",
+                "company_id": company_id
             },
             {
                 "user_id": "worker1",
@@ -108,7 +162,8 @@ def seed():
                 "password": hash_password("worker123"),
                 "role": "일반유저",
                 "category": "지게차",
-                "company_code": "AIVLE_TEAM03"
+                "company_code": "AIVLE_TEAM03",
+                "company_id": company_id
             },
             {
                 "user_id": "worker2",
@@ -116,30 +171,25 @@ def seed():
                 "password": hash_password("worker123"),
                 "role": "일반유저",
                 "category": "화물트럭",
-                "company_code": "AIVLE_TEAM03"
+                "company_code": "AIVLE_TEAM03",
+                "company_id": company_id
             }
         ]
 
-
-        users = []
-        
-        # 필수 기본 유저 3명
-        base_users = [
-            {"user_id": "admin", "name": "최고관리자", "password": hash_password("admin123"), "role": "안전 관리자", "company_code": "AIVLE_TEAM03"},
-            {"user_id": "worker1", "name": "김작업", "password": hash_password("worker123"), "role": "일반 작업자", "company_code": "AIVLE_TEAM03"},
-            {"user_id": "worker2", "name": "이신규", "password": hash_password("worker123"), "role": "신규 근로자", "company_code": "AIVLE_TEAM03"}
-        ]
-        
-        # 더미 유저 27명 추가 생성 (총 30명)
         for i in range(3, 30):
-            role_type = "일반 작업자" if i % 2 == 0 else "신규 근로자"
+            category_type = "지게차" if i % 2 == 0 else "화물트럭"
             base_users.append({
                 "user_id": f"worker{i}",
                 "name": f"작업자{i}",
                 "password": hash_password("worker123"),
-                "role": role_type,
-                "company_code": "AIVLE_TEAM03"
+                "role": "일반유저",
+                "category": category_type,
+                "company_code": "AIVLE_TEAM03",
+                "company_id": company_id
             })
+
+
+        users = []
 
         for u_data in base_users:
             u = db.query(User).filter(User.user_id == u_data["user_id"]).first()
@@ -155,15 +205,17 @@ def seed():
 
         # 2. 이벤트 카테고리 등록
         categories_data = [
-            {"category": "위험", "category_name": "화재 감지"},
-            {"category": "주의", "category_name": "불법 적치물 검지"},
-            {"category": "경고", "category_name": "보호구 미착용"},
-            {"category": "주의", "category_name": "무단 침입"}
+            {"category": "위험", "category_name": "화재 감지", "level": 9, "company_id": company_id},
+            {"category": "주의", "category_name": "불법 적치물 검지", "level": 5, "company_id": company_id},
+            {"category": "경고", "category_name": "보호구 미착용", "level": 7, "company_id": company_id},
+            {"category": "주의", "category_name": "무단 침입", "level": 4, "company_id": company_id}
         ]
         
         categories = []
         for cat_data in categories_data:
-            existing_cat = db.query(EventCategory).filter(EventCategory.category_name == cat_data["category_name"]).first()
+            existing_cat = db.query(EventCategory).filter(
+                EventCategory.category_name == cat_data["category_name"]
+            ).first()
             if not existing_cat:
                 new_cat = EventCategory(**cat_data)
                 db.add(new_cat)
@@ -175,9 +227,10 @@ def seed():
         print(f"이벤트 카테고리 {len(categories)}종 세팅 완료.")
 
         # 3. CCTV 1대 등록
-        existing_cctv = db.query(CCTV).first()
+        existing_cctv = db.query(CCTV).filter(CCTV.company_id == company_id).first()
         if not existing_cctv:
             new_cctv = CCTV(
+                company_id=company_id,
                 cctv_name="메인 CCTV",
                 location="공장 내부",
                 stream_url="http://docs.evostream.com/sample_content/assets/bunny.mp4",
@@ -192,7 +245,7 @@ def seed():
         print(f"CCTV 세팅 완료: {cctv.cctv_name} (id={cctv.cctv_id})")
 
         # 4. 이상 감지 이벤트 및 조치 Checklist 적재
-        existing_event_count = db.query(Event).count()
+        existing_event_count = db.query(Event).filter(Event.company_id == company_id).count()
         if existing_event_count < 10:
             print("더미 이상 감지 이벤트 및 점검 Checklist 적재를 시작합니다...")
             now = datetime.utcnow()
@@ -204,6 +257,7 @@ def seed():
                 event_date = now - date_offset
                 
                 new_event = Event(
+                    company_id=company_id,
                     category_id=category.category_id,
                     cctv_id=cctv.cctv_id,
                     date=event_date,
@@ -235,6 +289,7 @@ def seed():
                 img_url = f"/static/uploads/action_resolved_{idx+1}.jpg" if status_val in ["승인 대기", "승인 완료"] else None
                 
                 chk = Checklist(
+                    company_id=company_id,
                     event_id=ev.event_id,
                     date=ev.date + timedelta(hours=1),
                     status=status_val,
@@ -261,6 +316,7 @@ def seed():
 
             for idx, (insp_status, insp_content) in enumerate(inspection_list):
                 insp_chk = Checklist(
+                    company_id=company_id,
                     event_id=None,
                     date=now - timedelta(days=idx, hours=idx * 3),
                     status=insp_status,
@@ -278,12 +334,14 @@ def seed():
             
             # 5. 보고서(Report) 및 매핑 생성
             report1 = Report(
+                company_id=company_id,
                 uid=admin_user.uid,
                 content="7월 2주차 사내 소방 안전 및 대피로 장애물 점검 주간 리포트입니다. B동 자재창고의 장애물이 빈번히 조치 대기 상태로 전이되어 부서별 안전 교육을 권장합니다.",
                 summary="7월 2주차 사내 소방안전 주간 보고서",
                 created_at=now - timedelta(days=2)
             )
             report2 = Report(
+                company_id=company_id,
                 uid=admin_user.uid,
                 content="A동 정기 소화시설 작동 여부 및 복도 비상구 확보 현황 종합 보고서입니다. 감지된 모든 장애물은 현재 조치 완료(승인 완료) 처리되었습니다.",
                 summary="A동 비상대피로 정기 점검 리포트",
@@ -308,6 +366,7 @@ def seed():
         # 6. 게시판(Board) 적재
         if db.query(Board).count() == 0:
             board1 = Board(
+                company_id=company_id,
                 uid=admin_user.uid,
                 event_category_id=categories[1].category_id,
                 title="B동 자재창고 통로 박스 적치 조치 요청",
@@ -317,6 +376,7 @@ def seed():
                 image_url="/static/uploads/board_sample_1.jpg"
             )
             board2 = Board(
+                company_id=company_id,
                 uid=users[1].uid,
                 event_category_id=categories[0].category_id,
                 title="A동 복도 소화기 배치 재점검 요청",
@@ -338,28 +398,25 @@ def seed():
         if db.query(Education).count() == 0:
             today = date.today()
             edu1 = Education(
+                company_id=company_id,
                 title="사업장 정기 소방 안전 필수 교육 2026",
-                role="전체",
                 video_url="https://youtube.com/watch?v=fire_safety_2026",
-                category="소방안전",
+                category="전체",
                 type="필수",
-                due_date=today + timedelta(days=7)
             )
             edu2 = Education(
+                company_id=company_id,
                 title="비상구 및 대피로 유지관리 현장 실무 가이드",
-                role="일반 작업자",
                 video_url="https://youtube.com/watch?v=evacuation_guide",
-                category="피난",
+                category="지게차",
                 type="정기",
-                due_date=today + timedelta(days=14)
             )
             edu3 = Education(
+                company_id=company_id,
                 title="신규 근로자 맞춤형 산업안전 기본 수칙",
-                role="신규 근로자",
                 video_url="https://youtube.com/watch?v=ppe_rules",
-                category="산업안전",
+                category="화물트럭",
                 type="필수",
-                due_date=today + timedelta(days=3)
             )
             db.add_all([edu1, edu2, edu3])
             db.commit()

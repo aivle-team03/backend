@@ -15,17 +15,21 @@ COMPLETED = "이수"
 PROGRESS_STATUSES = (INCOMPLETE, IN_PROGRESS, COMPLETED)
 
 
-def get_user_by_uid(db: Session, uid: int) -> Optional[User]:
-    return db.query(User).filter(User.uid == uid).first()
+def get_user_by_uid(db: Session, uid: int, company_id: int) -> Optional[User]:
+    return db.query(User).filter(User.uid == uid, User.company_id == company_id).first()
 
 
 def get_education_by_id(
     db: Session,
     education_id: int,
+    company_id: int,
 ) -> Optional[Education]:
     return (
         db.query(Education)
-        .filter(Education.education_id == education_id)
+        .filter(
+            Education.education_id == education_id,
+            Education.company_id == company_id
+        )
         .first()
     )
 
@@ -35,6 +39,7 @@ def get_my_education_list(
     user: User,
     category: Optional[str] = None,
 ):
+    query = db.query(Education).filter(Education.company_id == user.company_id)
     if category:
         query = query.filter(Education.category == category)
     return query.order_by(Education.education_id.asc()).all()
@@ -74,6 +79,7 @@ def get_user_education_statuses(
 ):
     query = (
         db.query(Education, EducationStatus)
+        .filter(Education.company_id == user.company_id)
         .outerjoin(
             EducationStatus,
             and_(
@@ -154,6 +160,7 @@ def get_user_education_for_admin(
 ):
     return {
         "uid": user.uid,
+        "company_id": user.company_id,
         "user_id": user.user_id,
         "name": user.name,
         "educations": get_user_education_statuses(
@@ -166,10 +173,11 @@ def get_user_education_for_admin(
 
 def get_education_status_summaries(
     db: Session,
+    company_id: int,
     education_id: Optional[int] = None,
     completion_status: Optional[str] = None,
 ):
-    education_query = db.query(Education)
+    education_query = db.query(Education).filter(Education.company_id == company_id)
     if education_id is not None:
         education_query = education_query.filter(
             Education.education_id == education_id
@@ -180,6 +188,7 @@ def get_education_status_summaries(
 
         rows = (
             db.query(User.uid, EducationStatus.status)
+            .filter(User.company_id == company_id)
             .outerjoin(
                 EducationStatus,
                 and_(
@@ -211,6 +220,7 @@ def get_education_status_summaries(
         summaries.append(
             {
                 "education_id": education.education_id,
+                "company_id": education.company_id,
                 "title": education.title,
                 "category": education.category,
                 "type": education.type,
@@ -255,6 +265,7 @@ def complete_education(
 # 4. AI 교육 자료 자동 생성 로직
 def create_ai_generated_education(
     db: Session,
+    company_id: int,
     work_type: str,
     equipment: str,
     risk_factor: str
@@ -268,6 +279,7 @@ def create_ai_generated_education(
     ]
 
     new_edu = Education(
+        company_id=company_id,
         title=title,
         video_url="/static/videos/ai_safety_sample.mp4",
         category=work_type,
@@ -279,6 +291,7 @@ def create_ai_generated_education(
 
     return {
         "education_id": new_edu.education_id,
+        "company_id": new_edu.company_id,
         "title": title,
         "summary": summary,
         "safety_guideline": guidelines,

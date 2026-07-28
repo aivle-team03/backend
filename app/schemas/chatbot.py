@@ -14,6 +14,7 @@ class RecommendationResponse(BaseModel):
 
 class ManualSearchResponse(BaseModel):
     title: str
+    company_id: Optional[int] = None
     category: str
     content: str
     source: str

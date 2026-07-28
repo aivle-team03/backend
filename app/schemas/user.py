@@ -6,6 +6,7 @@ from typing import Optional
 class UserBase(BaseModel):
     user_id: str
     name: str
+    company_id: Optional[int] = None
     role: Optional[str] = None
     category: Optional[str] = None
     company_code: Optional[str] = None
@@ -13,6 +14,7 @@ class UserBase(BaseModel):
 
 class UserResponse(UserBase):
     uid: int
+    company_id: int
     created_at: datetime
 
     class Config:
@@ -65,4 +67,4 @@ class PasswordFindResponse(BaseModel):
 
 class UserRoleUpdateRequest(BaseModel):
     role: Optional[str] = None
-    category: Optional[str] = None
+    category: Optional[str] = None

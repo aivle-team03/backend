@@ -9,11 +9,36 @@ from app.models.checklist import Checklist
 from app.models.report import Report
 
 
-def get_dashboard_summary(db: Session) -> dict:
-    detected_count = db.query(Event).count()
+def get_dashboard_summary(db: Session, company_id: int) -> dict:
+    detected_count = db.query(Event).filter(Event.company_id == company_id).count()
     
-    violation_count = db.query(Event).join(EventCategory, Event.category_id == EventCategory.category_id)\
-        .filter(EventCategory.category.in_(["위험", "경고"])).count()
+    violation_count = (
+        db.query(Event)
+        .join(EventCategory, Event.category_id == EventCategory.category_id)
+        .filter(
+            Event.company_id == company_id,
+            EventCategory.category.in_(["위험", "경고"])
+        )
+        .count()
+    )
+
+    pending_action_count = (
+        db.query(Checklist)
+        .filter(
+            Checklist.company_id == company_id,
+            Checklist.status.in_(["미조치", "조치 대기", "조치 중"])
+        )
+        .count()
+    )
+    
+    completed_action_count = (
+        db.query(Checklist)
+        .filter(
+            Checklist.company_id == company_id,
+            Checklist.status.in_(["승인 완료", "완료"])
+        )
+        .count()
+    )
         
     pending_action_count = db.query(Checklist).filter(Checklist.status.in_(["미조치", "조치 대기", "조치 중"])).count()
     completed_action_count = db.query(Checklist).filter(Checklist.status.in_(["승인 완료", "완료"])).count()
@@ -26,10 +51,11 @@ def get_dashboard_summary(db: Session) -> dict:
     }
 
 
-def get_recent_events(db: Session, limit: int = 10) -> List[dict]:
+def get_recent_events(db: Session, company_id: int, limit: int = 10) -> List[dict]:
     results = db.query(Event, EventCategory, CCTV)\
         .join(EventCategory, Event.category_id == EventCategory.category_id)\
         .join(CCTV, Event.camera_id == CCTV.cctv_id)\
+        .filter(Event.company_id == company_id)\
         .order_by(Event.date.desc())\
         .limit(limit).all()
         
@@ -37,6 +63,7 @@ def get_recent_events(db: Session, limit: int = 10) -> List[dict]:
     for ev, cat, cam in results:
         out.append({
             "event_id": ev.event_id,
+            "company_id": ev.company_id,
             "category_name": cat.category_name,
             "cctv_name": cam.cctv_name,
             "location": cam.location,
@@ -46,27 +73,60 @@ def get_recent_events(db: Session, limit: int = 10) -> List[dict]:
     return out
 
 
-def get_zone_statistics(db: Session):
-    locations = db.query(CCTV.location).distinct().all()
+def get_zone_statistics(db: Session, company_id: int):
+    locations = (
+        db.query(CCTV.location)
+        .filter(CCTV.company_id == company_id)
+        .distinct()
+        .all()
+    )
     results = []
     
     for (loc,) in locations:
         if not loc:
             continue
-        cctv_count = db.query(CCTV).filter(CCTV.location == loc).count()
-        cctvs = db.query(CCTV).filter(CCTV.location == loc).all()
+        cctvs = (
+            db.query(CCTV)
+            .filter(
+                CCTV.company_id == company_id,
+                CCTV.location == loc
+            )
+            .all()
+        )
+        cctv_count = len(cctvs)
         cctv_ids = [c.cctv_id for c in cctvs]
         
         if not cctv_ids:
             event_count = 0
             unresolved_count = 0
         else:
-            event_count = db.query(Event).filter(Event.camera_id.in_(cctv_ids)).count()
-            events = db.query(Event).filter(Event.camera_id.in_(cctv_ids)).all()
+            event_count = (
+                db.query(Event)
+                .filter(
+                    Event.company_id == company_id,
+                    Event.camera_id.in_(cctv_ids)
+                )
+                .count()
+            )
+            events = (
+                db.query(Event)
+                .filter(
+                    Event.company_id == company_id,
+                    Event.camera_id.in_(cctv_ids)
+                )
+                .all()
+            )
             unresolved_count = 0
             for ev in events:
-                latest_chk = db.query(Checklist).filter(Checklist.event_id == ev.event_id)\
-                               .order_by(Checklist.checklist_id.desc()).first()
+                latest_chk = (
+                    db.query(Checklist)
+                    .filter(
+                        Checklist.company_id == company_id,
+                        Checklist.event_id == ev.event_id
+                    )
+                    .order_by(Checklist.checklist_id.desc())
+                    .first()
+                )
                 status = latest_chk.status if latest_chk else "미조치"
                 if status in ["미조치", "조치 대기", "조치 중"]:
                     unresolved_count += 1
@@ -82,9 +142,16 @@ def get_zone_statistics(db: Session):
     return results
 
 
-def calculate_safety_grade(db: Session):
+def calculate_safety_grade(db: Session, company_id: int):
     thirty_days_ago = datetime.utcnow() - timedelta(days=30)
-    events = db.query(Event).filter(Event.date >= thirty_days_ago).all()
+    events = (
+        db.query(Event)
+        .filter(
+            Event.company_id == company_id,
+            Event.date >= thirty_days_ago
+        )
+        .all()
+    )
     
     score = 100
     unresolved_count = 0
@@ -93,8 +160,15 @@ def calculate_safety_grade(db: Session):
     pending_count = 0
     
     for ev in events:
-        latest_chk = db.query(Checklist).filter(Checklist.event_id == ev.event_id)\
-                       .order_by(Checklist.checklist_id.desc()).first()
+        latest_chk = (
+            db.query(Checklist)
+            .filter(
+                Checklist.company_id == company_id,
+                Checklist.event_id == ev.event_id
+            )
+            .order_by(Checklist.checklist_id.desc())
+            .first()
+        )
         status = latest_chk.status if latest_chk else "미조치"
         
         if status == "미조치":
@@ -135,15 +209,22 @@ def calculate_safety_grade(db: Session):
     }
 
 
-def get_reports_by_date(db: Session, start_date: datetime = None, end_date: datetime = None):
-    query = db.query(Report)
+def get_reports_by_date(db: Session, company_id: int, start_date: datetime = None, end_date: datetime = None):
+    query = db.query(Report).filter(Report.company_id == company_id)
     if start_date and end_date:
         query = query.filter(Report.created_at.between(start_date, end_date))
     return query.order_by(Report.created_at.desc()).all()
 
 
-def generate_report_ai_summary(db: Session, report_id: int):
-    report = db.query(Report).filter(Report.report_id == report_id).first()
+def generate_report_ai_summary(db: Session, report_id: int, company_id: int):
+    report = (
+        db.query(Report)
+        .filter(
+            Report.report_id == report_id,
+            Report.company_id == company_id
+        )
+        .first()
+    )
     if not report:
         return None
         
@@ -155,6 +236,7 @@ def generate_report_ai_summary(db: Session, report_id: int):
     )
     return {
         "report_id": report.report_id,
+        "company_id": report.company_id,
         "summary": report.summary,
         "ai_analysis": ai_analysis
     }

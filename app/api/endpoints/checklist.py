@@ -23,6 +23,7 @@ from app.crud.checklist import (
     assign_manager,
     complete_checklist,
     update_checklist_status,
+    get_my_checklists,
     delete_checklist
 )
 
@@ -50,19 +51,25 @@ def read_action_history(
     """
     return get_action_history_by_role(db, user=current_user, skip=skip, limit=limit)
 
-@router.get("/managers", response_model=List[ManagerSearchResponse])
-def read_managers(keyword: str, db: Session = Depends(get_db)):
+@router.get("/managers",  response_model=List[ManagerSearchResponse])
+def read_managers(keyword: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """조치 담당자 검색 API - 명세서 URL /api/checklists/managers (요구사항 ADM-23-66-27)"""
-    return search_managers(db, keyword=keyword)
+    return search_managers(db, keyword=keyword, company_id=current_user.company_id)
 
 @router.patch("/{checklist_id}/assign", response_model=ChecklistResponse)
 def patch_assign_manager(
     checklist_id: int,
     assign_req: AssignManagerRequest,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """담당자 배정 API - 명세서 URL /api/checklists/{checklist_id}/assign (요구사항 ADM-23-42-26)"""
-    db_checklist = assign_manager(db, checklist_id=checklist_id, user_id=assign_req.user_id)
+    db_checklist = assign_manager(
+        db, 
+        checklist_id=checklist_id, 
+        user_id=assign_req.user_id,
+        company_id=current_user.company_id
+    )
     if db_checklist is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -75,6 +82,7 @@ def patch_complete_checklist(
     checklist_id: int,
     content: str = Form(...),
     image: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -88,7 +96,13 @@ def patch_complete_checklist(
         
     image_url = f"/static/uploads/{filename}"
     
-    db_checklist = complete_checklist(db, checklist_id=checklist_id, image_url=image_url, content=content)
+    db_checklist = complete_checklist(
+        db, 
+        checklist_id=checklist_id, 
+        image_url=image_url, 
+        content=content,
+        company_id=current_user.company_id
+    )
     if db_checklist is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -100,6 +114,7 @@ def patch_complete_checklist(
 def patch_checklist_status(
     checklist_id: int,
     status_req: StatusUpdateRequest,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -111,6 +126,7 @@ def patch_checklist_status(
         db,
         checklist_id=checklist_id,
         status=status_req.status,
+        company_id=current_user.company_id,
         reason=status_req.reason
     )
     if db_checklist is None:
@@ -128,22 +144,38 @@ def read_my_checklists(
     db: Session = Depends(get_db)
 ):
     """내 조치 기록 조회 API - 명세서 URL /api/checklists/me (요구사항 ADM-15-54-6)"""
-    return get_my_checklists(db, uid=current_user.uid, skip=skip, limit=limit)
+    return get_my_checklists(
+        db, 
+        uid=current_user.uid, 
+        company_id=current_user.company_id,
+        skip=skip, 
+        limit=limit
+    )
 
 @router.post("", response_model=ChecklistResponse, status_code=status.HTTP_201_CREATED)
 def post_checklist(
     checklist_req: ChecklistCreate,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     조치(체크리스트) 등록 API - (AI 서버 또는 수동 등록용)
     """
-    db_checklist = create_checklist(db, checklist_req)
+    db_checklist = create_checklist(
+        db, 
+        checklist_in=checklist_req,
+        company_id=current_user.company_id,
+        uid=current_user.uid
+    )
     return db_checklist
 
 @router.delete("/{checklist_id}", status_code=status.HTTP_200_OK)
-def remove_checklist(checklist_id: int, db: Session = Depends(get_db)):
-    success = delete_checklist(db, checklist_id=checklist_id)
+def remove_checklist(checklist_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    success = delete_checklist(
+        db, 
+        checklist_id=checklist_id, 
+        company_id=current_user.company_id
+    )
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

@@ -107,10 +107,9 @@ def get_find_user_password(
 
 
 @router.get("", response_model=List[UserResponse])
-def read_users(db: Session = Depends(get_db)):
+def read_users(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """전체 사용자 목록 조회 API - 명세서 URL /api/users"""
-    return get_users(db)
-
+    return get_users(db, company_id=current_user.company_id)
 
 # =========================================================
 # 안전관리자(총책임자) 전용 API 라우터 (/api/admin)
@@ -154,7 +153,7 @@ def post_create_invite_code(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"유효하지 않은 카테고리입니다. 선택 가능한 카테고리: {', '.join(valid_categories)}"
             )
-    return create_signup_code(db, role=req.role, category=req.category)
+    return create_signup_code(db, company_id=admin_user.company_id, role=req.role, category=req.category)
 
 
 @admin_router.get("/invite-codes", response_model=List[SignupCodeResponse])
@@ -166,7 +165,7 @@ def get_invite_codes(
     안전관리자 전용: 발급된 전체 회원가입 코드 목록 조회
     GET /api/admin/invite-codes
     """
-    return get_all_signup_codes(db)
+    return get_all_signup_codes(db, company_id=admin_user.company_id)
 
 
 @admin_router.get("/users", response_model=List[UserResponse])
@@ -178,7 +177,7 @@ def get_admin_users(
     안전관리자 전용: 전체 유저 목록(역할, 카테고리 포함) 조회
     GET /api/admin/users
     """
-    return get_users(db)
+    return get_users(db, company_id=admin_user.company_id)
 
 
 @admin_router.patch("/users/{uid}", response_model=UserResponse)
@@ -209,7 +208,7 @@ def patch_admin_user(
                 detail=f"유효하지 않은 카테고리입니다. 선택 가능한 카테고리: {', '.join(valid_categories)}"
             )
 
-    u = update_user_category_and_role(db, uid=uid, category=req.category, role=req.role)
+    u = update_user_category_and_role(db, uid=uid, company_id=admin_user.company_id, category=req.category, role=req.role)
     if not u:
         raise HTTPException(status_code=404, detail="해당 사용자를 찾을 수 없습니다.")
     return u
@@ -229,7 +228,7 @@ def patch_admin_user_role_legacy(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"유효하지 않은 역할입니다. 선택 가능한 역할: {', '.join(VALID_ROLES)}"
         )
-    u = update_user_category_and_role(db, uid=uid, category=req.category, role=req.role)
+    u = update_user_category_and_role(db, uid=uid, company_id=admin_user.company_id, category=req.category, role=req.role)
     if not u:
         raise HTTPException(status_code=404, detail="해당 사용자를 찾을 수 없습니다.")
     return u

@@ -110,7 +110,7 @@ def post_my_education_complete(
     db: Session = Depends(get_db),
 ):
     """영상의 80% 이상 시청 후 '이수 완료' 버튼 클릭 시 호출"""
-    education = get_education_by_id(db, education_id)
+    education = get_education_by_id(db, education_id=education_id, company_id=current_user.company_id)
     if education is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -147,6 +147,7 @@ def read_education_status_summary(
 
     return get_education_status_summaries(
         db,
+        company_id=current_admin.company_id,
         education_id=education_id,
         completion_status=(
             completion_filter.value if completion_filter else None
@@ -169,7 +170,7 @@ def read_user_education(
     current_admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
-    user = get_user_by_uid(db, uid)
+    user = get_user_by_uid(db, uid=uid, company_id=current_admin.company_id)
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -199,6 +200,7 @@ def post_ai_generate_education(
     """관리자 페이지 우측 하단 'AI 교육 자료 생성' (작업 유형, 사용 장비, 위험 요인 입력 후 생성)"""
     return create_ai_generated_education(
         db,
+        company_id=current_admin.company_id,
         work_type=req.work_type,
         equipment=req.equipment,
         risk_factor=req.risk_factor

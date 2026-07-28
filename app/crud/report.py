@@ -9,6 +9,7 @@ from app.models.user import User
 
 def create_report(
     db: Session,
+    company_id: int,
     uid: int,
     content: str,
     event_ids: Optional[List[int]] = None,
@@ -16,6 +17,7 @@ def create_report(
 ) -> Report:
     summary = content[:50] + "..." if len(content) > 50 else content
     report = Report(
+        company_id=company_id,
         uid=uid,
         content=content,
         summary=summary,
@@ -36,6 +38,7 @@ def create_report(
 
 def get_reports(
     db: Session,
+    company_id: int,
     page: int = 1,
     size: int = 10,
     start_date: Optional[str] = None,
@@ -43,7 +46,11 @@ def get_reports(
     writer: Optional[str] = None,
     keyword: Optional[str] = None
 ):
-    query = db.query(Report, User.name.label("writer_name")).outerjoin(User, Report.uid == User.uid)
+    query = (
+        db.query(Report, User.name.label("writer_name"))
+        .outerjoin(User, Report.uid == User.uid)
+        .filter(Report.company_id == company_id)
+    )
 
     if start_date:
         s_dt = datetime.strptime(start_date, "%Y-%m-%d")
@@ -73,6 +80,7 @@ def get_reports(
     for report, writer_name in rows:
         item_dict = {
             "report_id": report.report_id,
+            "company_id": report.company_id,
             "uid": report.uid,
             "content": report.content,
             "summary": report.summary,
@@ -83,11 +91,26 @@ def get_reports(
 
     return total, items
 
-def get_report_by_id(db: Session, report_id: int) -> Optional[Report]:
-    return db.query(Report).filter(Report.report_id == report_id).first()
+def get_report_by_id(db: Session, report_id: int, company_id: int) -> Optional[Report]:
+    return (
+        db.query(Report)
+        .filter(
+            Report.report_id == report_id,
+            Report.company_id == company_id
+        )
+        .first()
+    )
 
-def update_report(db: Session, report_id: int, uid: int, content: str) -> Optional[Report]:
-    report = db.query(Report).filter(Report.report_id == report_id, Report.uid == uid).first()
+def update_report(db: Session, report_id: int, uid: int, company_id: int, content: str) -> Optional[Report]:
+    report = (
+        db.query(Report)
+        .filter(
+            Report.report_id == report_id,
+            Report.company_id == company_id,
+            Report.uid == uid
+        )
+        .first()
+    )
     if not report:
         return None
         
@@ -97,8 +120,16 @@ def update_report(db: Session, report_id: int, uid: int, content: str) -> Option
     db.refresh(report)
     return report
 
-def delete_report(db: Session, report_id: int, uid: int) -> bool:
-    report = db.query(Report).filter(Report.report_id == report_id, Report.uid == uid).first()
+def delete_report(db: Session, report_id: int, uid: int, company_id: int) -> bool:
+    report = (
+        db.query(Report)
+        .filter(
+            Report.report_id == report_id,
+            Report.company_id == company_id,
+            Report.uid == uid
+        )
+        .first()
+    )
     if not report:
         return False
         
