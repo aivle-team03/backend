@@ -44,22 +44,3 @@ def remove_cctv(cctv_id: int, current_user: User = Depends(get_current_user), db
             detail="삭제할 CCTV를 찾을 수 없습니다."
         )
     return {"message": f"CCTV #{cctv_id}가 성공적으로 삭제되었습니다."}
-
-@router.post("", response_model=CCTVResponse, status_code=status.HTTP_201_CREATED)
-def register_cctv(
-    cctv_in: CCTVCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """CCTV 카메라 신규 등록"""
-    # 1. 같은 회사 내 중복된 카메라 이름 검사
-    camera_name = getattr(cctv_in, "camera_name", None) or getattr(cctv_in, "cctv_name", "")
-    if get_cctv_by_name(db, camera_name=camera_name, company_id=current_user.company_id):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="이미 존재하는 CCTV 이름입니다.",
-        )
-
-    # 2. CRUD 함수 호출하여 DB 생성 (company_id 전달)
-    db_cctv = create_cctv(db, cctv_in=cctv_in, company_id=current_user.company_id)
-    return db_cctv

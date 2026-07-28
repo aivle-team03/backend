@@ -47,9 +47,6 @@ def create_users(db: Session, user_create: UserCreate):
         user_role = code_obj.role
         user_category = code_obj.category
 
-        if hasattr(code_obj, "company_id") and code_obj.company_id:
-            user_company_id = code_obj.company_id
-
     db_user = User(
         user_id=user_create.user_id,
         company_id=user_company_id,
