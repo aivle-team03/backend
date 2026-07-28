@@ -53,6 +53,7 @@ def get_risk_category_list(db: Session, company_id: int) -> List[RiskFactorRespo
         risk_factors.append(
             RiskFactorResponse(
                 category_id=cat.category_id,
+                company_id=company_id,
                 category=cat.category,
                 category_name=cat.category_name,
                 risk_level=risk_str,
@@ -113,9 +114,13 @@ def get_risk_dashboard_data(db: Session, company_id: int) -> RiskManagementDashb
 
 
 def update_event_category_level(db: Session, category_id: int, new_level: int, company_id: int) -> EventCategory:
-    category = db.query(EventCategory).filter(EventCategory.category_id == category_id).first()
+    category = db.query(EventCategory).filter(EventCategory.category_id == category_id)
     if hasattr(EventCategory, "company_id"):
-        query = query.filter(EventCategory.company_id == company_id)
+        category = category.filter(
+            (EventCategory.company_id == company_id)
+            | (EventCategory.company_id.is_(None))
+        )
+    category = category.first()
     if category:
         category.level = new_level
         db.commit()
@@ -130,7 +135,7 @@ def create_event_category(db: Session, payload: EventCategoryCreate, company_id:
         level=payload.level,
     )
     if hasattr(EventCategory, "company_id"):
-        new_cat["company_id"] = company_id
+        new_cat.company_id = company_id
     db.add(new_cat)
     db.commit()
     db.refresh(new_cat)
@@ -138,11 +143,11 @@ def create_event_category(db: Session, payload: EventCategoryCreate, company_id:
 
 
 def delete_event_category(db: Session, category_id: int, company_id: int) -> bool:
-    category = db.query(EventCategory).filter(EventCategory.category_id == category_id).first()
-
+    category = db.query(EventCategory).filter(EventCategory.category_id == category_id)
     if hasattr(EventCategory, "company_id"):
-        query = query.filter(EventCategory.company_id == company_id)
-        
+        category = category.filter(EventCategory.company_id == company_id)
+
+    category = category.first()
     if not category:
         return False
     

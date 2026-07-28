@@ -1,4 +1,5 @@
 from app.models.user import User
+from app.models.company import Company
 from app.models.event_category import EventCategory
 from app.models.cctv import CCTV
 from app.models.event import Event
