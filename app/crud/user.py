@@ -28,6 +28,7 @@ def create_users(db: Session, user_create: UserCreate):
 
     user_role = user_create.role or "일반유저"
     user_category = user_create.category
+    user_company_id = user_create.company_id
 
     # 회원가입 코드가 입력된 경우 자동 역할/카테고리 바인딩
     code_obj = None
@@ -48,6 +49,7 @@ def create_users(db: Session, user_create: UserCreate):
 
     db_user = User(
         user_id=user_create.user_id,
+        company_id=user_company_id,
         name=user_create.name,
         password=hashed_pw,
         role=user_role,
