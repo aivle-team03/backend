@@ -4,18 +4,27 @@ from datetime import datetime
 from app.models.event import Event
 from app.models.checklist import Checklist
 
-def get_monitoring_events(db: Session, cctv_id: int = None, status: str = None, skip: int = 0, limit: int = 100):
+def get_monitoring_events(db: Session, company_id: int, cctv_id: int = None, status: str = None, skip: int = 0, limit: int = 100):
     # 1. 각 event_id 별 최신 checklist_id를 찾기 위한 서브쿼리 정의
-    subq = db.query(
-        Checklist.event_id,
-        func.max(Checklist.checklist_id).label("max_checklist_id")
-    ).group_by(Checklist.event_id).subquery()
+    subq = (
+        db.query(
+            Checklist.event_id,
+            func.max(Checklist.checklist_id).label("max_checklist_id")
+        )
+        .filter(Checklist.company_id == company_id)
+        .group_by(Checklist.event_id)
+        .subquery()
+    )
 
     # 2. 메인 쿼리 (관계 테이블 선제 로딩)
-    query = db.query(Event).options(
-        joinedload(Event.category),
-        joinedload(Event.cctv),
-        joinedload(Event.checklists)
+    query = (
+        db.query(Event)
+        .options(
+            joinedload(Event.category),
+            joinedload(Event.cctv),
+            joinedload(Event.checklists)
+        )
+        .filter(Event.company_id == company_id)
     )
 
     if cctv_id is not None:
@@ -46,12 +55,20 @@ def get_monitoring_events(db: Session, cctv_id: int = None, status: str = None, 
 
     return events
 
-def get_monitoring_event_by_id(db: Session, event_id: int):
-    event = db.query(Event).options(
-        joinedload(Event.category),
-        joinedload(Event.cctv),
-        joinedload(Event.checklists)
-    ).filter(Event.event_id == event_id).first()
+def get_monitoring_event_by_id(db: Session, event_id: int, company_id: int):
+    event = (
+        db.query(Event)
+        .options(
+            joinedload(Event.category),
+            joinedload(Event.cctv),
+            joinedload(Event.checklists)
+        )
+        .filter(
+            Event.event_id == event_id,
+            Event.company_id == company_id
+        )
+        .first()
+    )
 
     if event:
         if event.checklists:
@@ -61,14 +78,22 @@ def get_monitoring_event_by_id(db: Session, event_id: int):
             event.current_status = "미조치"
     return event
 
-def create_action_request(db: Session, event_id: int, target_uid: int, message: str):
+def create_action_request(db: Session, event_id: int, target_uid: int, message: str, company_id: int):
     # 1. 대상 이벤트 조회하여 정보 확보
-    event = db.query(Event).filter(Event.event_id == event_id).first()
+    event = (
+        db.query(Event)
+        .filter(
+            Event.event_id == event_id,
+            Event.company_id == company_id
+        )
+        .first()
+    )
     if not event:
         return None
         
     # 2. Checklist 테이블에 조치 요청 내역 생성
     db_checklist = Checklist(
+        company_id=company_id,
         event_id=event_id,
         date=datetime.utcnow(),
         status="조치 대기",

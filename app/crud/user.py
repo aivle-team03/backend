@@ -6,12 +6,21 @@ from app.schemas.user import UserCreate
 from app.core.crypt import hash_password, verify_password
 
 
-def get_users(db: Session):
-    return db.query(User).all()
+def get_users(db: Session, company_id: int):
+    return (
+        db.query(User)
+        .filter(User.company_id == company_id)
+        .all()
+    )
 
 
-def get_user_by_uid(db: Session, uid: int) -> Optional[User]:
-    return db.query(User).filter(User.uid == uid).first()
+def get_user_by_uid(db: Session, uid: int, company_id: Optional[int] = None) -> Optional[User]:
+    query = db.query(User).filter(User.uid == uid)
+    
+    if company_id is not None:
+        query = query.filter(User.company_id == company_id)
+        
+    return query.first()
 
 
 def create_users(db: Session, user_create: UserCreate):
@@ -19,6 +28,7 @@ def create_users(db: Session, user_create: UserCreate):
 
     user_role = user_create.role or "일반유저"
     user_category = user_create.category
+    user_company_id = user_create.company_id
 
     # 회원가입 코드가 입력된 경우 자동 역할/카테고리 바인딩
     code_obj = None
@@ -39,6 +49,7 @@ def create_users(db: Session, user_create: UserCreate):
 
     db_user = User(
         user_id=user_create.user_id,
+        company_id=user_company_id,
         name=user_create.name,
         password=hashed_pw,
         role=user_role,
@@ -75,8 +86,8 @@ def find_user_password(db: Session, user_id: str, name: str) -> Optional[User]:
     return db.query(User).filter(User.user_id == user_id, User.name == name).first()
 
 
-def update_user_role(db: Session, uid: int, role: str) -> Optional[User]:
-    user = get_user_by_uid(db, uid)
+def update_user_role(db: Session, uid: int, role: str, company_id: int,) -> Optional[User]:
+    user = get_user_by_uid(db, uid, company_id)
     if not user:
         return None
     user.role = role
@@ -87,12 +98,13 @@ def update_user_role(db: Session, uid: int, role: str) -> Optional[User]:
 
 def update_user_category_and_role(
     db: Session,
+    company_id: int,
     uid: int,
     category: Optional[str] = None,
-    role: Optional[str] = None
+    role: Optional[str] = None,
 ) -> Optional[User]:
     """안전관리자(총책임자) 전용: 유저 역할 및 일반유저 카테고리 변경"""
-    user = get_user_by_uid(db, uid)
+    user = get_user_by_uid(db, uid, company_id)
     if not user:
         return None
     if role is not None:
@@ -101,4 +113,4 @@ def update_user_category_and_role(
         user.category = category
     db.commit()
     db.refresh(user)
-    return user
+    return user

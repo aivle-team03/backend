@@ -22,7 +22,7 @@ def generate_unique_code(db: Session, length: int = 8) -> str:
             return code
 
 
-def create_signup_code(db: Session, role: str, category: Optional[str] = None) -> SignupCode:
+def create_signup_code(db: Session, company_id: int, role: str, category: Optional[str] = None) -> SignupCode:
     """새로운 회원가입 코드 생성 및 저장"""
     code_str = generate_unique_code(db)
     
@@ -31,6 +31,7 @@ def create_signup_code(db: Session, role: str, category: Optional[str] = None) -
         category = None
 
     db_code = SignupCode(
+        company_id=company_id,
         code=code_str,
         role=role,
         category=category,
@@ -42,9 +43,14 @@ def create_signup_code(db: Session, role: str, category: Optional[str] = None) -
     return db_code
 
 
-def get_all_signup_codes(db: Session) -> List[SignupCode]:
+def get_all_signup_codes(db: Session, company_id: int) -> List[SignupCode]:
     """생성된 전체 회원가입 코드 목록 조회"""
-    return db.query(SignupCode).order_by(SignupCode.id.desc()).all()
+    return (
+        db.query(SignupCode)
+        .filter(SignupCode.company_id == company_id)
+        .order_by(SignupCode.id.desc())
+        .all()
+    )
 
 
 def get_signup_code_by_code(db: Session, code: str) -> Optional[SignupCode]:

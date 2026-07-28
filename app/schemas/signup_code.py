@@ -10,6 +10,7 @@ class SignupCodeCreate(BaseModel):
 
 class SignupCodeResponse(BaseModel):
     id: int
+    company_id: int
     code: str
     role: str
     category: Optional[str] = None

@@ -26,6 +26,7 @@ def post_create_report(
     """선택한 이벤트와 체크리스트를 기반으로 보고서 생성 API"""
     report = create_report(
         db=db,
+        company_id=current_user.company_id,
         uid=current_user.uid,
         content=req.content,
         event_ids=req.event_ids,
@@ -41,11 +42,12 @@ def read_reports(
     end_date: Optional[str] = Query(None),
     writer: Optional[str] = Query(None),
     keyword: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """보고서 목록 조회 API"""
     total, items = get_reports(
-        db=db, page=page, size=size, start_date=start_date,
+        db=db, company_id=current_user.company_id, page=page, size=size, start_date=start_date,
         end_date=end_date, writer=writer, keyword=keyword
     )
         
@@ -57,9 +59,9 @@ def read_reports(
     }
 
 @router.get("/{report_id}", response_model=ReportDetailResponse)
-def read_report_detail(report_id: int = Path(..., ge=1), db: Session = Depends(get_db)):
+def read_report_detail(report_id: int = Path(..., ge=1), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """보고서 상세 조회 API"""
-    r = get_report_by_id(db, report_id=report_id)
+    r = get_report_by_id(db, report_id=report_id, company_id=current_user.company_id)
     if not r:
         raise HTTPException(status_code=404, detail="보고서를 찾을 수 없습니다.")
         
@@ -73,7 +75,13 @@ def put_update_report(
     db: Session = Depends(get_db)
 ):
     """보고서 내용 수정 API"""
-    r = update_report(db, report_id=report_id, uid=current_user.uid, content=req.content)
+    r = update_report(
+        db, 
+        report_id=report_id, 
+        uid=current_user.uid, 
+        company_id=current_user.company_id,
+        content=req.content
+    )
     if not r:
         raise HTTPException(status_code=403, detail="보고서가 존재하지 않거나 수정 권한이 없습니다.")
         
@@ -86,7 +94,7 @@ def delete_report_endpoint(
     db: Session = Depends(get_db)
 ):
     """보고서 삭제 API"""
-    success = delete_report(db, report_id=report_id, uid=current_user.uid)
+    success = delete_report(db, report_id=report_id, uid=current_user.uid, company_id=current_user.company_id)
     if not success:
         raise HTTPException(status_code=403, detail="보고서가 존재하지 않거나 삭제 권한이 없습니다.")
     return {"message": "보고서가 성공적으로 삭제되었습니다."}
@@ -94,10 +102,11 @@ def delete_report_endpoint(
 @router.get("/{report_id}/download")
 def download_report_pdf(
     report_id: int = Path(..., ge=1),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """보고서를 PDF 형태로 다운로드 API"""
-    r = get_report_by_id(db, report_id=report_id)
+    r = get_report_by_id(db, report_id=report_id, company_id=current_user.company_id)
     if not r:
         raise HTTPException(status_code=404, detail="보고서를 찾을 수 없습니다.")
 

@@ -11,6 +11,7 @@ class CCTVCreate(BaseModel):
 
 class CCTVResponse(BaseModel):
     cctv_id: int
+    company_id: int
     cctv_name: str
     location: str
     stream_url: str

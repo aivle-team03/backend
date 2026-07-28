@@ -50,6 +50,7 @@ def post_board(
 
     return create_board(
         db=db,
+        company_id=current_user.company_id,
         uid=current_user.uid,
         title=title,
         board_contents=board_contents,
@@ -68,18 +69,19 @@ def read_boards(
     status_val: Optional[str] = Query(None, alias="status"),
     location: Optional[str] = Query(None),
     keyword: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     total, items = get_boards(
-        db, page=page, size=size, category=category,
+        db, company_id=current_user.company_id, page=page, size=size, category=category,
         status=status_val, location=location, keyword=keyword
     )
     return {"total": total, "page": page, "size": size, "items": items}
 
 # 3. 게시글 상세 조회 (GET /api/boards/{board_id})
 @router.get("/{board_id}", response_model=BoardResponse)
-def read_board_detail(board_id: int, db: Session = Depends(get_db)):
-    board = get_board_by_id(db, board_id)
+def read_board_detail(board_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    board = get_board_by_id(db, board_id=board_id, company_id=current_user.company_id)
     if not board:
         raise HTTPException(status_code=404, detail="게시글을 찾을 수 없습니다.")
     return board
@@ -97,7 +99,10 @@ def patch_board(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    board = get_board_by_id(db, board_id)
+    board = db.query(Board).filter(
+        Board.board_id == board_id,
+        Board.company_id == current_user.company_id
+    ).first()
     if not board:
         raise HTTPException(status_code=404, detail="게시글을 찾을 수 없습니다.")
 
@@ -124,7 +129,10 @@ def remove_board(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    board = get_board_by_id(db, board_id)
+    board = db.query(Board).filter(
+        Board.board_id == board_id,
+        Board.company_id == current_user.company_id
+    ).first()
     if not board:
         raise HTTPException(status_code=404, detail="게시글을 찾을 수 없습니다.")
     
@@ -139,7 +147,10 @@ def patch_board_status(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    board_obj = db.query(Board).filter(Board.board_id == board_id).first()
+    board_obj = db.query(Board).filter(
+        Board.board_id == board_id,
+        Board.company_id == current_user.company_id
+    ).first()
     
     if not board_obj:
         raise HTTPException(status_code=404, detail="게시글을 찾을 수 없습니다.")
