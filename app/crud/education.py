@@ -35,6 +35,7 @@ def get_my_education_list(
     user: User,
     category: Optional[str] = None,
 ):
+    query = db.query(Education) # 교육 테이블 전체 조회
     if category:
         query = query.filter(Education.category == category)
     return query.order_by(Education.education_id.asc()).all()
