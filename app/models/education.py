@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 from sqlalchemy import BigInteger, Column, String, ForeignKey
-=======
-from sqlalchemy import BigInteger, Column, String
->>>>>>> f099ac31cb02b8deb209a79802f83b7573b2ff93
 from sqlalchemy.orm import relationship
 
 from app.db.db import Base
