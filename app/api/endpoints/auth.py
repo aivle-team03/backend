@@ -3,10 +3,16 @@ from sqlalchemy.orm import Session
 from app.db.db import get_db
 from app.models import User
 from app.crud.user import create_users as crud_create_user, checkid as crud_check_id
-from app.crud.auth import create_access_token, get_current_user
+from app.crud.auth import (
+    create_access_token,
+    create_refresh_token,
+    verify_refresh_token,
+    hash_token,
+    get_current_user
+)
 from app.core.crypt import verify_password, hash_password
 from app.schemas.user import PasswordReset, UserCreate, UserLogin
-from app.schemas.token import Token
+from app.schemas.token import Token, RefreshTokenRequest
 
 router = APIRouter()
 
@@ -57,35 +63,55 @@ def verify_code(code: str, db: Session = Depends(get_db)):
 def login(user_login: UserLogin, db: Session = Depends(get_db)):
     # 유저 조회
     user = db.query(User).filter(User.user_id == user_login.user_id).first()
-    if not user:
+    if not user or not verify_password(user_login.password, user.password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="아이디 또는 비밀번호가 잘못되었습니다."
         )
     
-    # 비밀번호 검증
-    if not verify_password(user_login.password, user.password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="아이디 또는 비밀번호가 잘못되었습니다."
-        )
-    
-    # JWT Access Token 생성 (sub에 PK인 uid의 문자열 저장)
-    access_token = create_access_token(
-        data={
-            "sub": str(user.uid),
-            "company_id": user.company_id
-        }
-    )
+    # JWT Access Token & Refresh Token 생성
+    token_data = {"sub": str(user.uid), "company_id": user.company_id}
+    access_token = create_access_token(data=token_data)
+    refresh_token = create_refresh_token(data=token_data)
+
+    # DB에 SHA-256 해시화된 Refresh Token 저장 (보안 강화)
+    user.refresh_token = hash_token(refresh_token)
+    db.commit()
     
     return {
         "access_token": access_token,
+        "refresh_token": refresh_token,
         "token_type": "bearer"
     }
 
+
+@router.post("/refresh", response_model=Token)
+def refresh_token(
+    refresh_req: RefreshTokenRequest,
+    db: Session = Depends(get_db)
+):
+    """Access Token 만료 시 최초 로그인 후 7일 이내에만 새 Access Token 발급 (Refresh Token 만료 연장 없음)"""
+    user = verify_refresh_token(db, refresh_req.refresh_token)
+
+    # 새 Access Token만 발급 (기존 Refresh Token의 최초 7일 유효기간 유지하여 무제한 연장 방지)
+    token_data = {"sub": str(user.uid), "company_id": user.company_id}
+    new_access_token = create_access_token(data=token_data)
+
+    return {
+        "access_token": new_access_token,
+        "refresh_token": refresh_req.refresh_token,
+        "token_type": "bearer"
+    }
+
+
 @router.post("/logout")
-def logout(current_user: User = Depends(get_current_user)):
-    """로그아웃 API - JWT 토큰 무효화(요구사항 USR-02-02-3)"""
+def logout(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """로그아웃 API - DB에 저장된 Refresh Token 무효화(요구사항 USR-02-02-3)"""
+    current_user.refresh_token = None
+    db.commit()
     return {"message": "success"}
 
 @router.post("/find/password")
