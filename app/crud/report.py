@@ -6,6 +6,8 @@ from app.models.report import Report
 from app.models.report_event_map import ReportEventMap
 from app.models.report_checklist_map import ReportChecklistMap
 from app.models.report_inspection_map import ReportInspectionMap
+from app.models.report_action_map import ReportActionMap
+from app.models.action_history import ActionHistory
 from app.models.user import User
 
 def create_report(
@@ -16,7 +18,22 @@ def create_report(
     event_ids: Optional[List[int]] = None,
     checklist_ids: Optional[List[int]] = None,
     inspection_history_ids: Optional[List[int]] = None,
+    action_history_ids: Optional[List[int]] = None,
 ) -> Report:
+    if action_history_ids:
+        action_count = (
+            db.query(ActionHistory)
+            .filter(
+                ActionHistory.company_id == company_id,
+                ActionHistory.action_history_id.in_(action_history_ids),
+            )
+            .count()
+        )
+        if action_count != len(action_history_ids):
+            raise ValueError(
+                "연결할 조치 이력을 찾을 수 없거나 다른 회사의 조치 이력입니다."
+            )
+
     summary = content[:50] + "..." if len(content) > 50 else content
     report = Report(
         company_id=company_id,
@@ -44,8 +61,24 @@ def create_report(
             ]
         )
 
-    db.commit()
-    db.refresh(report)
+    if action_history_ids:
+        db.add_all(
+            [
+                ReportActionMap(
+                    report_id=report.report_id,
+                    action_history_id=action_history_id,
+                )
+                for action_history_id in action_history_ids
+            ]
+        )
+
+    try:
+        db.commit()
+        db.refresh(report)
+    except Exception:
+        db.rollback()
+        raise
+
     return report
 
 def get_reports(
@@ -98,6 +131,7 @@ def get_reports(
             "summary": report.summary,
             "created_at": report.created_at,
             "writer": writer_name or "작성자 미상",
+            "action_history_ids": report.action_history_ids,
         }
         items.append(item_dict)
 
