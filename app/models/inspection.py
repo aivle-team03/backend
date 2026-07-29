@@ -15,3 +15,4 @@ class Inspection(Base):
 
     company = relationship("Company")
     histories = relationship("InspectionHistory", back_populates="inspection")
+    category = relationship("EventCategory", backref="inspections")
