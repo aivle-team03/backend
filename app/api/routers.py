@@ -12,6 +12,7 @@ from app.api.endpoints import education
 from app.api.endpoints import report
 from app.api.endpoints import risk
 from app.api.endpoints import inspection
+from app.api.endpoints import action_history
 
 api_router = APIRouter()
 
@@ -25,6 +26,11 @@ api_router.include_router(monitoring.router, prefix="/monitoring", tags=["monito
 
 api_router.include_router(checklist.router, prefix="/checklists", tags=["checklists"])
 api_router.include_router(inspection.router, prefix="/inspection", tags=["inspection"])
+api_router.include_router(
+    action_history.router,
+    prefix="/action-histories",
+    tags=["action-histories"],
+)
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
 api_router.include_router(chatbot.chatbot_router, prefix="/chatbot", tags=["chatbot"])
 api_router.include_router(chatbot.data_router, prefix="/data", tags=["data"])
