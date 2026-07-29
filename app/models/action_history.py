@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, CheckConstraint, Column, DateTime, ForeignKey, String, Text
+from sqlalchemy import BigInteger, CheckConstraint, Column, DateTime, ForeignKey, String, Text, func
 from sqlalchemy.orm import relationship
 
 from app.db.db import Base
@@ -63,6 +63,19 @@ class ActionHistory(Base):
             )
             """,
             name="ck_action_history_status_flow",
+        ),
+        CheckConstraint(
+            """
+            (
+                action_status = '조치 대기'
+                AND completed_at IS NULL
+            )
+            OR (
+                action_status = '조치 완료'
+                AND completed_at IS NOT NULL
+            )
+            """,
+            name="ck_action_history_completed_at",
         ),
         CheckConstraint(
             """
@@ -137,7 +150,13 @@ class ActionHistory(Base):
     action_name = Column(String(200), nullable=False)
     type = Column(String(50), nullable=False)
     location = Column(String(255), nullable=False)
-    action_date = Column(DateTime, nullable=False)
+    created_at = Column(
+        DateTime,
+        nullable=False,
+        default=func.now(),
+        server_default=func.now(),
+    )
+    completed_at = Column(DateTime, nullable=True)
     action_status = Column(
         String(50),
         nullable=False,
