@@ -210,7 +210,7 @@ def create_inspection_history(
         )
 
 
-@router.patch("/histories/{history_id}", response_model=InspectionHistoryResponse)
+@router.patch("/histories/{inspection_history_id}", response_model=InspectionHistoryResponse)
 def update_inspection_history(
     inspection_history_id: int,
     payload: InspectionHistoryUpdate,
