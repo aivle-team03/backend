@@ -65,7 +65,7 @@ class InspectionHistoryUpdate(BaseModel):
     name: Optional[str] = None
     date: Optional[datetime] = None
     location: Optional[str] = None
-    uid: Optional[str] = None
+    uid: Optional[int] = None
     status: Optional[str] = None
     is_action_required: Optional[bool] = None
     content: Optional[str] = None

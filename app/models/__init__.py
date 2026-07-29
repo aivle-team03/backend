@@ -12,3 +12,7 @@ from app.models.education import Education
 from app.models.education_status import EducationStatus
 from app.models.signup_code import SignupCode
 from app.models.inspection import Inspection
+from app.models.inspection_history import InspectionHistory
+from app.models.report_inspection_map import ReportInspectionMap
+from app.models.action_history import ActionHistory
+from app.models.report_action_map import ReportActionMap

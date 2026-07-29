@@ -1,4 +1,14 @@
-from sqlalchemy import BigInteger, CheckConstraint, Column, DateTime, ForeignKey, String, Text, func
+from sqlalchemy import (
+    BigInteger,
+    CheckConstraint,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    String,
+    Text,
+    func,
+)
 from sqlalchemy.orm import relationship
 
 from app.db.db import Base
@@ -109,6 +119,22 @@ class ActionHistory(Base):
             "action_status != '조치 완료' OR handler_uid IS NOT NULL",
             name="ck_action_history_handler",
         ),
+        Index(
+            "ix_action_history_company_created",
+            "company_id",
+            "created_at",
+        ),
+        Index(
+            "ix_action_history_company_status",
+            "company_id",
+            "action_status",
+            "approval_status",
+        ),
+        Index(
+            "ix_action_history_handler_status",
+            "handler_uid",
+            "action_status",
+        ),
     )
 
     action_history_id = Column(BigInteger, primary_key=True, autoincrement=True)
@@ -176,3 +202,8 @@ class ActionHistory(Base):
     category = relationship("EventCategory")
     handler = relationship("User", foreign_keys=[handler_uid])
     approver = relationship("User", foreign_keys=[approver_uid])
+    report_maps = relationship(
+        "ReportActionMap",
+        back_populates="action_history",
+        cascade="all, delete-orphan",
+    )
