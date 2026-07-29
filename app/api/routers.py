@@ -11,6 +11,7 @@ from app.api.endpoints import board
 from app.api.endpoints import education
 from app.api.endpoints import report
 from app.api.endpoints import risk
+from app.api.endpoints import inspection
 
 api_router = APIRouter()
 
@@ -21,7 +22,9 @@ api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 
 api_router.include_router(cctv.router, prefix="/cctvs", tags=["cctvs"])
 api_router.include_router(monitoring.router, prefix="/monitoring", tags=["monitoring"])
+
 api_router.include_router(checklist.router, prefix="/checklists", tags=["checklists"])
+api_router.include_router(inspection.router, prefix="/inspection", tags=["inspection"])
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
 api_router.include_router(chatbot.chatbot_router, prefix="/chatbot", tags=["chatbot"])
 api_router.include_router(chatbot.data_router, prefix="/data", tags=["data"])

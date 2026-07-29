@@ -171,8 +171,28 @@ def _download_image_vertex_sync(
     """
     pollinations_key = os.getenv("POLLINATIONS_API_KEY")
     
+    import hashlib
+    import shutil
+
     # 텍스트 깨짐 방지: 프롬프트에서 특수문자 제거 후 텍스트 생성 완전 금지 지침 추가
-    clean_topic = re.sub(r"[^\w\s]", " ", prompt or script or "").strip()
+    clean_topic = re.sub(r"[^\w\s]", " ", prompt or script or "").strip().lower()
+    
+    # --------------------------------------------------
+    # [Smart Image Caching] 동일/유사 프롬프트 이미지 재사용 캐시 검사
+    # --------------------------------------------------
+    cache_dir = "static/test_output_images/cache"
+    os.makedirs(cache_dir, exist_ok=True)
+    prompt_hash = hashlib.md5(clean_topic.encode("utf-8")).hexdigest()
+    cache_file = os.path.join(cache_dir, f"{prompt_hash}.jpg")
+
+    if os.path.exists(cache_file) and os.path.getsize(cache_file) > 5000:
+        try:
+            shutil.copyfile(cache_file, output_path)
+            print(f"[ImageGenerator] [Cache HIT 🚀] 동일/유사 프롬프트 캐시 이미지 즉시 재사용! (Scene {scene_num}, API 0원)")
+            return True
+        except Exception as ce:
+            print(f"[ImageGenerator] 캐시 복사 예외: {ce}")
+
     safe_prompt = (
         f"A professional realistic 8k photograph of industrial workplace safety inspection: {clean_topic}. "
         f"STRICT NEGATIVE DIRECTIVE: ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS, NO KOREAN CHARACTERS, NO WRITING, NO LOGOS, NO SUBTITLES. Pure clean photography."
