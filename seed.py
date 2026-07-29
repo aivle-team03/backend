@@ -22,7 +22,10 @@ from app.models import (
     Board,
     Education,
     EducationStatus,
-    SignupCode
+    SignupCode,
+    Inspection,
+    InspectionHistory,
+    ReportInspectionMap
 )
 
 engine = create_engine(DATABASE_URL)
@@ -331,6 +334,149 @@ def seed():
                 db.refresh(insp_chk)
                 checklists.append(insp_chk)
             print(f"정기 점검 체크리스트 {len(inspection_list)}건 추가 세팅 완료.")
+            
+            
+        now = datetime.utcnow()
+        if db.query(Inspection).filter(Inspection.company_id == company_id).count() == 0:
+            print("정기 점검 Master (Inspection) 및 수행 이력 적재를 시작합니다...")
+            
+            inspections_data = [
+                {
+                    "name": "소화기 배치 상태 점검",
+                    "category_id": categories[0].category_id,
+                    "location": "A동 1층, B동 2층",
+                    "cycle": "매주",
+                    "content": "구역 내 소화기 압력계 정상 여부 및 적치물 가림 확인"
+                },
+                {
+                    "name": "비상구 및 대피로 장애물 점검",
+                    "category_id": categories[1].category_id,
+                    "location": "A동 복도, B동 자재창고",
+                    "cycle": "매일",
+                    "content": "비상구 폐쇄 여부 및 통로 적치물 정리 상태 확인"
+                },
+                {
+                    "name": "작업자 보호구 착용 실태 점검",
+                    "category_id": categories[2].category_id,
+                    "location": "C동 하역장, D동 정문",
+                    "cycle": "매일",
+                    "content": "안전모 및 안전화 착용 준수 여부 정기점검"
+                },
+            ]
+
+            created_inspections = []
+            for insp_d in inspections_data:
+                insp = Inspection(
+                    company_id=company_id,
+                    **insp_d
+                )
+                db.add(insp)
+                db.commit()
+                db.refresh(insp)
+                created_inspections.append(insp)
+
+            print(f"정기 점검 Master {len(created_inspections)}건 생성 완료.")
+
+            # 점검 수행 이력 (InspectionHistory) 더미 적재
+            history_dummies = [
+                {
+                    "inspection_id": created_inspections[0].inspection_id,
+                    "name": created_inspections[0].name,
+                    "date": now - timedelta(days=2),
+                    "location": "A동 1층",
+                    "uid": admin_user.uid,
+                    "status": "점검 완료",
+                    "is_action_required": False,
+                    "content": "소화기 외관 및 압력 상태 이상 없음 확인"
+                },
+                {
+                    "inspection_id": created_inspections[0].inspection_id,
+                    "name": created_inspections[0].name,
+                    "date": now - timedelta(days=1),
+                    "location": "B동 2층",
+                    "uid": admin_user.uid,
+                    "status": "점검 완료",
+                    "is_action_required": True,
+                    "content": "소화기 앞 박스 적치물 발견 -> 제거 조치 필요"
+                },
+                {
+                    "inspection_id": created_inspections[1].inspection_id,
+                    "name": created_inspections[1].name,
+                    "date": now - timedelta(hours=5),
+                    "location": "A동 복도",
+                    "uid": None,  # 점검 대기 건
+                    "status": "점검 대기",
+                    "is_action_required": False,
+                    "content": "[매일 정기점검] A동 복도 자동 생성 건"
+                },
+                {
+                    "inspection_id": created_inspections[1].inspection_id,
+                    "name": created_inspections[1].name,
+                    "date": now - timedelta(hours=3),
+                    "location": "B동 자재창고",
+                    "uid": users[1].uid,
+                    "status": "점검 완료",
+                    "is_action_required": False,
+                    "content": "비상 통로 확보 양호"
+                }
+            ]
+
+            created_histories = []
+            for h_d in history_dummies:
+                hist = InspectionHistory(
+                    company_id=company_id,
+                    **h_d
+                )
+                db.add(hist)
+                db.commit()
+                db.refresh(hist)
+                created_histories.append(hist)
+
+            print(f"점검 수행 이력 {len(created_histories)}건 적재 완료.")
+        else:
+            print("정기 점검 데이터가 이미 존재합니다.")
+
+        if db.query(Report).filter(Report.company_id == company_id).count() == 0:
+            report1 = Report(
+                company_id=company_id,
+                uid=admin_user.uid,
+                content="7월 2주차 사내 소방 안전 및 대피로 장애물 점검 주간 리포트입니다. B동 자재창고의 장애물이 빈번히 조치 대기 상태로 전이되어 부서별 안전 교육을 권장합니다.",
+                summary="7월 2주차 사내 소방안전 주간 보고서",
+                created_at=now - timedelta(days=2)
+            )
+            report2 = Report(
+                company_id=company_id,
+                uid=admin_user.uid,
+                content="A동 정기 소화시설 작동 여부 및 복도 비상구 확보 현황 종합 보고서입니다. 감지된 모든 장애물은 현재 조치 완료(승인 완료) 처리되었습니다.",
+                summary="A동 비상대피로 정기 점검 리포트",
+                created_at=now - timedelta(days=1)
+            )
+            db.add(report1)
+            db.add(report2)
+            db.commit()
+            db.refresh(report1)
+            db.refresh(report2)
+            print("종합 안전 통계 리포트 2건 생성 완료.")
+
+            # 이벤트 / 체크리스트 / 점검 이력 매핑 적재
+            existing_events = db.query(Event).all()
+            existing_checklists = db.query(Checklist).all()
+            existing_histories = db.query(InspectionHistory).all()
+
+            if existing_events and existing_checklists:
+                map1 = ReportEventMap(report_id=report1.report_id, event_id=existing_events[0].event_id)
+                map2 = ReportEventMap(report_id=report1.report_id, event_id=existing_events[1].event_id)
+                map3 = ReportChecklistMap(report_id=report1.report_id, checklist_id=existing_checklists[0].checklist_id)
+                db.add_all([map1, map2, map3])
+
+            if existing_histories:
+                map4 = ReportInspectionMap(report_id=report2.report_id, inspection_history_id=existing_histories[0].inspection_history_id)
+                db.add(map4)
+
+            db.commit()
+            print("리포트-이벤트/체크리스트/점검이력 연동 맵 테이블 적재 완료.")
+            
+            
             
             # 5. 보고서(Report) 및 매핑 생성
             report1 = Report(

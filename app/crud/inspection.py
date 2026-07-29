@@ -165,6 +165,31 @@ def get_all_histories_by_company(
         .limit(limit)
         .all()
     )
+    
+
+def get_histories_by_user(
+    db: Session,
+    company_id: int,
+    uid: int,
+    status: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 100,
+) -> List[InspectionHistory]:
+    """특정 유저에게 배정되거나 완료한 점검 이력 목록 조회"""
+    query = db.query(InspectionHistory).filter(
+        InspectionHistory.company_id == company_id,
+        InspectionHistory.uid == uid,
+    )
+
+    if status:
+        query = query.filter(InspectionHistory.status == status)
+
+    return (
+        query.order_by(InspectionHistory.date.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
 
 
 def create_inspection_history(
