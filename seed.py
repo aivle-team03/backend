@@ -6,7 +6,9 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 # 프로젝트 루트 경로 sys.path 추가
-sys.path.append("c:/aivle202609/big_project")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if BASE_DIR not in sys.path:
+    sys.path.append(BASE_DIR)
 
 from app.db.db import DATABASE_URL, Base
 from app.models import (
@@ -22,7 +24,12 @@ from app.models import (
     Board,
     Education,
     EducationStatus,
-    SignupCode
+    SignupCode,
+    Inspection,
+    InspectionHistory,
+    ReportInspectionMap,
+    ActionHistory,
+    ReportActionMap
 )
 
 engine = create_engine(DATABASE_URL)
@@ -37,7 +44,26 @@ def hash_password(password: str) -> str:
 
 def auto_migrate():
     """DB 스키마 자동 동기화 (신규 테이블 생성 및 기존 테이블 신규/변경된 컬럼 ALTER)"""
-    Base.metadata.create_all(bind=engine)
+    with engine.connect() as conn:
+        # 0. company 테이블 company_id 컬럼 변경/추가 보정
+        try:
+            conn.execute(text("ALTER TABLE company DROP PRIMARY KEY;"))
+            conn.commit()
+        except Exception:
+            pass
+
+        try:
+            conn.execute(text("ALTER TABLE company ADD COLUMN company_id BIGINT AUTO_INCREMENT PRIMARY KEY FIRST;"))
+            conn.commit()
+            print("company 테이블에 company_id 컬럼 추가 완료.")
+        except Exception:
+            pass
+
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as me:
+        print(f"[Seed] 테이블 일괄 생성 참고 (일부 FK 순서 지연): {me}")
+
     with engine.connect() as conn:
         # 1. board.updated_at 컬럼 추가
         try:
@@ -188,7 +214,6 @@ def seed():
                 "company_id": company_id
             })
 
-
         users = []
 
         for u_data in base_users:
@@ -201,16 +226,18 @@ def seed():
             users.append(u)
 
         admin_user = users[0]
+        worker1_user = users[1]
+        worker2_user = users[2]
         print(f"유저 계정 {len(users)}개 세팅 완료.")
 
         # 2. 이벤트 카테고리 등록
         categories_data = [
-            {"category": "위험", "category_name": "화재 감지", "level": 9, "company_id": company_id},
-            {"category": "주의", "category_name": "불법 적치물 검지", "level": 5, "company_id": company_id},
-            {"category": "경고", "category_name": "보호구 미착용", "level": 7, "company_id": company_id},
-            {"category": "주의", "category_name": "무단 침입", "level": 4, "company_id": company_id}
+            {"category": "소방안전", "category_name": "화재 감지", "level": 9, "company_id": company_id},
+            {"category": "시설안전", "category_name": "적재물", "level": 5, "company_id": company_id},
+            {"category": "산업안전", "category_name": "충돌", "level": 7, "company_id": company_id},
+            {"category": "기타", "category_name": "무단 침입", "level": 4, "company_id": company_id}
         ]
-        
+
         categories = []
         for cat_data in categories_data:
             existing_cat = db.query(EventCategory).filter(
@@ -245,17 +272,16 @@ def seed():
         print(f"CCTV 세팅 완료: {cctv.cctv_name} (id={cctv.cctv_id})")
 
         # 4. 이상 감지 이벤트 및 조치 Checklist 적재
-        existing_event_count = db.query(Event).filter(Event.company_id == company_id).count()
-        if existing_event_count < 10:
+        now = datetime.utcnow()
+        events = db.query(Event).filter(Event.company_id == company_id).all()
+        if len(events) < 10:
             print("더미 이상 감지 이벤트 및 점검 Checklist 적재를 시작합니다...")
-            now = datetime.utcnow()
-            
             events = []
             for i in range(12):
                 category = categories[i % len(categories)]
                 date_offset = timedelta(days=random_offset_days(i), hours=i*2)
                 event_date = now - date_offset
-                
+
                 new_event = Event(
                     company_id=company_id,
                     category_id=category.category_id,
@@ -267,9 +293,9 @@ def seed():
                 db.commit()
                 db.refresh(new_event)
                 events.append(new_event)
-                
+
             print(f"이상 감지 이벤트 {len(events)}건 적재 완료.")
-            
+
             status_list = [
                 ("조치 대기", "A동 복도 소화전 장애물 감지, 현장 확인 요청"),
                 ("조치 대기", "B동 창고 통로 물품 차단 감지, 대피로 확보 바람"),
@@ -282,12 +308,12 @@ def seed():
                 ("승인 완료", "화재 센서 오작동 확인 및 경보 해제 조치 완료"),
                 ("승인 완료", "안전모 미착용 현장 작업자 안전 지도 완료")
             ]
-            
+
             checklists = []
             for idx, (status_val, content) in enumerate(status_list):
                 ev = events[idx]
                 img_url = f"/static/uploads/action_resolved_{idx+1}.jpg" if status_val in ["승인 대기", "승인 완료"] else None
-                
+
                 chk = Checklist(
                     company_id=company_id,
                     event_id=ev.event_id,
@@ -305,7 +331,7 @@ def seed():
                 checklists.append(chk)
             print(f"체크리스트 조치 내역 {len(checklists)}건 세팅 완료.")
 
-            # 4-1. 정기 점검 체크리스트 적재 (type="점검", event_id 없음)
+            # 4-1. 정기 점검 체크리스트 적재
             inspection_list = [
                 ("점검 대기", "A동 복도 소화기 배치 상태 정기 점검"),
                 ("점검 대기", "B동 자재창고 비상구 개폐 여부 확인"),
@@ -331,8 +357,282 @@ def seed():
                 db.refresh(insp_chk)
                 checklists.append(insp_chk)
             print(f"정기 점검 체크리스트 {len(inspection_list)}건 추가 세팅 완료.")
-            
-            # 5. 보고서(Report) 및 매핑 생성
+
+        # 5. 정기 점검 Master (Inspection) 및 수행 이력 (InspectionHistory) 적재
+        created_inspections = db.query(Inspection).filter(Inspection.company_id == company_id).all()
+        created_histories = db.query(InspectionHistory).filter(InspectionHistory.company_id == company_id).all()
+
+        if not created_inspections:
+            print("정기 점검 Master (Inspection) 및 수행 이력 적재를 시작합니다...")
+            inspections_data = [
+                {
+                    "name": "소화기 배치 상태 점검",
+                    "category_id": categories[0].category_id,
+                    "location": "A동 1층, B동 2층",
+                    "cycle": "매주",
+                    "content": "구역 내 소화기 압력계 정상 여부 및 적치물 가림 확인"
+                },
+                {
+                    "name": "비상구 및 대피로 장애물 점검",
+                    "category_id": categories[1].category_id,
+                    "location": "A동 복도, B동 자재창고",
+                    "cycle": "매일",
+                    "content": "비상구 폐쇄 여부 및 통로 적치물 정리 상태 확인"
+                },
+                {
+                    "name": "작업자 보호구 착용 실태 점검",
+                    "category_id": categories[2].category_id,
+                    "location": "C동 하역장, D동 정문",
+                    "cycle": "매일",
+                    "content": "안전모 및 안전화 착용 준수 여부 정기점검"
+                },
+            ]
+
+            created_inspections = []
+            for insp_d in inspections_data:
+                insp = Inspection(
+                    company_id=company_id,
+                    **insp_d
+                )
+                db.add(insp)
+                db.commit()
+                db.refresh(insp)
+                created_inspections.append(insp)
+
+            print(f"정기 점검 Master {len(created_inspections)}건 생성 완료.")
+
+            history_dummies = [
+                {
+                    "inspection_id": created_inspections[0].inspection_id,
+                    "name": created_inspections[0].name,
+                    "date": now - timedelta(days=2),
+                    "location": "A동 1층",
+                    "uid": admin_user.uid,
+                    "status": "점검 완료",
+                    "is_action_required": False,
+                    "content": "소화기 외관 및 압력 상태 이상 없음 확인"
+                },
+                {
+                    "inspection_id": created_inspections[0].inspection_id,
+                    "name": created_inspections[0].name,
+                    "date": now - timedelta(days=1),
+                    "location": "B동 2층",
+                    "uid": admin_user.uid,
+                    "status": "점검 완료",
+                    "is_action_required": True,
+                    "content": "소화기 앞 박스 적치물 발견 -> 제거 조치 필요"
+                },
+                {
+                    "inspection_id": created_inspections[1].inspection_id,
+                    "name": created_inspections[1].name,
+                    "date": now - timedelta(hours=5),
+                    "location": "A동 복도",
+                    "uid": worker1_user.uid,  # 점검 대기 건
+                    "status": "점검 대기",
+                    "is_action_required": False,
+                    "content": "[매일 정기점검] A동 복도 자동 생성 건"
+                },
+                {
+                    "inspection_id": created_inspections[1].inspection_id,
+                    "name": created_inspections[1].name,
+                    "date": now - timedelta(hours=3),
+                    "location": "B동 자재창고",
+                    "uid": worker1_user.uid,
+                    "status": "점검 완료",
+                    "is_action_required": False,
+                    "content": "비상 통로 확보 양호"
+                }
+            ]
+
+            created_histories = []
+            for h_d in history_dummies:
+                hist = InspectionHistory(
+                    company_id=company_id,
+                    **h_d
+                )
+                db.add(hist)
+                db.commit()
+                db.refresh(hist)
+                created_histories.append(hist)
+
+            print(f"점검 수행 이력 {len(created_histories)}건 적재 완료.")
+
+        # 6. 게시판(Board) 적재
+        boards = db.query(Board).filter(Board.company_id == company_id).all()
+        if not boards:
+            board1 = Board(
+                company_id=company_id,
+                uid=admin_user.uid,
+                event_category_id=categories[1].category_id,
+                title="B동 자재창고 통로 박스 적치 조치 요청",
+                board_contents="B동 자재창고 비상구 통로 주변에 불법 가연성 적치물이 쌓여 있어 안전 조치를 요청합니다.",
+                status="조치중",
+                location="B동 자재창고",
+                image_url="/static/uploads/board_sample_1.jpg"
+            )
+            board2 = Board(
+                company_id=company_id,
+                uid=worker1_user.uid,
+                event_category_id=categories[0].category_id,
+                title="A동 복도 소화기 배치 재점검 요청",
+                board_contents="소화기 외관 점검 결과 일부 소화기 위치 이동 및 가압 점검이 필요합니다.",
+                status="접수",
+                location="A동 복도",
+                image_url=None
+            )
+            db.add_all([board1, board2])
+            db.commit()
+            db.refresh(board1)
+            db.refresh(board2)
+            boards = [board1, board2]
+            print("게시판 더미 데이터 2건 적재 완료.")
+
+
+        if db.query(ActionHistory).filter(ActionHistory.company_id == company_id).count() == 0:
+            print("조치 이력 (ActionHistory) 적재를 시작합니다 (모든 출처 및 상태 조합)...")
+
+            action_dummies = [
+                # -------------------------------------------------------------
+                # 1) type = "게시판" (board_id 필수, event_id/inspection_history_id 없음)
+                # -------------------------------------------------------------
+                {
+                    "type": "게시판",
+                    "board_id": boards[0].board_id,
+                    "event_id": None,
+                    "inspection_history_id": None,
+                    "category_id": categories[1].category_id,
+                    "action_name": boards[0].title,
+                    "location": boards[0].location,
+                    "content": "비상 통로 적치물 정리 조치 요청 건입니다.",
+                    "handler_uid": worker1_user.uid,
+                    "action_status": "조치 대기",
+                    "completed_at": None,
+                    "image_url": None,
+                    "approval_status": None,
+                    "approver_uid": None,
+                    "approval_date": None,
+                    "rejection_reason": None,
+                },
+                {
+                    "type": "게시판",
+                    "board_id": boards[1].board_id,
+                    "event_id": None,
+                    "inspection_history_id": None,
+                    "category_id": categories[0].category_id,
+                    "action_name": boards[1].title,
+                    "location": boards[1].location,
+                    "content": "소화기 위치 재배치 및 가압 상태점검 완료했습니다.",
+                    "handler_uid": worker2_user.uid,
+                    "action_status": "조치 완료",
+                    "completed_at": now - timedelta(hours=2),
+                    "image_url": "/static/uploads/action_board_1.jpg",
+                    "approval_status": "승인 완료",
+                    "approver_uid": admin_user.uid,
+                    "approval_date": now - timedelta(hours=1),
+                    "rejection_reason": None,
+                },
+
+                # -------------------------------------------------------------
+                # 2) type = "이벤트" (event_id 필수, board_id/inspection_history_id 없음)
+                # -------------------------------------------------------------
+                {
+                    "type": "이벤트",
+                    "board_id": None,
+                    "event_id": events[0].event_id,
+                    "inspection_history_id": None,
+                    "category_id": events[0].category_id,
+                    "action_name": "화재 감지 알림 현장 확인",
+                    "location": cctv.location,
+                    "content": "화재 센서 감지 후 현장 출동 및 단순 오작동 처리 완료.",
+                    "handler_uid": worker1_user.uid,
+                    "action_status": "조치 완료",
+                    "completed_at": now - timedelta(days=1),
+                    "image_url": "/static/uploads/action_event_1.jpg",
+                    "approval_status": "승인 대기",
+                    "approver_uid": None,
+                    "approval_date": None,
+                    "rejection_reason": None,
+                },
+                {
+                    "type": "이벤트",
+                    "board_id": None,
+                    "event_id": events[1].event_id,
+                    "inspection_history_id": None,
+                    "category_id": events[1].category_id,
+                    "action_name": "불법 적치물 치우기",
+                    "location": cctv.location,
+                    "content": "적치물 정리 완료했으나 사진 미비로 반려 처리된 건.",
+                    "handler_uid": worker2_user.uid,
+                    "action_status": "조치 대기",
+                    "completed_at": None,
+                    "image_url": None,
+                    "approval_status": "반려",
+                    "approver_uid": admin_user.uid,
+                    "approval_date": now - timedelta(hours=4),
+                    "rejection_reason": "조치 전/후 비교 사진이 누락되었습니다. 다시 첨부 바랍니다.",
+                },
+
+                # -------------------------------------------------------------
+                # 3) type = "점검이력" (inspection_history_id 필수, board_id/event_id 없음)
+                # -------------------------------------------------------------
+                {
+                    "type": "점검이력",
+                    "board_id": None,
+                    "event_id": None,
+                    "inspection_history_id": created_histories[1].inspection_history_id,
+                    "category_id": created_inspections[0].category_id,
+                    "action_name": created_histories[1].name,
+                    "location": created_histories[1].location,
+                    "content": "소화기 가림 박스 치우고 통로 확보했습니다.",
+                    "handler_uid": worker1_user.uid,
+                    "action_status": "조치 완료",
+                    "completed_at": now - timedelta(hours=6),
+                    "image_url": "/static/uploads/action_inspection_1.jpg",
+                    "approval_status": "승인 완료",
+                    "approver_uid": admin_user.uid,
+                    "approval_date": now - timedelta(hours=2),
+                    "rejection_reason": None,
+                },
+
+                # -------------------------------------------------------------
+                # 4) type = "직접추가" (board_id/event_id/inspection_history_id 모두 없음)
+                # -------------------------------------------------------------
+                {
+                    "type": "직접추가",
+                    "board_id": None,
+                    "event_id": None,
+                    "inspection_history_id": None,
+                    "category_id": categories[2].category_id,
+                    "action_name": "하역장 근로자 보호구 특별 지도",
+                    "location": "C동 하역장",
+                    "content": "안전모 미착용 근로자 안전 지도 및 보호구 지급 조치",
+                    "handler_uid": worker2_user.uid,
+                    "action_status": "조치 대기",
+                    "completed_at": None,
+                    "image_url": None,
+                    "approval_status": None,
+                    "approver_uid": None,
+                    "approval_date": None,
+                    "rejection_reason": None,
+                }
+            ]
+
+            created_actions = []
+            for act_d in action_dummies:
+                act = ActionHistory(
+                    company_id=company_id,
+                    **act_d
+                )
+                db.add(act)
+                db.commit()
+                db.refresh(act)
+                created_actions.append(act)
+
+            print(f"조치 이력 (ActionHistory) {len(created_actions)}건 적재 완료.")
+        else:
+            print("조치 이력 데이터가 이미 존재합니다.")
+
+        if db.query(Report).filter(Report.company_id == company_id).count() == 0:
             report1 = Report(
                 company_id=company_id,
                 uid=admin_user.uid,
@@ -353,50 +653,34 @@ def seed():
             db.refresh(report1)
             db.refresh(report2)
             print("종합 안전 통계 리포트 2건 생성 완료.")
-            
-            map1 = ReportEventMap(report_id=report1.report_id, event_id=events[0].event_id)
-            map2 = ReportEventMap(report_id=report1.report_id, event_id=events[1].event_id)
-            map3 = ReportChecklistMap(report_id=report1.report_id, checklist_id=checklists[0].checklist_id)
-            db.add_all([map1, map2, map3])
-            db.commit()
-            print("리포트-이벤트/체크리스트 연동 맵 테이블 적재 완료.")
-        else:
-            print("이상 감지 이벤트 및 점검 데이터가 이미 존재합니다.")
 
-        # 6. 게시판(Board) 적재
-        if db.query(Board).count() == 0:
-            board1 = Board(
-                company_id=company_id,
-                uid=admin_user.uid,
-                event_category_id=categories[1].category_id,
-                title="B동 자재창고 통로 박스 적치 조치 요청",
-                board_contents="B동 자재창고 비상구 통로 주변에 불법 가연성 적치물이 쌓여 있어 안전 조치를 요청합니다.",
-                status="조치중",
-                location="B동 자재창고",
-                image_url="/static/uploads/board_sample_1.jpg"
-            )
-            board2 = Board(
-                company_id=company_id,
-                uid=users[1].uid,
-                event_category_id=categories[0].category_id,
-                title="A동 복도 소화기 배치 재점검 요청",
-                board_contents="소화기 외관 점검 결과 일부 소화기 위치 이동 및 가압 점검이 필요합니다.",
-                status="접수",
-                location="A동 복도",
-                image_url=None
-            )
-            db.add_all([board1, board2])
+            existing_events = db.query(Event).all()
+            existing_checklists = db.query(Checklist).all()
+            existing_histories = db.query(InspectionHistory).all()
+            existing_actions = db.query(ActionHistory).all()
+
+            if existing_events and existing_checklists:
+                map1 = ReportEventMap(report_id=report1.report_id, event_id=existing_events[0].event_id)
+                map2 = ReportEventMap(report_id=report1.report_id, event_id=existing_events[1].event_id)
+                map3 = ReportChecklistMap(report_id=report1.report_id, checklist_id=existing_checklists[0].checklist_id)
+                db.add_all([map1, map2, map3])
+
+            if existing_histories:
+                map4 = ReportInspectionMap(report_id=report2.report_id, inspection_history_id=existing_histories[0].inspection_history_id)
+                db.add(map4)
+
+            if existing_actions:
+                map5 = ReportActionMap(report_id=report1.report_id, action_history_id=existing_actions[0].action_history_id)
+                db.add(map5)
+
             db.commit()
-            print("게시판 더미 데이터 2건 적재 완료.")
-        else:
-            print("게시판 데이터가 이미 존재합니다.")
+            print("리포트-이벤트/체크리스트/점검이력/조치이력 연동 맵 테이블 적재 완료.")
 
         # 7. 안전 교육(Education) 및 수강 이수 현황(EducationStatus) 적재
         # 기존 교육 상태 데이터 초기화 (다시 채우기 위해)
         db.query(EducationStatus).delete()
-        
+
         if db.query(Education).count() == 0:
-            today = date.today()
             edu1 = Education(
                 company_id=company_id,
                 title="사업장 정기 소방 안전 필수 교육 2026",
@@ -426,7 +710,6 @@ def seed():
 
         if edus:
             statuses = []
-            # 1번 교육: 30명 중 이수 18명, 진행중 8명, 미이수 4명
             for idx, u in enumerate(users):
                 if idx < 18:
                     st = "이수"
@@ -439,7 +722,6 @@ def seed():
                     c_date = None
                 statuses.append(EducationStatus(uid=u.uid, education_id=edus[0].education_id, status=st, completed_date=c_date))
 
-            # 2번 교육: 30명 중 이수 22명, 진행중 5명, 미이수 3명
             if len(edus) > 1:
                 for idx, u in enumerate(users):
                     if idx < 22:
@@ -455,7 +737,6 @@ def seed():
 
             if len(edus) > 2:
                 new_workers = [u for u in users if u.role == "신규 근로자"]
-                
                 for idx, u in enumerate(new_workers):
                     if idx < 10:
                         st = "이수"
@@ -468,12 +749,9 @@ def seed():
                         c_date = None
                     statuses.append(EducationStatus(uid=u.uid, education_id=edus[2].education_id, status=st, completed_date=c_date))
 
-
             db.add_all(statuses)
             db.commit()
             print("교육 수강 이수 현황 데이터 풍성하게 적재 완료!")
-        else:
-            print("안전 교육 데이터가 이미 존재합니다.")
 
         print("DB 시딩이 성공적으로 완료되었습니다!")
     except Exception as e:

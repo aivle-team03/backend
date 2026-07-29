@@ -54,33 +54,6 @@ def read_inspection_detail(
     return inspection
 
 
-@router.get("/histories/all", response_model=List[InspectionHistoryResponse])
-def read_all_inspection_histories(
-    status_filter: Optional[str] = None,
-    is_action_required: Optional[bool] = None,
-    date: Optional[str] = None,
-    skip: int = 0,
-    limit: int = 100,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """
-    회사 전체 점검 이력 목록 조회
-    - `status_filter`: "점검 대기", "점검 완료" 등
-    - `is_action_required`: 조치 필요 여부 (true / false)
-    - `date`: 특정 날짜 조회 (예: YYYY-MM-DD)
-    """
-    return inspection_crud.get_all_histories_by_company(
-        db=db,
-        company_id=current_user.company_id,
-        status=status_filter,
-        is_action_required=is_action_required,
-        date=date,
-        skip=skip,
-        limit=limit,
-    )
-
-
 @router.post("/", response_model=InspectionResponse, status_code=status.HTTP_201_CREATED)
 def create_inspection(
     payload: InspectionCreate,
@@ -148,9 +121,58 @@ def read_inspection_histories(
     return inspection_crud.get_histories_by_inspection(
         db=db, inspection_id=inspection_id, company_id=current_user.company_id
     )
-    
 
-    
+
+@router.get("/histories/all", response_model=List[InspectionHistoryResponse])
+def read_all_inspection_histories(
+    status_filter: Optional[str] = None,
+    is_action_required: Optional[bool] = None,
+    date: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 100,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    회사 전체 점검 이력 목록 조회
+    - `status_filter`: "점검 대기", "점검 완료" 등
+    - `is_action_required`: 조치 필요 여부 (true / false)
+    - `date`: 특정 날짜 조회 (예: YYYY-MM-DD)
+    """
+    return inspection_crud.get_all_histories_by_company(
+        db=db,
+        company_id=current_user.company_id,
+        status=status_filter,
+        is_action_required=is_action_required,
+        date=date,
+        skip=skip,
+        limit=limit,
+    )
+
+
+@router.get("/histories/me", response_model=List[InspectionHistoryResponse])
+def read_my_inspection_histories(
+    status_filter: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 100,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    내게 배정된 점검 이력 목록 조회
+    - `status_filter`: "점검 대기", "점검 완료" 등 (선택)
+    """
+    return inspection_crud.get_histories_by_user(
+        db=db,
+        company_id=current_user.company_id,
+        uid=current_user.uid,
+        status=status_filter,
+        skip=skip,
+        limit=limit,
+    )
+
+
+
 @router.get("/histories/{inspection_history_id}", response_model=InspectionHistoryResponse)
 def read_inspection_history_detail(
     inspection_history_id: int,

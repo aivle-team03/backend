@@ -57,3 +57,4 @@ docker-compose.override.yml
 walkthrough.md
 static/*
 video_create.json
+ca.pem

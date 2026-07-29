@@ -105,6 +105,7 @@ class ActionHistoryListItem(BaseModel):
     source_id: Optional[int] = None
     action_name: str
     category_id: int
+    category: Optional[str] = None
     category_name: str
     category_level: int
     location: str
