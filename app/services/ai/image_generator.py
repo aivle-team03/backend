@@ -54,12 +54,29 @@ def _wrap_korean_text(text: str, max_chars: int = 30) -> List[str]:
     return lines[:2]
 
 
+STOP_WORDS_SET = {
+    "a", "an", "the", "of", "in", "on", "at", "for", "with", "and", "or", "is", "are",
+    "safety", "inspection", "industrial", "workplace", "professional", "photograph",
+    "photography", "8k", "detailed", "wide", "angle", "clean", "scene", "worker", "workers",
+    "showing", "area", "equipment", "facility", "personnel", "manager", "supervisor"
+}
+
+
 def _extract_scene_keywords(prompt: str, script: Optional[str] = None) -> str:
-    """프롬프트 및 대본에서 주제 키워드 추출"""
-    combined = f"{prompt} {script or ''}".lower()
-    if any(k in combined for k in ["forklift", "지게차", "운행"]): return "forklift"
-    elif any(k in combined for k in ["helmet", "보호구", "안전모", "점검"]): return "helmet"
-    elif any(k in combined for k in ["rack", "storage", "적치물", "창고", "선반"]): return "warehouse"
+    """하드코딩 0개: 프롬프트 및 대본에서 핵심 주제 명사를 동적으로 자동 추출하는 파서"""
+    text = f"{prompt or ''}".lower()
+    words = re.findall(r'[a-z]{3,}', text)
+    meaningful_words = [w for w in words if w not in STOP_WORDS_SET]
+    
+    if meaningful_words:
+        return "_".join(meaningful_words[:2])
+    
+    if script:
+        korean_words = re.findall(r'[가-힣]{2,}', script)
+        korean_filtered = [w for w in korean_words if w not in ["안전", "수칙", "점검", "확인", "작업", "사용", "반드시", "오늘", "내용"]]
+        if korean_filtered:
+            return "_".join(korean_filtered[:2])
+
     return "general"
 
 
@@ -176,22 +193,36 @@ def _download_image_vertex_sync(
 
     # 텍스트 깨짐 방지: 프롬프트에서 특수문자 제거 후 텍스트 생성 완전 금지 지침 추가
     clean_topic = re.sub(r"[^\w\s]", " ", prompt or script or "").strip().lower()
+    topic_category = _extract_scene_keywords(prompt, script)
     
     # --------------------------------------------------
-    # [Smart Image Caching] 동일/유사 프롬프트 이미지 재사용 캐시 검사
+    # [2-Tier Hybrid Cache System]
     # --------------------------------------------------
     cache_dir = "static/test_output_images/cache"
     os.makedirs(cache_dir, exist_ok=True)
-    prompt_hash = hashlib.md5(clean_topic.encode("utf-8")).hexdigest()
-    cache_file = os.path.join(cache_dir, f"{prompt_hash}.jpg")
 
-    if os.path.exists(cache_file) and os.path.getsize(cache_file) > 5000:
+    # Level 1: 문장 정규화 MD5 해시 100% 일치 캐시 검사
+    prompt_hash = hashlib.md5(clean_topic.encode("utf-8")).hexdigest()
+    level1_cache_file = os.path.join(cache_dir, f"hash_{prompt_hash}.jpg")
+
+    if os.path.exists(level1_cache_file) and os.path.getsize(level1_cache_file) > 5000:
         try:
-            shutil.copyfile(cache_file, output_path)
-            print(f"[ImageGenerator] [Cache HIT 🚀] 동일/유사 프롬프트 캐시 이미지 즉시 재사용! (Scene {scene_num}, API 0원)")
+            shutil.copyfile(level1_cache_file, output_path)
+            print(f"[ImageGenerator] [Level 1 Cache HIT 🚀] 정규화 프롬프트 100% 일치 이미지 즉시 재사용! (Scene {scene_num}, API 0원)")
             return True
         except Exception as ce:
-            print(f"[ImageGenerator] 캐시 복사 예외: {ce}")
+            print(f"[ImageGenerator] Level 1 캐시 복사 예외: {ce}")
+
+    # Level 2: 안전 주제 카테고리(forklift, helmet, warehouse 등) 대표 에셋 캐시 검사
+    level2_cache_file = os.path.join(cache_dir, f"topic_{topic_category}.jpg")
+
+    if os.path.exists(level2_cache_file) and os.path.getsize(level2_cache_file) > 5000:
+        try:
+            shutil.copyfile(level2_cache_file, output_path)
+            print(f"[ImageGenerator] [Level 2 Cache HIT 🎨] 안전 카테고리({topic_category}) 대표 이미지 즉시 재사용! (Scene {scene_num}, API 0원)")
+            return True
+        except Exception as ce:
+            print(f"[ImageGenerator] Level 2 캐시 복사 예외: {ce}")
 
     safe_prompt = (
         f"A professional realistic 8k photograph of industrial workplace safety inspection: {clean_topic}. "
@@ -237,8 +268,17 @@ def _download_image_vertex_sync(
                     for part in parts:
                         if "inlineData" in part:
                             b64_img = part["inlineData"]["data"]
+                            img_bytes = base64.b64decode(b64_img)
                             with open(output_path, "wb") as f:
-                                f.write(base64.b64decode(b64_img))
+                                f.write(img_bytes)
+                            # Level 1 및 Level 2 캐시에 동시 저장하여 다음 요청부터 0원 처리
+                            try:
+                                with open(level1_cache_file, "wb") as f1:
+                                    f1.write(img_bytes)
+                                with open(level2_cache_file, "wb") as f2:
+                                    f2.write(img_bytes)
+                            except Exception:
+                                pass
                             print(f"[ImageGenerator] [1차 시도 SUCCESS] Google Cloud Vertex AI Gemini 2.5 Flash Image 텍스트 제거 초고화질 생성 성공! ($300 크레딧 차감) (Scene {scene_num})")
                             return True
         except Exception as ge:
