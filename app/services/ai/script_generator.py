@@ -5,6 +5,7 @@ import base64
 import urllib.request
 import asyncio
 from typing import List, Dict, Optional
+from app.services.ai.parser import parse_document_content
 
 
 PROMPT_TEMPLATE = """
@@ -33,25 +34,54 @@ PROMPT_TEMPLATE = """
 
 
 def _call_gemini_rest_api_sync(api_key: str, payload: dict, models: List[str]) -> Optional[str]:
-    """동기식 API 호출 함수 (내부 로직은 기존과 동일)"""
-    for model_name in models:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
-        headers = {"Content-Type": "application/json"}
-        req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers)
-        try:
-            with urllib.request.urlopen(req, timeout=40) as resp:
-                res_data = json.loads(resp.read().decode("utf-8"))
-                text_out = res_data["candidates"][0]["content"]["parts"][0]["text"]
-                print(f"[ScriptGenerator] SUCCESS: Gemini Vision API 호출 성공 ({model_name})")
-                return text_out
-        except Exception as e:
-            print(f"[ScriptGenerator] Gemini REST API {model_name} 대체: {e}")
+    """Vertex AI OAuth2 Bearer 인증 1순위 (429 요청제한 방지) & AI Studio Fallback 대본 생성 함수"""
+    from app.services.ai.image_generator import _get_vertex_access_token
+    access_token, project_id = _get_vertex_access_token()
+
+    # 1차 시도: GCP Vertex AI OAuth2 (Rate Limit 429 에러 0건 보장)
+    if access_token and project_id:
+        location = "us-central1"
+        vertex_models = [
+            "gemini-2.5-flash",
+            "gemini-2.5-flash-lite-preview-06-17",
+            "gemini-1.5-flash"
+        ]
+        for v_model in vertex_models:
+            url = f"https://{location}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/publishers/google/models/{v_model}:generateContent"
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json"
+            }
+            req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers)
+            try:
+                with urllib.request.urlopen(req, timeout=40) as resp:
+                    res_data = json.loads(resp.read().decode("utf-8"))
+                    text_out = res_data["candidates"][0]["content"]["parts"][0]["text"]
+                    print(f"[ScriptGenerator] SUCCESS: Vertex AI Gemini 대본 생성 성공 ({v_model})")
+                    return text_out
+            except Exception as ve:
+                print(f"[ScriptGenerator] Vertex AI {v_model} 시도 실패: {ve}")
+
+    # 2차 시도: Google AI Studio REST API Key Fallback
+    if api_key:
+        for model_name in models:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+            headers = {"Content-Type": "application/json"}
+            req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers)
+            try:
+                with urllib.request.urlopen(req, timeout=40) as resp:
+                    res_data = json.loads(resp.read().decode("utf-8"))
+                    text_out = res_data["candidates"][0]["content"]["parts"][0]["text"]
+                    print(f"[ScriptGenerator] SUCCESS: Gemini Vision API 호출 성공 ({model_name})")
+                    return text_out
+            except Exception as e:
+                print(f"[ScriptGenerator] Gemini REST API {model_name} 대체: {e}")
     return None
+
 
 def _clean_and_parse_json(raw_text: str) -> Optional[List[Dict]]:
     """[Refactor] LLM의 마크다운 포맷팅 및 예외 문자열을 방어하는 완벽한 JSON 파서"""
     text = raw_text.strip()
-    # 마크다운 코드 블록 제거
     if text.startswith("```json"):
         text = text[7:]
     elif text.startswith("```"):
@@ -62,10 +92,8 @@ def _clean_and_parse_json(raw_text: str) -> Optional[List[Dict]]:
     text = text.strip()
     
     try:
-        # 1차 시도: 정제된 텍스트 통째로 파싱
         return json.loads(text)
     except json.JSONDecodeError:
-        # 2차 시도: 정규식으로 대괄호 배열 부분만 추출해서 파싱
         match = re.search(r"\[.*\]", text, re.DOTALL)
         if match:
             try:
@@ -81,42 +109,44 @@ async def generate_script_from_text(
     gemini_api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     models_to_try = ["gemini-flash-latest", "gemini-2.0-flash", "gemini-2.5-flash-lite"]
 
-    if gemini_api_key:
+    if gemini_api_key or True:
         print("[ScriptGenerator] Gemini Vision LLM 파이프라인 가동...")
         
         try:
-            payload = None
-            if file_path and os.path.exists(file_path):
-                ext = os.path.splitext(file_path)[1].lower()
-                mime_type = "application/pdf" if ext == ".pdf" else ("image/png" if ext == ".png" else "image/jpeg")
-                
-                # [Refactor] 파일 읽기 작업도 블로킹이므로 백그라운드 스레드로 넘김
-                def _read_file():
-                    with open(file_path, "rb") as f:
-                        return base64.b64encode(f.read()).decode("utf-8")
-                
-                b64_data = await asyncio.to_thread(_read_file)
-                
-                user_prompt = f"{PROMPT_TEMPLATE}\n첨부된 문서/이미지 파일 내용 전체를 Vision OCR로 정밀 판독하고 문서 전체 주제에 맞는 교육 대본(최대 2줄 분량)을 작성하세요."
-                if request: user_prompt += f"\n사용자 요청 사항: {request}"
+            # parser.py 모듈에서 스마트 페이지 정밀 파싱(텍스트 + 시각 자료 선별 추출) 위임
+            extracted_text = text or ""
+            visual_parts = []
 
-                payload = {
-                    "contents": [{
-                        "parts": [
-                            {"text": user_prompt},
-                            {"inlineData": {"mimeType": mime_type, "data": b64_data}}
-                        ]
-                    }]
-                }
-            else:
-                user_prompt = f"{PROMPT_TEMPLATE}\n문서 내용:\n{text[:3000]}\n"
-                if request: user_prompt += f"사용자 요청 사항: {request}\n"
-                payload = {"contents": [{"parts": [{"text": user_prompt}]}]}
+            if file_path and os.path.exists(file_path):
+                parsed_text, parsed_visual_parts = await asyncio.to_thread(parse_document_content, file_path)
+                if parsed_text:
+                    extracted_text = parsed_text
+                visual_parts = parsed_visual_parts
+
+            # [Dynamic Scene Scaling] 문서 분량에 맞춰 씬 수 자동 계산 (최소 3개 ~ 최대 10개)
+            char_count = len(extracted_text.strip())
+            target_scenes = max(3, min(10, char_count // 150))
+            if char_count < 200:
+                target_scenes = 3
+
+            print(f"[ScriptGenerator] 문서 글자 수({char_count}자) 기반 동적 목표 씬 수: {target_scenes}개 계산 완료")
+
+            # Gemini 멀티모달 프롬프트 페이로드 결합
+            user_prompt = (
+                f"{PROMPT_TEMPLATE}\n"
+                f"[핵심 요구사항] 입력 문서 분량에 맞춰 반드시 정확히 {target_scenes}개의 장면(Scene 1부터 Scene {target_scenes}까지)으로 대본 및 이미지를 구성하세요.\n"
+                f"문서 내용:\n{extracted_text[:4000]}\n"
+            )
+            if visual_parts:
+                user_prompt += "\n참고: 문서 내 포함된 주요 안전 도면 및 시각 이미지 페이지가 첨부되었습니다. 시각 자료의 세부 작업 내용도 대본에 완벽히 반영하세요.\n"
+            if request:
+                user_prompt += f"사용자 요청 사항: {request}\n"
+
+            prompt_parts = [{"text": user_prompt}] + visual_parts
+            payload = {"contents": [{"role": "user", "parts": prompt_parts}]}
 
             if payload:
-                # [Refactor] urllib 동기 네트워크 호출을 이벤트 루프 블로킹 없이 백그라운드 스레드에서 실행
                 raw_resp = await asyncio.to_thread(_call_gemini_rest_api_sync, gemini_api_key, payload, models_to_try)
-                
                 if raw_resp:
                     results = _clean_and_parse_json(raw_resp)
                     if results:
@@ -124,8 +154,6 @@ async def generate_script_from_text(
                         
         except Exception as e:
             print(f"[ScriptGenerator] API 파이프라인 예외 발생: {e}")
-    else:
-        print("[ScriptGenerator] NOTICE: GEMINI_API_KEY 미설정 (기본 Fallback 동작)")
 
     # Fallback / Default AI 스크립트 분할 파이프라인
     clean_lines = [

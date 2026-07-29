@@ -3,10 +3,27 @@ import asyncio
 from typing import Optional
 
 
+import re
+
+
+def _normalize_text_for_korean_tts(text: str) -> str:
+    """
+    TTS 엔진이 '119'를 '백십구' 대신 '일일구'로 자연스럽게 읽도록 전처리하는 함수
+    """
+    if not text:
+        return ""
+    text = re.sub(r'\b119\b', '일일구', text)   # 119 -> 일일구
+    text = re.sub(r'\b112\b', '일일이', text)   # 112 -> 일일이
+    text = re.sub(r'\b110\b', '일일공', text)   # 110 -> 일일공
+    text = re.sub(r'\b1339\b', '일삼삼구', text) # 1339 -> 일삼삼구
+    return text
+
+
 def _save_gtts_sync(text: str, output_path: str):
     """[관심사 분리] 동기 라이브러리인 gTTS를 스레드 풀에서 안전하게 실행하기 위한 함수"""
     from gtts import gTTS
-    tts = gTTS(text=text, lang="ko")
+    normalized_text = _normalize_text_for_korean_tts(text)
+    tts = gTTS(text=normalized_text, lang="ko")
     tts.save(output_path)
 
 
@@ -20,10 +37,13 @@ async def create_audio_from_text(
     """
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
+    # 119 -> 일일구 등 한국어 발음 전처리
+    normalized_text = _normalize_text_for_korean_tts(text)
+
     # 1차 시도: edge-tts (가장 자연스러운 고품질 신경망 AI 보이스)
     try:
         import edge_tts
-        communicate = edge_tts.Communicate(text, voice)
+        communicate = edge_tts.Communicate(normalized_text, voice)
         await communicate.save(output_path)
         
         if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
