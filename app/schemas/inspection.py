@@ -19,7 +19,7 @@ class InspectionBase(BaseModel):
 
 # 점검 생성 (POST Request)
 class InspectionCreate(InspectionBase):
-    pass  # company_id는 로그인한 유저 정보(JWT)에서 주입받으므로 생략 가능
+    pass
 
 
 # 점검 수정 (PATCH / PUT Request)

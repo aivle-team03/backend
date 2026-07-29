@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import List, Optional
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.models import Inspection, InspectionHistory
 from app.schemas.inspection import (
@@ -113,6 +114,57 @@ def get_histories_by_inspection(
         .order_by(InspectionHistory.date.desc())
         .all()
     )
+    
+def get_history_by_id(
+    db: Session, inspection_history_id: int, company_id: int
+) -> Optional[InspectionHistory]:
+    """특정 점검 이력 단건 조회"""
+    return (
+        db.query(InspectionHistory)
+        .filter(
+            InspectionHistory.inspection_history_id == inspection_history_id,
+            InspectionHistory.company_id == company_id,
+        )
+        .first()
+    )
+    
+def get_all_histories_by_company(
+    db: Session,
+    company_id: int,
+    status: Optional[str] = None,
+    is_action_required: Optional[bool] = None,
+    date: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 100,
+) -> List[InspectionHistory]:
+    """회사 전체 점검 이력 목록 조회 (조건별 필터링 지원)"""
+    query = db.query(InspectionHistory).filter(
+        InspectionHistory.company_id == company_id
+    )
+
+    if status:
+        query = query.filter(InspectionHistory.status == status)
+
+    if is_action_required is not None:
+        query = query.filter(
+            InspectionHistory.is_action_required == is_action_required
+        )
+
+    if date:
+        try:
+            target_date = datetime.strptime(date, "%Y-%m-%d").date()
+            query = query.filter(
+                func.date(InspectionHistory.date) == target_date
+            )
+        except ValueError:
+            pass
+
+    return (
+        query.order_by(InspectionHistory.date.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
 
 
 def create_inspection_history(
@@ -167,3 +219,15 @@ def update_inspection_history(
     db.commit()
     db.refresh(db_obj)
     return db_obj
+
+def delete_inspection_history(
+    db: Session, inspection_history_id: int, company_id: int
+) -> bool:
+    """점검 이력 삭제"""
+    db_obj = get_history_by_id(db, inspection_history_id, company_id)
+    if not db_obj:
+        return False
+
+    db.delete(db_obj)
+    db.commit()
+    return True

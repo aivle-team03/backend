@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -52,6 +52,33 @@ def read_inspection_detail(
             detail="해당 점검 항목을 찾을 수 없거나 접근 권한이 없습니다.",
         )
     return inspection
+
+
+@router.get("/histories/all", response_model=List[InspectionHistoryResponse])
+def read_all_inspection_histories(
+    status_filter: Optional[str] = None,
+    is_action_required: Optional[bool] = None,
+    date: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 100,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    회사 전체 점검 이력 목록 조회
+    - `status_filter`: "점검 대기", "점검 완료" 등
+    - `is_action_required`: 조치 필요 여부 (true / false)
+    - `date`: 특정 날짜 조회 (예: YYYY-MM-DD)
+    """
+    return inspection_crud.get_all_histories_by_company(
+        db=db,
+        company_id=current_user.company_id,
+        status=status_filter,
+        is_action_required=is_action_required,
+        date=date,
+        skip=skip,
+        limit=limit,
+    )
 
 
 @router.post("/", response_model=InspectionResponse, status_code=status.HTTP_201_CREATED)
@@ -121,6 +148,27 @@ def read_inspection_histories(
     return inspection_crud.get_histories_by_inspection(
         db=db, inspection_id=inspection_id, company_id=current_user.company_id
     )
+    
+
+    
+@router.get("/histories/{inspection_history_id}", response_model=InspectionHistoryResponse)
+def read_inspection_history_detail(
+    inspection_history_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """점검 이력 단건 상세 조회"""
+    history = inspection_crud.get_history_by_id(
+        db=db,
+        inspection_history_id=inspection_history_id,
+        company_id=current_user.company_id,
+    )
+    if not history:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 점검 이력을 찾을 수 없거나 접근 권한이 없습니다.",
+        )
+    return history
 
 
 @router.post("/histories/create", response_model=InspectionHistoryResponse, status_code=status.HTTP_201_CREATED)
@@ -160,3 +208,22 @@ def update_inspection_history(
             detail="해당 점검 이력을 찾을 수 없거나 수정 권한이 없습니다.",
         )
     return updated_history
+
+@router.delete("/histories/{inspection_history_id}", status_code=status.HTTP_200_OK)
+def delete_inspection_history(
+    inspection_history_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """점검 이력 삭제"""
+    success = inspection_crud.delete_inspection_history(
+        db=db,
+        inspection_history_id=inspection_history_id,
+        company_id=current_user.company_id,
+    )
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 점검 이력을 찾을 수 없거나 삭제 권한이 없습니다.",
+        )
+    return {"message": "점검 이력이 성공적으로 삭제되었습니다."}
