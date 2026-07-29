@@ -7,6 +7,7 @@ from app.crud.auth import (
     create_access_token,
     create_refresh_token,
     verify_refresh_token,
+    hash_token,
     get_current_user
 )
 from app.core.crypt import verify_password, hash_password
