@@ -2,10 +2,9 @@ from sqlalchemy import Column, BigInteger, String, DateTime, func, ForeignKey
 from sqlalchemy.orm import relationship
 from app.db.db import Base
 
-
 class User(Base):
     __tablename__ = "user"
-
+    
     uid = Column(BigInteger, primary_key=True)                                # PK
     user_id = Column(String(50), unique=True, nullable=False)                 # 로그인 아이디
     name = Column(String(100), nullable=False)                                # 이름
@@ -20,3 +19,4 @@ class User(Base):
     company = relationship("Company", back_populates="users")
     reports = relationship("Report", back_populates="user")
     checklists = relationship("Checklist", back_populates="user")
+    inspection_histories = relationship("InspectionHistory", back_populates="user")

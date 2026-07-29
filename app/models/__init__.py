@@ -11,3 +11,4 @@ from app.models.board import Board
 from app.models.education import Education
 from app.models.education_status import EducationStatus
 from app.models.signup_code import SignupCode
+from app.models.inspection import Inspection
