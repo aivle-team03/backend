@@ -142,7 +142,7 @@ def create_inspection_history(
 
 @router.patch("/histories/{history_id}", response_model=InspectionHistoryResponse)
 def update_inspection_history(
-    history_id: int,
+    inspection_history_id: int,
     payload: InspectionHistoryUpdate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -150,7 +150,7 @@ def update_inspection_history(
     """점검 수행 이력 상태/내용 수정 (점검 완료 처리 등)"""
     updated_history = inspection_crud.update_inspection_history(
         db=db,
-        history_id=history_id,
+        inspection_history_id=inspection_history_id,
         company_id=current_user.company_id,
         history_in=payload,
     )

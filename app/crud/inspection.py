@@ -138,7 +138,7 @@ def create_inspection_history(
 
 def update_inspection_history(
     db: Session,
-    history_id: int,
+    inspection_history_id: int,
     company_id: int,
     history_in: InspectionHistoryUpdate,
 ) -> Optional[InspectionHistory]:
@@ -146,7 +146,7 @@ def update_inspection_history(
     db_obj = (
         db.query(InspectionHistory)
         .filter(
-            InspectionHistory.history_id == history_id,
+            InspectionHistory.inspection_history_id == inspection_history_id,
             InspectionHistory.company_id == company_id,
         )
         .first()
