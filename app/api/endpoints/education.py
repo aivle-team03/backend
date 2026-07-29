@@ -212,6 +212,7 @@ UPLOAD_DIR = "static/uploads"
 async def post_generate_video(
     background_tasks: BackgroundTasks,
     file: Optional[UploadFile] = File(None),
+    text_content: Optional[str] = Form(None),
     title: Optional[str] = Form(None),
     category: Optional[str] = Form("공통"),
     type: Optional[str] = Form("필수"),
