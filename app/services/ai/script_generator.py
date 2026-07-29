@@ -109,7 +109,11 @@ async def generate_script_from_text(
     gemini_api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     models_to_try = ["gemini-flash-latest", "gemini-2.0-flash", "gemini-2.5-flash-lite"]
 
-    if gemini_api_key or True:
+    from app.services.ai.image_generator import _get_vertex_access_token
+    access_token, project_id = _get_vertex_access_token()
+    has_ai_access = bool(gemini_api_key or (access_token and project_id))
+
+    if has_ai_access:
         print("[ScriptGenerator] Gemini Vision LLM 파이프라인 가동...")
         
         try:
