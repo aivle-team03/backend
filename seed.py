@@ -6,7 +6,9 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 # 프로젝트 루트 경로 sys.path 추가
-sys.path.append("c:/aivle202609/big_project")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if BASE_DIR not in sys.path:
+    sys.path.append(BASE_DIR)
 
 from app.db.db import DATABASE_URL, Base
 from app.models import (
@@ -42,7 +44,26 @@ def hash_password(password: str) -> str:
 
 def auto_migrate():
     """DB 스키마 자동 동기화 (신규 테이블 생성 및 기존 테이블 신규/변경된 컬럼 ALTER)"""
-    Base.metadata.create_all(bind=engine)
+    with engine.connect() as conn:
+        # 0. company 테이블 company_id 컬럼 변경/추가 보정
+        try:
+            conn.execute(text("ALTER TABLE company DROP PRIMARY KEY;"))
+            conn.commit()
+        except Exception:
+            pass
+
+        try:
+            conn.execute(text("ALTER TABLE company ADD COLUMN company_id BIGINT AUTO_INCREMENT PRIMARY KEY FIRST;"))
+            conn.commit()
+            print("company 테이블에 company_id 컬럼 추가 완료.")
+        except Exception:
+            pass
+
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as me:
+        print(f"[Seed] 테이블 일괄 생성 참고 (일부 FK 순서 지연): {me}")
+
     with engine.connect() as conn:
         # 1. board.updated_at 컬럼 추가
         try:

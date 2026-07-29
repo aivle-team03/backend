@@ -61,11 +61,12 @@ def verify_refresh_token(db: Session, refresh_token: str) -> User:
         token_type: str = payload.get("type")
         if user_id is None or token_type != "refresh":
             raise credentials_exception
-    except JWTError:
+        uid_int = int(user_id)
+    except (JWTError, ValueError, TypeError):
         raise credentials_exception
 
     hashed_token = hash_token(refresh_token)
-    user = db.query(User).filter(User.uid == int(user_id)).first()
+    user = db.query(User).filter(User.uid == uid_int).first()
     if user is None or user.refresh_token != hashed_token:
         raise credentials_exception
 
@@ -96,10 +97,11 @@ def get_current_user(
         # [보안 검증 1] refresh 토큰을 Authorization 헤더에 보내 access 토큰처럼 사용하는 공격 차단
         if token_type != "access" or user_id is None or company_id is None:
             raise credentials_exception
-    except JWTError:
+        uid_int = int(user_id)
+    except (JWTError, ValueError, TypeError):
         raise credentials_exception
 
-    user = db.query(User).filter(User.uid == int(user_id)).first()
+    user = db.query(User).filter(User.uid == uid_int).first()
 
     # [보안 검증 2] 로그아웃하여 user.refresh_token이 None인 경우, 남은 Access Token 요청도 즉시 차단
     if user is None or user.company_id != company_id or user.refresh_token is None:
