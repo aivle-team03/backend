@@ -44,6 +44,7 @@ def get_inspection_by_id(
 def create_inspection(
     db: Session, inspection_in: InspectionCreate, company_id: int
 ) -> Inspection:
+    """새로운 점검 항목 생성"""
     data = (
         inspection_in.model_dump()
         if hasattr(inspection_in, "model_dump")
@@ -102,14 +103,14 @@ def delete_inspection(
 def get_histories_by_inspection(
     db: Session, inspection_id: int, company_id: int
 ) -> List[InspectionHistory]:
-    """특정 점검 항목의 이력 목록 조회"""
+    """특정 점검 항목의 이력 목록 조회 (최신순 정렬)"""
     return (
         db.query(InspectionHistory)
         .filter(
             InspectionHistory.inspection_id == inspection_id,
             InspectionHistory.company_id == company_id,
         )
-        .order_by(InspectionHistory.inspected_at.desc())
+        .order_by(InspectionHistory.date.desc())
         .all()
     )
 
@@ -118,7 +119,6 @@ def create_inspection_history(
     db: Session, history_in: InspectionHistoryCreate, company_id: int
 ) -> InspectionHistory:
     """점검 수행 이력 추가"""
-    # 1. 해당 점검 항목이 우리 회사 항목인지 먼저 검증
     inspection = get_inspection_by_id(db, history_in.inspection_id, company_id)
     if not inspection:
         raise ValueError("유효하지 않거나 접근 권한이 없는 점검 항목입니다.")

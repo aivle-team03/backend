@@ -10,9 +10,9 @@ from pydantic import BaseModel, ConfigDict
 
 # 공통 필드 (Base)
 class InspectionBase(BaseModel):
-    title: str
+    name: str
     category: str
-    zone: str
+    location: str  # 예: "A동 1층, B동 3층"
     cycle: str
     content: Optional[str] = None
 
@@ -24,9 +24,9 @@ class InspectionCreate(InspectionBase):
 
 # 점검 수정 (PATCH / PUT Request)
 class InspectionUpdate(BaseModel):
-    title: Optional[str] = None
+    name: Optional[str] = None
     category: Optional[str] = None
-    zone: Optional[str] = None
+    location: Optional[str] = None
     cycle: Optional[str] = None
     content: Optional[str] = None
 
@@ -46,9 +46,10 @@ class InspectionResponse(InspectionBase):
 
 # 공통 필드 (Base)
 class InspectionHistoryBase(BaseModel):
-    inspected_at: datetime
-    inspector_name: str
-    status: str
+    date: datetime
+    location: str  # 예: "A동 1층" (개별 구역)
+    uid: str
+    status: str  # "점검 대기", "점검 완료"
     is_action_required: bool = False
     content: Optional[str] = None
 
@@ -60,8 +61,9 @@ class InspectionHistoryCreate(InspectionHistoryBase):
 
 # 점검 이력 상태 및 내용 수정 (PATCH Request)
 class InspectionHistoryUpdate(BaseModel):
-    inspected_at: Optional[datetime] = None
-    inspector_name: Optional[str] = None
+    date: Optional[datetime] = None
+    location: Optional[str] = None
+    uid: Optional[str] = None
     status: Optional[str] = None
     is_action_required: Optional[bool] = None
     content: Optional[str] = None

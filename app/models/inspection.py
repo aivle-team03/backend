@@ -7,9 +7,9 @@ class Inspection(Base):
 
     inspection_id = Column(BigInteger, primary_key=True)                                  # PK
     company_id = Column(BigInteger, ForeignKey("company.company_id"), nullable=False)     # FK (회사 아이디)
-    name = Column(String(250), nullable=False)                                           # 점검 이름
+    name = Column(String(100), nullable=False)                                           # 점검 이름
     category = Column(String(100), nullable=False)                                        # 카테고리
-    location = Column(String(100), nullable=False)                                            # 구역
+    location = Column(String(250), nullable=False)                                        # 점검 구역 (,로 구역 구분)
     cycle = Column(String(50), nullable=False)                                            # 점검 주기 (매일, 매주 등)
     content = Column(String(250), nullable=True)
 

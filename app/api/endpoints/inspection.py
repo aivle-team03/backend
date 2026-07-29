@@ -117,19 +117,18 @@ def read_inspection_histories(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """특정 점검 항목의 이력 목록 조회"""
+    """특정 점검 항목의 전체 이력 목록 조회"""
     return inspection_crud.get_histories_by_inspection(
         db=db, inspection_id=inspection_id, company_id=current_user.company_id
     )
 
 
-@router.post("/histories", response_model=InspectionHistoryResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/histories/create", response_model=InspectionHistoryResponse, status_code=status.HTTP_201_CREATED)
 def create_inspection_history(
     payload: InspectionHistoryCreate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """점검 수행 이력 등록"""
     try:
         return inspection_crud.create_inspection_history(
             db=db, history_in=payload, company_id=current_user.company_id
@@ -148,7 +147,7 @@ def update_inspection_history(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """점검 수행 이력 수정"""
+    """점검 수행 이력 상태/내용 수정 (점검 완료 처리 등)"""
     updated_history = inspection_crud.update_inspection_history(
         db=db,
         history_id=history_id,
