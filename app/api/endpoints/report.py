@@ -23,15 +23,19 @@ def post_create_report(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """선택한 이벤트와 체크리스트를 기반으로 보고서 생성 API"""
-    report = create_report(
-        db=db,
-        company_id=current_user.company_id,
-        uid=current_user.uid,
-        content=req.content,
-        event_ids=req.event_ids,
-        checklist_ids=req.checklist_ids
-    )
+    """선택한 이벤트, 체크리스트, 조치 이력을 기반으로 보고서 생성 API"""
+    try:
+        report = create_report(
+            db=db,
+            company_id=current_user.company_id,
+            uid=current_user.uid,
+            content=req.content,
+            event_ids=req.event_ids,
+            checklist_ids=req.checklist_ids,
+            action_history_ids=req.action_history_ids,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
     return report
 
 @router.get("", response_model=ReportListResponse)
