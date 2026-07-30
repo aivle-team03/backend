@@ -6,6 +6,8 @@ import os
 import shutil
 
 from app.crud.auth import get_current_admin, get_current_user
+from app.crud.education import get_role_completion_stats, get_education_attendees, get_role_education_attendees
+from app.schemas.education import EducationAttendeeListResponse
 from app.crud.education import (
     complete_education,
     get_education_by_id,
@@ -153,6 +155,35 @@ def read_education_status_summary(
             completion_filter.value if completion_filter else None
         ),
     )
+
+
+@admin_education_router.get("/role-stats", response_model=AdminRoleCompletionResponse)
+def read_role_completion_stats(
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    return get_role_completion_stats(db, company_id=current_admin.company_id)
+
+
+@admin_education_router.get("/{education_id}/attendees", response_model=EducationAttendeeListResponse)
+def read_education_attendees(
+    education_id: int = Path(..., ge=1),
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    education = get_education_by_id(db, education_id=education_id, company_id=current_admin.company_id)
+    if education is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Education not found")
+    return get_education_attendees(db, company_id=current_admin.company_id, education_id=education_id)
+
+
+@admin_education_router.get("/role-attendees", response_model=EducationAttendeeListResponse)
+def read_role_education_attendees(
+    role: Optional[str] = Query(None),
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    return get_role_education_attendees(db, company_id=current_admin.company_id, role=role)
 
 
 @admin_education_router.get(
