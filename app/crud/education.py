@@ -14,7 +14,7 @@ INCOMPLETE = "미이수"
 IN_PROGRESS = "진행중"
 COMPLETED = "이수"
 PROGRESS_STATUSES = (INCOMPLETE, IN_PROGRESS, COMPLETED)
-ALL_EMPLOYEE_CATEGORIES = {"전체", "공통"}
+ALL_EMPLOYEE_CATEGORIES = {"공통"}
 
 
 def get_user_by_uid(db: Session, uid: int, company_id: int) -> Optional[User]:
