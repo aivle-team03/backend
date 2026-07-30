@@ -486,11 +486,11 @@ def seed():
             db.refresh(board2)
             boards = [board1, board2]
             print("게시판 더미 데이터 2건 적재 완료.")
-
-
+            
+            
         if db.query(ActionHistory).filter(ActionHistory.company_id == company_id).count() == 0:
             print("조치 이력 (ActionHistory) 적재를 시작합니다 (모든 출처 및 상태 조합)...")
-
+            
             action_dummies = [
                 # -------------------------------------------------------------
                 # 1) type = "게시판" (board_id 필수, event_id/inspection_history_id 없음)
@@ -631,7 +631,7 @@ def seed():
             print(f"조치 이력 (ActionHistory) {len(created_actions)}건 적재 완료.")
         else:
             print("조치 이력 데이터가 이미 존재합니다.")
-
+            
         if db.query(Report).filter(Report.company_id == company_id).count() == 0:
             report1 = Report(
                 company_id=company_id,
