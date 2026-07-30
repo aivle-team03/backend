@@ -17,6 +17,7 @@ from app.crud.education import (
     get_user_education_summary_counts, # 유저용 교육 요약 건수
     get_user_completion_rates, # 유저용 교육 이수 현황 백분율 조회
     create_ai_generated_education, # 관리자용 AI 교육 자료 생성
+    get_category_completion_stats, # 관리자용 카테고리별 이수 현황 그래프 통계 조회
 )
 from app.db.db import get_db
 from app.models import User
@@ -47,6 +48,20 @@ admin_education_router = APIRouter()
 # ==========================================
 # 1. 일반 유저용 API (/api/education)
 # ==========================================
+
+@education_router.get(
+    "/list",
+    response_model=List[EducationResponse],
+    summary="[유저] 내 교육 영상 조회",
+)
+def read_my_education_list(
+    category: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """자신의 조건에 해당하는 교육 영상 목록을 조회"""
+    return get_my_education_list(db, user=current_user, category=category)
+
 
 @education_router.get(
     "/summary",
@@ -122,6 +137,19 @@ def post_my_education_complete(
 # ==========================================
 # 2. 관리자용 API (/api/admin/education)
 # ==========================================
+
+
+@admin_education_router.get(
+    "/category-stats",
+    response_model=AdminRoleCompletionResponse,
+    summary="[관리자] 카테고리별 이수 현황 그래프 통계 조회",
+)
+def read_category_completion_stats(
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """각 사용자의 카테고리별 이수 현황 통계치 조회"""
+    return get_category_completion_stats(db, company_id=current_admin.company_id)
 
 
 @admin_education_router.get(

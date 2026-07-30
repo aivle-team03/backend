@@ -78,7 +78,8 @@ class EducationCompletionResponse(BaseModel):
 
 
 # 관리자용 직군별 이수 현황 통계
-class AdminRoleCompletionItem(BaseModel):
+class AdmincategoryCompletionItem(BaseModel):
+    category: str
     completion_rate: float
     target_count: int
     completed_count: int
