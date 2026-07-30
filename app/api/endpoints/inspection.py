@@ -121,7 +121,6 @@ def read_inspection_histories(
     return inspection_crud.get_histories_by_inspection(
         db=db, inspection_id=inspection_id, company_id=current_user.company_id
     )
-    
 
 @router.get("/histories/all", response_model=List[InspectionHistoryResponse])
 def read_all_inspection_histories(

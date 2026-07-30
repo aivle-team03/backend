@@ -17,6 +17,7 @@ from app.crud.education import (
     get_user_education_summary_counts, # 유저용 교육 요약 건수
     get_user_completion_rates, # 유저용 교육 이수 현황 백분율 조회
     create_ai_generated_education, # 관리자용 AI 교육 자료 생성
+    get_category_completion_stats, # 관리자용 카테고리별 이수 현황 그래프 통계 조회
 )
 from app.db.db import get_db
 from app.models import User
@@ -29,7 +30,7 @@ from app.schemas.education import (
     UserEducationResponse,
     UserEducationSummaryResponse, # 유저용 교육 요약 건수 응답모델
     UserCompletionRatesResponse, # 유저용 교육 이수 현황 백분율 응답모델
-    AdminRoleCompletionResponse, # 관리자용 교육 이수 현황 그래프 통계 응답모델
+    AdminCategoryCompletionResponse, # 관리자용 교육 이수 현황 그래프 통계 응답모델
     AIEducationGenerateRequest, # 관리자용 AI 교육 자료 생성 요청모델
     AIEducationGenerateResponse, # 관리자용 AI 교육 자료 생성 응답모델
 )
@@ -47,6 +48,20 @@ admin_education_router = APIRouter()
 # ==========================================
 # 1. 일반 유저용 API (/api/education)
 # ==========================================
+
+@education_router.get(
+    "/list",
+    response_model=List[EducationResponse],
+    summary="[유저] 내 교육 영상 조회",
+)
+def read_my_education_list(
+    category: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """자신의 조건에 해당하는 교육 영상 목록을 조회"""
+    return get_my_education_list(db, user=current_user, category=category)
+
 
 @education_router.get(
     "/summary",
@@ -125,6 +140,19 @@ def post_my_education_complete(
 
 
 @admin_education_router.get(
+    "/category-stats",
+    response_model=AdminCategoryCompletionResponse,
+    summary="[관리자] 카테고리별 이수 현황 그래프 통계 조회",
+)
+def read_category_completion_stats(
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """각 사용자의 카테고리별 이수 현황 통계치 조회"""
+    return get_category_completion_stats(db, company_id=current_admin.company_id)
+
+
+@admin_education_router.get(
     "/status",
     response_model=List[EducationStatusSummaryResponse],
     summary="[관리자] 대상자별 교육 리스트 및 이수 요약 조회",
@@ -139,7 +167,15 @@ def read_education_status_summary(
     db: Session = Depends(get_db),
 ):
     """관리자 페이지 우측 '대상자별 교육 리스트'"""
-    if education_id is not None and get_education_by_id(db, education_id) is None:
+    if (
+        education_id is not None
+        and get_education_by_id(
+            db,
+            education_id=education_id,
+            company_id=current_admin.company_id,
+        )
+        is None
+    ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="교육을 찾을 수 없습니다",

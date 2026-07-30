@@ -105,12 +105,6 @@ def get_find_user_password(
         "message": "임시 비밀번호 재발급 안내 메일이 발송되었습니다. (가상 발송)"
     }
 
-
-@router.get("", response_model=List[UserResponse])
-def read_users(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """전체 사용자 목록 조회 API - 명세서 URL /api/users"""
-    return get_users(db, company_id=current_user.company_id)
-
 # =========================================================
 # 안전관리자(총책임자) 전용 API 라우터 (/api/admin)
 # =========================================================

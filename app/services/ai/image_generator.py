@@ -67,10 +67,10 @@ def _extract_scene_keywords(prompt: str, script: Optional[str] = None) -> str:
     text = f"{prompt or ''}".lower()
     words = re.findall(r'[a-z]{3,}', text)
     meaningful_words = [w for w in words if w not in STOP_WORDS_SET]
-    
+
     if meaningful_words:
         return "_".join(meaningful_words[:2])
-    
+
     if script:
         korean_words = re.findall(r'[가-힣]{2,}', script)
         korean_filtered = [w for w in korean_words if w not in ["안전", "수칙", "점검", "확인", "작업", "사용", "반드시", "오늘", "내용"]]
@@ -81,10 +81,10 @@ def _extract_scene_keywords(prompt: str, script: Optional[str] = None) -> str:
 
 
 def _overlay_subtitle_sync(
-    image_path: str, 
-    text_content: str, 
-    width: int = 1280, 
-    height: int = 720, 
+    image_path: str,
+    text_content: str,
+    width: int = 1280,
+    height: int = 720,
     scene_num: int = 1
 ):
     """[관심사 분리] 어절 단위 자막 렌더링 및 화면 최하단 레이아웃 보정"""
@@ -175,9 +175,9 @@ def _get_vertex_access_token() -> Tuple[Optional[str], Optional[str]]:
 
 
 def _download_image_vertex_sync(
-    prompt: str, 
-    output_path: str, 
-    scene_num: int, 
+    prompt: str,
+    output_path: str,
+    scene_num: int,
     script: Optional[str]
 ) -> bool:
     """
@@ -187,14 +187,14 @@ def _download_image_vertex_sync(
     3차 시도: PIL 기반 배경 (최후 백업)
     """
     pollinations_key = os.getenv("POLLINATIONS_API_KEY")
-    
+
     import hashlib
     import shutil
 
     # 텍스트 깨짐 방지: 프롬프트에서 특수문자 제거 후 텍스트 생성 완전 금지 지침 추가
     clean_topic = re.sub(r"[^\w\s]", " ", prompt or script or "").strip().lower()
     topic_category = _extract_scene_keywords(prompt, script)
-    
+
     # --------------------------------------------------
     # [2-Tier Hybrid Cache System]
     # --------------------------------------------------
@@ -228,7 +228,7 @@ def _download_image_vertex_sync(
         f"A professional realistic 8k photograph of industrial workplace safety inspection: {clean_topic}. "
         f"STRICT NEGATIVE DIRECTIVE: ABSOLUTELY NO TEXT, NO WORDS, NO LETTERS, NO KOREAN CHARACTERS, NO WRITING, NO LOGOS, NO SUBTITLES. Pure clean photography."
     )
-    
+
     timestamp_cb = int(time.time() * 1000)
     seed = scene_num * 357 + random.randint(1000, 9999)
 
@@ -240,7 +240,7 @@ def _download_image_vertex_sync(
         location = "us-central1"
         model_id = "gemini-2.5-flash-image"
         url = f"https://{location}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/publishers/google/models/{model_id}:generateContent"
-        
+
         v_headers = {
             "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json"

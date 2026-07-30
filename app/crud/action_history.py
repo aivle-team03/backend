@@ -126,7 +126,7 @@ def _serialize_action(
         "source_id": _source_id(action),
         "action_name": action.action_name,
         "category_id": action.category_id,
-        "category": category.category,
+        "category": category.category if category else None,
         "category_name": category.category_name if category else "",
         "category_level": category.level if category else 0,
         "location": action.location,
