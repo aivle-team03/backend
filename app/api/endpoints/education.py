@@ -6,6 +6,8 @@ import os
 import shutil
 
 from app.crud.auth import get_current_admin, get_current_user
+from app.crud.education import get_education_attendees
+from app.schemas.education import EducationAttendeeListResponse
 from app.crud.education import (
     complete_education,
     get_education_by_id,
@@ -18,6 +20,7 @@ from app.crud.education import (
     get_user_completion_rates, # 유저용 교육 이수 현황 백분율 조회
     create_ai_generated_education, # 관리자용 AI 교육 자료 생성
     get_category_completion_stats, # 관리자용 카테고리별 이수 현황 그래프 통계 조회
+    get_admin_education_dashboard,
 )
 from app.db.db import get_db
 from app.models import User
@@ -31,6 +34,7 @@ from app.schemas.education import (
     UserEducationSummaryResponse, # 유저용 교육 요약 건수 응답모델
     UserCompletionRatesResponse, # 유저용 교육 이수 현황 백분율 응답모델
     AdminCategoryCompletionResponse, # 관리자용 교육 이수 현황 그래프 통계 응답모델
+    AdminEducationDashboardResponse,
     AIEducationGenerateRequest, # 관리자용 AI 교육 자료 생성 요청모델
     AIEducationGenerateResponse, # 관리자용 AI 교육 자료 생성 응답모델
 )
@@ -152,6 +156,14 @@ def read_category_completion_stats(
     return get_category_completion_stats(db, company_id=current_admin.company_id)
 
 
+@admin_education_router.get("/dashboard", response_model=AdminEducationDashboardResponse)
+def read_admin_education_dashboard_compat(
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    return get_admin_education_dashboard(db, company_id=current_admin.company_id)
+
+
 @admin_education_router.get(
     "/status",
     response_model=List[EducationStatusSummaryResponse],
@@ -189,6 +201,18 @@ def read_education_status_summary(
             completion_filter.value if completion_filter else None
         ),
     )
+
+
+@admin_education_router.get("/{education_id}/attendees", response_model=EducationAttendeeListResponse)
+def read_education_attendees(
+    education_id: int = Path(..., ge=1),
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    education = get_education_by_id(db, education_id=education_id, company_id=current_admin.company_id)
+    if education is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Education not found")
+    return get_education_attendees(db, company_id=current_admin.company_id, education_id=education_id)
 
 
 @admin_education_router.get(
