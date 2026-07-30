@@ -7,12 +7,14 @@ from sqlalchemy.orm import Session
 from app.models.education import Education
 from app.models.education_status import EducationStatus
 from app.models.user import User
+from app.crud.signup_code import get_available_categories
 
 
 INCOMPLETE = "미이수"
 IN_PROGRESS = "진행중"
 COMPLETED = "이수"
 PROGRESS_STATUSES = (INCOMPLETE, IN_PROGRESS, COMPLETED)
+ALL_EMPLOYEE_CATEGORIES = {"전체", "공통"}
 
 
 def get_user_by_uid(db: Session, uid: int, company_id: int) -> Optional[User]:
@@ -490,5 +492,128 @@ def get_category_completion_stats(db: Session, company_id: int) -> Dict:
     return {
         "categories": category_stats,
         "total_completion_rate": overall_rate,
+    }
+
+
+def get_admin_education_dashboard(db: Session, company_id: int) -> Dict:
+    """교육 관리 화면의 카드, 과정 목록, 상세 모달 데이터를 한 번에 만든다."""
+    users = (
+        db.query(User)
+        .filter(User.company_id == company_id)
+        .order_by(User.uid.asc())
+        .all()
+    )
+    educations = (
+        db.query(Education)
+        .filter(Education.company_id == company_id)
+        .order_by(Education.education_id.asc())
+        .all()
+    )
+    education_ids = [education.education_id for education in educations]
+    statuses = (
+        db.query(EducationStatus)
+        .join(User, User.uid == EducationStatus.uid)
+        .filter(User.company_id == company_id, EducationStatus.education_id.in_(education_ids))
+        .all()
+        if education_ids else []
+    )
+    status_by_assignment = {(status.uid, status.education_id): status for status in statuses}
+
+    def is_all_employee_course(education: Education) -> bool:
+        return education.category in ALL_EMPLOYEE_CATEGORIES
+
+    def is_target(user: User, education: Education) -> bool:
+        return is_all_employee_course(education) or education.category == user.category
+
+    def attendee_for(user: User, education: Education) -> Dict:
+        status = status_by_assignment.get((user.uid, education.education_id))
+        return {
+            "uid": user.uid,
+            "name": user.name,
+            "category": user.category,
+            "education_id": education.education_id,
+            "education_title": education.title,
+            "status": status.status if status else INCOMPLETE,
+            "completed_date": status.completed_date if status else None,
+        }
+
+    courses = []
+    for education in educations:
+        attendees = [attendee_for(user, education) for user in users if is_target(user, education)]
+        completed_count = sum(item["status"] == COMPLETED for item in attendees)
+        target_count = len(attendees)
+        counts = {progress_status: sum(item["status"] == progress_status for item in attendees) for progress_status in PROGRESS_STATUSES}
+        courses.append({
+            "education_id": education.education_id,
+            "company_id": education.company_id,
+            "title": education.title,
+            "category": education.category,
+            "type": education.type,
+            "target_count": target_count,
+            "status_counts": [{"status": key, "count": value} for key, value in counts.items()],
+            "completion_rate": round(completed_count / target_count * 100, 1) if target_count else 0.0,
+            "attendees": attendees,
+        })
+
+    categories = [category for category in get_available_categories() if category not in ALL_EMPLOYEE_CATEGORIES]
+    for user in users:
+        if user.category and user.category not in ALL_EMPLOYEE_CATEGORIES and user.category not in categories:
+            categories.append(user.category)
+
+    category_items = []
+    for category in categories:
+        category_users = [user for user in users if user.category == category]
+        applicable_courses = [education for education in educations if is_all_employee_course(education) or education.category == category]
+        summary_attendees = []
+        for user in category_users:
+            assignments = [status_by_assignment.get((user.uid, education.education_id)) for education in applicable_courses]
+            is_completed = bool(assignments) and all(item and item.status == COMPLETED for item in assignments)
+            completed_dates = [item.completed_date for item in assignments if item and item.completed_date]
+            summary_attendees.append({
+                "uid": user.uid,
+                "name": user.name,
+                "category": user.category,
+                "education_title": f"{category} 교육 이수 현황",
+                "status": COMPLETED if is_completed else INCOMPLETE,
+                "completed_date": max(completed_dates) if is_completed and completed_dates else None,
+            })
+        completed_count = sum(item["status"] == COMPLETED for item in summary_attendees)
+        target_count = len(summary_attendees)
+        category_items.append({
+            "category": category,
+            "target_count": target_count,
+            "completed_count": completed_count,
+            "completion_rate": round(completed_count / target_count * 100, 1) if target_count else 0.0,
+            "attendees": [
+                attendee_for(user, education)
+                for user in category_users
+                for education in applicable_courses
+            ],
+        })
+
+    overall_summary = []
+    for user in users:
+        applicable_courses = [education for education in educations if is_target(user, education)]
+        assignments = [status_by_assignment.get((user.uid, education.education_id)) for education in applicable_courses]
+        is_completed = bool(assignments) and all(item and item.status == COMPLETED for item in assignments)
+        completed_dates = [item.completed_date for item in assignments if item and item.completed_date]
+        overall_summary.append({
+            "uid": user.uid,
+            "name": user.name,
+            "category": user.category,
+            "education_title": "전체 교육 이수 현황",
+            "status": COMPLETED if is_completed else INCOMPLETE,
+            "completed_date": max(completed_dates) if is_completed and completed_dates else None,
+        })
+
+    total_target_count = len(users)
+    total_completed_count = sum(item["status"] == COMPLETED for item in overall_summary)
+    return {
+        "courses": courses,
+        "categories": category_items,
+        "total_target_count": total_target_count,
+        "total_completed_count": total_completed_count,
+        "total_completion_rate": round(total_completed_count / total_target_count * 100, 1) if total_target_count else 0.0,
+        "attendees": [attendee_for(user, education) for user in users for education in educations if is_target(user, education)],
     }
 

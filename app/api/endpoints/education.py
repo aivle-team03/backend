@@ -20,6 +20,7 @@ from app.crud.education import (
     get_user_completion_rates, # 유저용 교육 이수 현황 백분율 조회
     create_ai_generated_education, # 관리자용 AI 교육 자료 생성
     get_category_completion_stats, # 관리자용 카테고리별 이수 현황 그래프 통계 조회
+    get_admin_education_dashboard,
 )
 from app.db.db import get_db
 from app.models import User
@@ -32,7 +33,9 @@ from app.schemas.education import (
     UserEducationResponse,
     UserEducationSummaryResponse, # 유저용 교육 요약 건수 응답모델
     UserCompletionRatesResponse, # 유저용 교육 이수 현황 백분율 응답모델
+    AdminRoleCompletionResponse,
     AdminCategoryCompletionResponse, # 관리자용 교육 이수 현황 그래프 통계 응답모델
+    AdminEducationDashboardResponse,
     AIEducationGenerateRequest, # 관리자용 AI 교육 자료 생성 요청모델
     AIEducationGenerateResponse, # 관리자용 AI 교육 자료 생성 응답모델
 )
@@ -152,6 +155,14 @@ def read_category_completion_stats(
 ):
     """각 사용자의 카테고리별 이수 현황 통계치 조회"""
     return get_category_completion_stats(db, company_id=current_admin.company_id)
+
+
+@admin_education_router.get("/dashboard", response_model=AdminEducationDashboardResponse)
+def read_admin_education_dashboard_compat(
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    return get_admin_education_dashboard(db, company_id=current_admin.company_id)
 
 
 @admin_education_router.get(

@@ -110,6 +110,23 @@ class EducationAttendeeResponse(BaseModel):
     completed_date: Optional[date] = None
 
 
+class AdminEducationCourseDashboardItem(EducationStatusSummaryResponse):
+    attendees: List[EducationAttendeeResponse]
+
+
+class AdminEducationCategoryDashboardItem(AdminCategoryCompletionItem):
+    attendees: List[EducationAttendeeResponse]
+
+
+class AdminEducationDashboardResponse(BaseModel):
+    courses: List[AdminEducationCourseDashboardItem]
+    categories: List[AdminEducationCategoryDashboardItem]
+    total_target_count: int
+    total_completed_count: int
+    total_completion_rate: float
+    attendees: List[EducationAttendeeResponse]
+
+
 class EducationAttendeeListResponse(BaseModel):
     education_id: int
     target_count: int
