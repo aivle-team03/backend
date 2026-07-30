@@ -80,13 +80,23 @@ class EducationCompletionResponse(BaseModel):
 # 관리자용 직군별 이수 현황 통계
 class AdminRoleCompletionItem(BaseModel):
     role: str
+
+
+class AdminRoleCompletionResponse(BaseModel):
+    roles: List[AdminRoleCompletionItem]
+    total_completion_rate: float
+
+
+# 관리자용 카테고리별 이수 현황 통계
+class AdminCategoryCompletionItem(BaseModel):
+    category: str
     completion_rate: float
     target_count: int
     completed_count: int
 
 
-class AdminRoleCompletionResponse(BaseModel):
-    roles: List[AdminRoleCompletionItem]
+class AdminCategoryCompletionResponse(BaseModel):
+    categories: List[AdminCategoryCompletionItem]
     total_completion_rate: float
 
 
