@@ -30,7 +30,7 @@ from app.schemas.education import (
     UserEducationResponse,
     UserEducationSummaryResponse, # 유저용 교육 요약 건수 응답모델
     UserCompletionRatesResponse, # 유저용 교육 이수 현황 백분율 응답모델
-    AdminRoleCompletionResponse, # 관리자용 교육 이수 현황 그래프 통계 응답모델
+    AdminCategoryCompletionResponse, # 관리자용 교육 이수 현황 그래프 통계 응답모델
     AIEducationGenerateRequest, # 관리자용 AI 교육 자료 생성 요청모델
     AIEducationGenerateResponse, # 관리자용 AI 교육 자료 생성 응답모델
 )
@@ -141,7 +141,7 @@ def post_my_education_complete(
 
 @admin_education_router.get(
     "/category-stats",
-    response_model=AdminRoleCompletionResponse,
+    response_model=AdminCategoryCompletionResponse,
     summary="[관리자] 카테고리별 이수 현황 그래프 통계 조회",
 )
 def read_category_completion_stats(

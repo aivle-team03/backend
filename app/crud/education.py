@@ -330,7 +330,7 @@ def get_category_completion_stats(db: Session, company_id: int) -> Dict:
         .scalar()
     ) or 0
 
-    roles_stats = []
+    category_stats = []
     total_target = 0
     total_completed = 0
 
@@ -368,7 +368,7 @@ def get_category_completion_stats(db: Session, company_id: int) -> Dict:
             ) or 0
 
         rate = round(cat_completed / cat_target * 100, 1) if cat_target > 0 else 0.0
-        roles_stats.append(
+        category_stats.append(
             {
                 "category": cat,
                 "target_count": cat_target,
@@ -382,7 +382,7 @@ def get_category_completion_stats(db: Session, company_id: int) -> Dict:
     overall_rate = round(total_completed / total_target * 100, 1) if total_target > 0 else 0.0
 
     return {
-        "roles": roles_stats,
+        "categories": category_stats,
         "total_completion_rate": overall_rate,
     }
 
