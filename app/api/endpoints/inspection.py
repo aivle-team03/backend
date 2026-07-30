@@ -121,7 +121,7 @@ def read_inspection_histories(
     return inspection_crud.get_histories_by_inspection(
         db=db, inspection_id=inspection_id, company_id=current_user.company_id
     )
-    
+
 
 @router.get("/histories/all", response_model=List[InspectionHistoryResponse])
 def read_all_inspection_histories(
@@ -148,8 +148,8 @@ def read_all_inspection_histories(
         skip=skip,
         limit=limit,
     )
-    
-    
+
+
 @router.get("/histories/me", response_model=List[InspectionHistoryResponse])
 def read_my_inspection_histories(
     status_filter: Optional[str] = None,
@@ -170,9 +170,9 @@ def read_my_inspection_histories(
         skip=skip,
         limit=limit,
     )
-    
 
-    
+
+
 @router.get("/histories/{inspection_history_id}", response_model=InspectionHistoryResponse)
 def read_inspection_history_detail(
     inspection_history_id: int,

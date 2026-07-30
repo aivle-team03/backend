@@ -16,8 +16,8 @@ if not DATABASE_URL:
 # app/db/db.py
 engine = create_engine(
     DATABASE_URL,
-    pool_size=5,        
-    max_overflow=2,     
+    pool_size=5,
+    max_overflow=2,
     pool_recycle=1800,
     connect_args={"ssl": {"ca": "ca.pem"}}, # ca.pem SSL 인증서 지정
     echo=True

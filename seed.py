@@ -237,7 +237,7 @@ def seed():
             {"category": "산업안전", "category_name": "충돌", "level": 7, "company_id": company_id},
             {"category": "기타", "category_name": "무단 침입", "level": 4, "company_id": company_id}
         ]
-        
+
         categories = []
         for cat_data in categories_data:
             existing_cat = db.query(EventCategory).filter(
@@ -281,7 +281,7 @@ def seed():
                 category = categories[i % len(categories)]
                 date_offset = timedelta(days=random_offset_days(i), hours=i*2)
                 event_date = now - date_offset
-                
+
                 new_event = Event(
                     company_id=company_id,
                     category_id=category.category_id,
@@ -293,9 +293,9 @@ def seed():
                 db.commit()
                 db.refresh(new_event)
                 events.append(new_event)
-                
+
             print(f"이상 감지 이벤트 {len(events)}건 적재 완료.")
-            
+
             status_list = [
                 ("조치 대기", "A동 복도 소화전 장애물 감지, 현장 확인 요청"),
                 ("조치 대기", "B동 창고 통로 물품 차단 감지, 대피로 확보 바람"),
@@ -308,12 +308,12 @@ def seed():
                 ("승인 완료", "화재 센서 오작동 확인 및 경보 해제 조치 완료"),
                 ("승인 완료", "안전모 미착용 현장 작업자 안전 지도 완료")
             ]
-            
+
             checklists = []
             for idx, (status_val, content) in enumerate(status_list):
                 ev = events[idx]
                 img_url = f"/static/uploads/action_resolved_{idx+1}.jpg" if status_val in ["승인 대기", "승인 완료"] else None
-                
+
                 chk = Checklist(
                     company_id=company_id,
                     event_id=ev.event_id,
@@ -486,11 +486,11 @@ def seed():
             db.refresh(board2)
             boards = [board1, board2]
             print("게시판 더미 데이터 2건 적재 완료.")
-            
-            
+
+
         if db.query(ActionHistory).filter(ActionHistory.company_id == company_id).count() == 0:
             print("조치 이력 (ActionHistory) 적재를 시작합니다 (모든 출처 및 상태 조합)...")
-            
+
             action_dummies = [
                 # -------------------------------------------------------------
                 # 1) type = "게시판" (board_id 필수, event_id/inspection_history_id 없음)
@@ -631,7 +631,7 @@ def seed():
             print(f"조치 이력 (ActionHistory) {len(created_actions)}건 적재 완료.")
         else:
             print("조치 이력 데이터가 이미 존재합니다.")
-            
+
         if db.query(Report).filter(Report.company_id == company_id).count() == 0:
             report1 = Report(
                 company_id=company_id,
@@ -679,7 +679,7 @@ def seed():
         # 7. 안전 교육(Education) 및 수강 이수 현황(EducationStatus) 적재
         # 기존 교육 상태 데이터 초기화 (다시 채우기 위해)
         db.query(EducationStatus).delete()
-        
+
         if db.query(Education).count() == 0:
             edu1 = Education(
                 company_id=company_id,
