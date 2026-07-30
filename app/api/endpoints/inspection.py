@@ -249,3 +249,30 @@ def delete_inspection_history(
             detail="해당 점검 이력을 찾을 수 없거나 삭제 권한이 없습니다.",
         )
     return {"message": "점검 이력이 성공적으로 삭제되었습니다."}
+
+@router.post("/histories/trigger-scheduled", status_code=status.HTTP_200_OK)
+def trigger_scheduled_histories_manual(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    [수동/테스트 트리거] 점검 이력 자동 분산 생성 로직 수동 실행 API
+    - 현재 로그인한 유저의 소속 회사(company_id) 기준으로 오늘 날짜/요일에 해당하는 매일/매주/매월 점검 이력을 생성합니다.
+    - 중복 생성 방지 로직이 적용되어 있어 여러 번 호출해도 오늘자/이번달 이력이 이중으로 생기지 않습니다.
+    """
+    try:
+        created_count = inspection_crud.generate_scheduled_inspection_histories(
+            db=db, 
+            company_id=current_user.company_id
+        )
+        return {
+            "status": "success",
+            "message": f"오늘자 스케줄링 검사가 완료되었습니다.",
+            "created_count": created_count,
+            "company_id": current_user.company_id
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"스케줄러 수동 실행 중 오류가 발생했습니다: {str(e)}"
+        )

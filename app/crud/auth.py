@@ -94,17 +94,26 @@ def get_current_user(
         company_id: int = payload.get("company_id")
         token_type: str = payload.get("type")
 
+        print(f"👉 [DEBUG Token Payload] user_id: {user_id} ({type(user_id)}), company_id: {company_id}, token_type: {token_type}")
+
         # [보안 검증 1] refresh 토큰을 Authorization 헤더에 보내 access 토큰처럼 사용하는 공격 차단
         if token_type != "access" or user_id is None or company_id is None:
+            print("❌ [DEBUG Error] 토큰 타입 불일치 또는 필수값 누락")
             raise credentials_exception
         uid_int = int(user_id)
-    except (JWTError, ValueError, TypeError):
+    except (JWTError, ValueError, TypeError) as e:
+        print(f"❌ [DEBUG Token Decode Exception]: {e}")
         raise credentials_exception
 
     user = db.query(User).filter(User.uid == uid_int).first()
+    if user is None:
+        print(f"❌ [DEBUG Error] DB에 UID={uid_int}인 유저가 없습니다.")
+    else:
+        print(f"👉 [DEBUG DB User] uid: {user.uid}, company_id: {user.company_id}, has_refresh_token: {bool(user.refresh_token)}")
 
     # [보안 검증 2] 로그아웃하여 user.refresh_token이 None인 경우, 남은 Access Token 요청도 즉시 차단
     if user is None or user.company_id != company_id or user.refresh_token is None:
+        print("❌ [DEBUG Error] 유저 검증(company_id 불일치 또는 refresh_token이 None) 실패!")
         raise credentials_exception
 
     return user
