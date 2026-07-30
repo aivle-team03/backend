@@ -6,7 +6,7 @@ import os
 import shutil
 
 from app.crud.auth import get_current_admin, get_current_user
-from app.crud.education import get_role_completion_stats, get_education_attendees, get_role_education_attendees
+from app.crud.education import get_education_attendees
 from app.schemas.education import EducationAttendeeListResponse
 from app.crud.education import (
     complete_education,
@@ -33,7 +33,6 @@ from app.schemas.education import (
     UserEducationResponse,
     UserEducationSummaryResponse, # 유저용 교육 요약 건수 응답모델
     UserCompletionRatesResponse, # 유저용 교육 이수 현황 백분율 응답모델
-    AdminRoleCompletionResponse,
     AdminCategoryCompletionResponse, # 관리자용 교육 이수 현황 그래프 통계 응답모델
     AdminEducationDashboardResponse,
     AIEducationGenerateRequest, # 관리자용 AI 교육 자료 생성 요청모델
@@ -196,14 +195,6 @@ def read_education_status_summary(
     )
 
 
-@admin_education_router.get("/role-stats", response_model=AdminRoleCompletionResponse)
-def read_role_completion_stats(
-    current_admin: User = Depends(get_current_admin),
-    db: Session = Depends(get_db),
-):
-    return get_role_completion_stats(db, company_id=current_admin.company_id)
-
-
 @admin_education_router.get("/{education_id}/attendees", response_model=EducationAttendeeListResponse)
 def read_education_attendees(
     education_id: int = Path(..., ge=1),
@@ -214,15 +205,6 @@ def read_education_attendees(
     if education is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Education not found")
     return get_education_attendees(db, company_id=current_admin.company_id, education_id=education_id)
-
-
-@admin_education_router.get("/role-attendees", response_model=EducationAttendeeListResponse)
-def read_role_education_attendees(
-    role: Optional[str] = Query(None),
-    current_admin: User = Depends(get_current_admin),
-    db: Session = Depends(get_db),
-):
-    return get_role_education_attendees(db, company_id=current_admin.company_id, role=role)
 
 
 @admin_education_router.get(

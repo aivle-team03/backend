@@ -237,42 +237,6 @@ def get_education_status_summaries(
     return summaries
 
 
-def get_role_completion_stats(db: Session, company_id: int) -> Dict:
-    rows = (
-        db.query(User.role, EducationStatus.status)
-        .select_from(User)
-        .join(Education, Education.company_id == User.company_id)
-        .filter(User.company_id == company_id)
-        .outerjoin(
-            EducationStatus,
-            and_(EducationStatus.uid == User.uid, EducationStatus.education_id == Education.education_id),
-        )
-        .all()
-    )
-    counts_by_role = {}
-    for role, status in rows:
-        counts = counts_by_role.setdefault(role or "미분류", {"target": 0, "completed": 0})
-        counts["target"] += 1
-        if status == COMPLETED:
-            counts["completed"] += 1
-
-    roles = [
-        {
-            "role": role,
-            "target_count": counts["target"],
-            "completed_count": counts["completed"],
-            "completion_rate": round(counts["completed"] / counts["target"] * 100, 1) if counts["target"] else 0.0,
-        }
-        for role, counts in counts_by_role.items()
-    ]
-    total_target = sum(item["target_count"] for item in roles)
-    total_completed = sum(item["completed_count"] for item in roles)
-    return {
-        "roles": roles,
-        "total_completion_rate": round(total_completed / total_target * 100, 1) if total_target else 0.0,
-    }
-
-
 def get_education_attendees(db: Session, company_id: int, education_id: int) -> Dict:
     rows = (
         db.query(User, EducationStatus)
@@ -298,44 +262,6 @@ def get_education_attendees(db: Session, company_id: int, education_id: int) -> 
     target_count = len(attendees)
     return {
         "education_id": education_id,
-        "target_count": target_count,
-        "completed_count": completed_count,
-        "completion_rate": round(completed_count / target_count * 100, 1) if target_count else 0.0,
-        "attendees": attendees,
-    }
-
-
-def get_role_education_attendees(db: Session, company_id: int, role: Optional[str] = None) -> Dict:
-    query = (
-        db.query(User, Education, EducationStatus)
-        .select_from(User)
-        .join(Education, Education.company_id == User.company_id)
-        .outerjoin(
-            EducationStatus,
-            and_(EducationStatus.uid == User.uid, EducationStatus.education_id == Education.education_id),
-        )
-        .filter(User.company_id == company_id)
-    )
-    if role and role != "전체":
-        query = query.filter(User.role == role)
-
-    rows = query.order_by(User.name.asc(), Education.title.asc()).all()
-    attendees = [
-        {
-            "uid": user.uid,
-            "name": user.name,
-            "category": user.category,
-            "education_id": education.education_id,
-            "education_title": education.title,
-            "status": status_row.status if status_row else INCOMPLETE,
-            "completed_date": status_row.completed_date if status_row else None,
-        }
-        for user, education, status_row in rows
-    ]
-    completed_count = sum(1 for attendee in attendees if attendee["status"] == COMPLETED)
-    target_count = len(attendees)
-    return {
-        "education_id": 0,
         "target_count": target_count,
         "completed_count": completed_count,
         "completion_rate": round(completed_count / target_count * 100, 1) if target_count else 0.0,
