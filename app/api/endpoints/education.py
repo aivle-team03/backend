@@ -167,7 +167,15 @@ def read_education_status_summary(
     db: Session = Depends(get_db),
 ):
     """관리자 페이지 우측 '대상자별 교육 리스트'"""
-    if education_id is not None and get_education_by_id(db, education_id) is None:
+    if (
+        education_id is not None
+        and get_education_by_id(
+            db,
+            education_id=education_id,
+            company_id=current_admin.company_id,
+        )
+        is None
+    ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="교육을 찾을 수 없습니다",
