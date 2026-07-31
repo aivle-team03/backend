@@ -8,7 +8,7 @@ class SignupCode(Base):
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)                   # PK
 
-    company_id = Column(BigInteger, ForeignKey("company.company_id"), nullable=False)
+    company_id = Column(BigInteger, ForeignKey("company.company_id", ondelete="CASCADE"), nullable=False)
     code = Column(String(50), unique=True, nullable=False)                      # 고유 회원가입 코드 (예: INV-8X9A2K4M)
     role = Column(String(50), nullable=False)                                   # 부여될 역할 (안전관리자, 관제사, 현장관리자, 일반유저)
     category = Column(String(100), nullable=True)                               # 카테고리 (일반유저 선택 시: 지게차, 화물트럭 등)

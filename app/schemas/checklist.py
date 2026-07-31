@@ -11,8 +11,8 @@ class ChecklistResponse(BaseModel):
     event_id: Optional[int] = None
     date: datetime
     status: str
-    uid: int
-    camera_id: int
+    uid: Optional[int] = None
+    camera_id: Optional[int] = None
     content: str
     image_url: Optional[str] = None
 
