@@ -8,7 +8,7 @@
 ![Pydantic](https://img.shields.io/badge/Pydantic-E92063?style=for-the-badge&logo=pydantic&logoColor=white)
 
 > **AIVLE Team 03 백엔드 서비스**  
-> 사업장 내 이상 상황(화재, 적치물, 보호구 미착용 등)을 실시간 모니터링하고, 현장 조치 체크리스트 전이 관리, 구역별 안전 위험도 연산, 소방 법규/매뉴얼 챗봇, AI 비전 감지 및 조치 검증, 안전 교육 & AI 영상 생성 파이프라인, 보고서 PDF 생성까지 통합 제공하는 RESTful 백엔드 API 서버입니다.
+> 사업장 내 이상 상황(화재, 적치물, 보호구 미착용 등)을 실시간 모니터링하고, 현장 조치 체크리스트 전이 관리, 정기 점검 이력 자동 스케줄링, 구역별 안전 위험도 연산, 소방 법규/매뉴얼 챗봇, AI 비전 감지 및 조치 검증, 안전 교육 & AI 영상 생성 파이프라인, 보고서 PDF 생성까지 통합 제공하는 RESTful 백엔드 API 서버입니다.
 
 ---
 
@@ -33,41 +33,51 @@
 - **현장 조치 보고**: 작업자의 조치 사진/설명 업로드 (`multipart/form-data`) 및 관리자 검토/승인 워크플로우
 - **이력 및 내 조치**: 조치 완료/이력 조회 및 로그인된 사용자의 담당 체크리스트 목록 제공 (`/api/checklists/me`)
 
-### ⚠️ 5. 위험요인 & 매트릭스 관리 (`/api/risk`)
+### 🔍 5. 정기 점검 항목 및 이력 스케줄링 관리 (`/api/inspection`)
+- **점검 항목 Master CRUD**: 매일/매주/매월 정기 점검 항목 생성, 수정, 삭제, 상세 조회 (`/api/inspection`)
+- **점검 수행 이력 생성 및 조회**: 전체 이력(`all`), 내 배정 이력(`me`), 단건 상세 조회
+- **자동 스케줄링 배치 파이프라인**: `APScheduler` 기반으로 매일 자정(00시 00분) 오늘 자 정기 점검 이력을 자동 분산 생성 (`run_daily_inspection_job`)
+- **수동 스케줄링 트리거**: 즉시 오늘 자 정기 점검 이력을 수동으로 갱신하는 API 지원 (`POST /api/inspection/histories/trigger-scheduled`)
+
+### 🛠️ 6. 조치 이력 관리 (`/api/action-histories`)
+- 안전 제보 게시글, 이상 감지 이벤트, 점검 수행 이력 기반 현장 조치 프로세스 일관성 관리
+- 조치 상태 변경(`조치 필요` ➡️ `조치 완료`), 담당자/승인자 지정 및 조치 내용/사진 첨부
+
+### ⚠️ 7. 위험요인 & 매트릭스 관리 (`/api/risk`)
 - 위험요인 (Event Category) 목록 조회 (`/api/risk/list`)
 - 카테고리별 위험 강도(1~10 Level) 수정 및 신규 위험요인 카테고리 추가/삭제
 
-### 📄 6. 안전 보고서 관리 & PDF 다운로드 (`/api/report`)
+### 📄 8. 안전 보고서 관리 & PDF 다운로드 (`/api/report`)
 - 이상 감지 이벤트 및 조치 체크리스트 항목을 선택하여 자동 보고서 생성 (`POST /api/report`)
 - 보고서 목록/상세 조회, 수정, 삭제
 - **PDF 동적 다운로드**: 보고서 상세 내용을 표준 PDF 문서 형태로 다운로드 서빙 (`GET /api/report/{id}/download`)
 
-### 📊 7. 대시보드 통계 & 종합 안전 등급 (`/api/dashboard`)
+### 📊 9. 대시보드 통계 & 종합 안전 등급 (`/api/dashboard`)
 - **구역별 실시간 위험 지수**: CCTV 위치 단위 미해결 이벤트 비율 기반 위험도 연산 (0~100점)
 - **종합 안전 등급 계산**: 최근 30일 이내 감지 이벤트의 미해결 상태별 감점 수식 적용 ➡️ **A ~ F 등급** 자동 산출 및 원인 분석 요약
 - 기간별 통계 리포트 조회 및 AI 분석 보고서 요약 텍스트 제공
 
-### 🎓 8. 안전 교육 관리 & AI 영상 제작 파이프라인 (`/api/education`, `/api/admin/education`)
+### 🎓 10. 안전 교육 관리 & AI 영상 제작 파이프라인 (`/api/education`, `/api/admin/education`)
 - **유저 수강 관리**: 개인별 마감/진행/완료 교육 요약, 교육 목록 조회, 필수/정기 교육 이수율(%) 연산 및 80% 이상 수강 시 완료 처리 (`/api/education/{id}/complete`)
-- **관리자 이수 현황**: 대상자별/유저별 이수 상태 상세 조회 (`/api/admin/education/status`)
+- **관리자 대시보드 및 수강 대상자 목록**: 관리자 교육 대시보드 요약 (`/api/admin/education/dashboard`), 카테고리별 이수 통계 (`/api/admin/education/category-stats`), 교육별 수강 대상자 목록 조회 (`/api/admin/education/{id}/attendees`)
 - **AI 교육 콘텐츠 및 영상 생성**: 작업 유형, 사용 장비, 위험 요인 기반 AI 교육 자료 자동 생성 및 문서(PDF/PPTX/TXT)/텍스트 입력을 기반으로 한 비동기 AI 교육 영상 자동 제작 파이프라인 (`BackgroundTasks` 연동)
 
-### 📌 9. 공지사항 & 안전 게시판 (`/api/boards`)
+### 📌 11. 공지사항 & 안전 게시판 (`/api/boards`)
 - 사내 공지 및 안전 제보/커뮤니티 게시판 CRUD
 - 키워드, 카테고리, 위치, 조치 상태별 게시글 검색 및 현장 사진 파일 첨부 업로드 기능 제공
 
-### 🤖 10. 소방안전 챗봇 & 법규/매뉴얼 검색 (`/api/chatbot`, `/api/data`)
+### 🤖 12. 소방안전 챗봇 & 법규/매뉴얼 검색 (`/api/chatbot`, `/api/data`)
 - 소방/안전 키워드 기반 자연어 질의응답 매칭 엔진
 - 초기 추천 질문 목록(4종) 제공
 - 소방시설법, 산업안전보건법 및 사내 소방 매뉴얼 키워드 검색 지원
 
-### 🧠 11. AI 비전 탐지 & 조치 결과 검증 (`/api/ai`)
+### 🧠 13. AI 비전 탐지 & 조치 결과 검증 (`/api/ai`)
 - **소방시설 탐지**: 이미지 내 소화기 등의 바운딩 박스(`bbox`) 및 신뢰도 탐지
 - **위험요소 탐지**: 비상구 통로 불법 적치물/장애물 검지 및 위험 수준(`High`/`Low`) 판정
 - **화재 징후 탐지**: CCTV 프레임 내 농연(Smoke) 및 불꽃 징후 감지 및 비상 경보 메시지 리턴
 - **조치결과 재확인**: 조치 전/후 사진 2장을 수신하여 시각적 유사도 분석 및 위험 요소 해결 여부 AI 검증
 
-### ⚙️ 12. 글로벌 예외 처리 & 파일 로깅 & CORS
+### ⚙️ 14. 글로벌 예외 처리 & 파일 로깅 & CORS
 - 서버 전역 예외(`HTTPException`, `RequestValidationError`, `Exception`)를 통일된 JSON 구조로 가공하여 전달
 - `RotatingFileHandler` 기반 `logs/app.log` 로그 자동 적재 및 관리 (5MB 백업 파일 회전)
 - 프론트엔드 연동을 위한 전역 **CORS 미들웨어** 탑재 및 정적 파일 서빙 (`/static/uploads`)
@@ -83,8 +93,9 @@
 | **Database & ORM** | MySQL, SQLAlchemy, PyMySQL |
 | **Auth & Security** | PyJWT / python-jose, Passlib (Bcrypt), Python-Multipart |
 | **Validation & Serialization** | Pydantic v2 |
+| **Scheduler & Tasks** | APScheduler (BackgroundScheduler), FastAPI BackgroundTasks |
 | **Server Engine** | Uvicorn, WatchFiles |
-| **Async Tasks & File Processing** | FastAPI BackgroundTasks, Python Standard File I/O |
+| **File Processing & PDF** | Python Standard File I/O, ReportLab (PDF Generation) |
 
 ---
 
@@ -94,15 +105,15 @@
 backend/
 ├── app/
 │   ├── api/
-│   │   ├── endpoints/        # API 라우터 컨트롤러 (auth, user, cctv, monitoring, checklist, risk, report, dashboard, education, board, chatbot, ai_detect)
+│   │   ├── endpoints/        # API 라우터 컨트롤러 (auth, user, cctv, monitoring, checklist, inspection, action_history, risk, report, dashboard, education, board, chatbot, ai_detect)
 │   │   └── routers.py        # 통합 API 라우터 매핑
 │   ├── core/                 # 암호화(crypt), 전역 예외/로깅(exceptions)
-│   ├── crud/                 # DB 비즈니스 로직 / CRUD 모듈
+│   ├── crud/                 # DB 비즈니스 로직 / CRUD 모듈 (inspection, action_history, education 등)
 │   ├── db/                   # DB 연결 세션 및 Base 선언 (db.py)
-│   ├── models/               # SQLAlchemy ORM 모델 (User, CCTV, Event, Checklist, Report, Board, Education, SignupCode 등)
+│   ├── models/               # SQLAlchemy ORM 모델 (User, CCTV, Event, Checklist, Inspection, ActionHistory, Report, Board, Education 등)
 │   ├── schemas/              # Pydantic DTO 데이터 스키마
 │   ├── services/             # 비동기 AI 영상 생성 서비스 파이프라인 (video_service.py 등)
-│   └── main.py               # FastAPI 애플리케이션 엔트리포인트
+│   └── main.py               # FastAPI 애플리케이션 엔트리포인트 (APScheduler 탑재)
 ├── logs/                     # 서버 런타임 회전 파일 로그 (app.log)
 ├── static/uploads/           # 현장 조치 및 게시판 업로드 이미지/파일 서빙 디렉토리
 ├── seed.py                   # DB 자동 시딩 스크립트 (더미 데이터 일괄 적재)
@@ -196,6 +207,23 @@ uvicorn app.main:app --reload
 | | `PATCH` | `/api/checklists/{id}/complete` | 조치 완료 보고 (사진/내용 업로드) |
 | | `PATCH` | `/api/checklists/{id}/status` | 관리자 승인 완료 또는 반려 |
 | | `DELETE`| `/api/checklists/{id}` | 체크리스트 항목 삭제 |
+| **Inspection** | `GET` | `/api/inspection` | 회사의 점검 항목 목록 조회 |
+| | `POST` | `/api/inspection` | 신규 점검 항목 등록 |
+| | `GET` | `/api/inspection/{id}` | 특정 점검 항목 상세 조회 |
+| | `PATCH` | `/api/inspection/{id}` | 점검 항목 정보 수정 |
+| | `DELETE`| `/api/inspection/{id}` | 점검 항목 삭제 |
+| | `GET` | `/api/inspection/histories/all` | 회사 전체 점검 이력 목록 조회 |
+| | `GET` | `/api/inspection/histories/me` | 내게 배정된 점검 이력 목록 조회 |
+| | `GET` | `/api/inspection/histories/{id}` | 점검 이력 단건 상세 조회 |
+| | `POST` | `/api/inspection/histories/create` | 점검 수행 이력 신규 생성 |
+| | `PATCH` | `/api/inspection/histories/{id}` | 점검 수행 이력 상태/내용 수정 |
+| | `DELETE`| `/api/inspection/histories/{id}` | 점검 수행 이력 삭제 |
+| | `POST` | `/api/inspection/histories/trigger-scheduled` | 스케줄링 점검 이력 수동 실행 |
+| **ActionHistory** | `GET` | `/api/action-histories` | 전체 조치 이력 목록 조회 |
+| | `POST` | `/api/action-histories` | 조치 이력 생성 |
+| | `GET` | `/api/action-histories/{id}` | 조치 이력 상세 조회 |
+| | `PATCH` | `/api/action-histories/{id}` | 조치 이력 정보 및 상태 수정 |
+| | `DELETE`| `/api/action-histories/{id}` | 조치 이력 삭제 |
 | **Risk** | `GET` | `/api/risk/list` | 위험요인 카테고리 목록 조회 |
 | | `PATCH` | `/api/risk/category/{id}/level` | 카테고리별 위험 강도(1~10) 수정 |
 | | `POST` | `/api/risk/category` | 신규 위험요인 카테고리 등록 |
@@ -214,7 +242,10 @@ uvicorn app.main:app --reload
 | | `GET` | `/api/education/status` | 유저 내 교육 리스트 조회 |
 | | `GET` | `/api/education/completion-rates` | 유저 필수/정기/전체 교육 이수율(%) |
 | | `POST` | `/api/education/{id}/complete` | 비디오 수강 이수 완료 처리 |
+| | `GET` | `/api/admin/education/dashboard` | 관리자 교육 대시보드 종합 통계 조회 |
+| | `GET` | `/api/admin/education/category-stats` | 관리자 카테고리별 이수 현황 통계 |
 | | `GET` | `/api/admin/education/status` | 관리자 대상자별 교육 리스트/이수 요약 |
+| | `GET` | `/api/admin/education/{id}/attendees` | 특정 교육 수강 대상자 목록 조회 |
 | | `GET` | `/api/admin/education/{uid}` | 관리자 특정 유저 교육 상세 조회 |
 | | `POST` | `/api/admin/education/ai-generate` | 관리자 AI 교육 자료 자동 생성 |
 | | `POST` | `/api/education/ai-generate` | 문서/텍스트 기반 AI 교육 영상 생성 비동기 요청 |
@@ -248,4 +279,3 @@ uvicorn app.main:app --reload
   }
 }
 ```
-

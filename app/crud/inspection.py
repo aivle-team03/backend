@@ -48,16 +48,16 @@ def _serialize_history(history: InspectionHistory) -> dict:
     if hasattr(history, "inspection") and history.inspection:
         insp = history.inspection
 
-    # Inspection 모델에 category 관계가 맺혀있는 경우
-    if hasattr(insp, "category") and insp.category:
-        cat_obj = insp.category
-        # EventCategory/Category 테이블의 실제 컬럼명들을 차례대로 확인
-        if hasattr(cat_obj, "category") and cat_obj.category:
-            category_str = cat_obj.category
-        elif hasattr(cat_obj, "category_name") and cat_obj.category_name:
-            category_str = cat_obj.category_name
-        elif hasattr(cat_obj, "name") and cat_obj.name:
-            category_str = cat_obj.name
+        # Inspection 모델에 category 관계가 맺혀있는 경우
+        if hasattr(insp, "category") and insp.category:
+            cat_obj = insp.category
+            # EventCategory/Category 테이블의 실제 컬럼명들을 차례대로 확인
+            if hasattr(cat_obj, "category") and cat_obj.category:
+                category_str = cat_obj.category
+            elif hasattr(cat_obj, "category_name") and cat_obj.category_name:
+                category_str = cat_obj.category_name
+            elif hasattr(cat_obj, "name") and cat_obj.name:
+                category_str = cat_obj.name
 
     user_name = history.user_name
     if hasattr(history, "user") and history.user:
@@ -244,6 +244,10 @@ def get_history_by_id(
     """특정 점검 이력 단건 조회"""
     return (
         db.query(InspectionHistory)
+        .options(
+            joinedload(InspectionHistory.inspection).joinedload(Inspection.category),
+            joinedload(InspectionHistory.user),
+        )
         .filter(
             InspectionHistory.inspection_history_id == inspection_history_id,
             InspectionHistory.company_id == company_id,
