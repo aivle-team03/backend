@@ -9,6 +9,7 @@ from app.services.ai.script_generator import generate_script_from_text
 from app.services.ai.tts_generator import create_audio_from_text
 from app.services.ai.image_generator import generate_image_from_prompt
 from app.services.ai.video_composer import compose_video
+from app.utils.cloudinary_utils import upload_video_to_cloudinary
 from app.db.db import SessionLocal
 from app.models.education import Education
 
@@ -99,7 +100,10 @@ async def process_video_generation_pipeline(
         output_video_path = f"static/videos/{title}.mp4"
         await compose_video(scene_clips, output_video_path)
 
-        video_url = f"/static/videos/{title}.mp4"
+        local_video_url = f"/static/videos/{title}.mp4"
+        cloudinary_url = await upload_video_to_cloudinary(output_video_path, folder="safety_videos", public_id=title)
+        video_url = cloudinary_url if cloudinary_url else local_video_url
+
         record["progress_percent"] = 100
         record["status"] = "COMPLETED"
         record["video_url"] = video_url
