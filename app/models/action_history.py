@@ -116,11 +116,11 @@ class ActionHistory(Base):
             name="ck_action_history_approver",
         ),
         CheckConstraint(
-                """
-                action_status != '조치 완료' 
-                OR handler_uid IS NOT NULL 
-                OR handler_name IS NOT NULL
-                """,
+            """
+            action_status != '조치 완료' 
+            OR handler_uid IS NOT NULL 
+            OR handler_name IS NOT NULL
+            """,
             name="ck_action_history_handler",
         ),
         Index(
