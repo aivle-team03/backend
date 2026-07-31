@@ -17,3 +17,7 @@ class VideoStatusResponse(BaseModel):
     extracted_text: Optional[str] = None
     scenes: Optional[List[Dict[str, Any]]] = None
     error_message: Optional[str] = None
+    document_analysis: Optional[Dict[str, Any]] = None
+    learning_objectives: Optional[List[str]] = None
+    storyboard: Optional[List[Dict[str, Any]]] = None
+    quality_report: Optional[Dict[str, Any]] = None
