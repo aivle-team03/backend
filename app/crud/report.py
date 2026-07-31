@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from typing import Optional, List
 from datetime import datetime
+from app.utils.datetime_utils import get_kst_now
 from app.models.report import Report
 from app.models.report_event_map import ReportEventMap
 from app.models.report_checklist_map import ReportChecklistMap
@@ -47,7 +48,7 @@ def create_report(
         writer=writer,
         content=content,
         summary=summary,
-        created_at=datetime.utcnow(),
+        created_at=get_kst_now(),
         is_deleted=False,
     )
     db.add(report)

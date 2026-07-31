@@ -1,4 +1,5 @@
 from datetime import datetime
+from app.utils.datetime_utils import get_kst_now
 from typing import Optional, List
 
 from sqlalchemy.orm import Session
@@ -167,7 +168,7 @@ def create_checklist(
         image_url=checklist_in.image_url,
         status="미조치" if chk_type == "조치" else "점검 대기",
         type=chk_type,
-        date=datetime.now(),
+        date=get_kst_now(),
     )
     
     db.add(db_checklist)

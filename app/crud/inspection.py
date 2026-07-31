@@ -1,5 +1,6 @@
 import calendar
 from datetime import datetime
+from app.utils.datetime_utils import get_kst_now
 from typing import List, Optional
 from sqlalchemy import func, extract
 from sqlalchemy.orm import Session, joinedload
@@ -455,7 +456,7 @@ def generate_scheduled_inspection_histories(db: Session, company_id: int = None)
     """
     모든 조건(주말 포함, 2월/월말 고려, ID 해시 분산, uid 상속, 구역(,) 분할)이 적용된 점검 이력 자동 생성 스케줄러
     """
-    now = datetime.now()
+    now = get_kst_now()
     today_date = now.date()
 
     weekday = now.weekday()  # 0: 월 ~ 6: 일 (주말 포함)

@@ -3,6 +3,7 @@ import asyncio
 import uuid
 import time
 from typing import Dict, Optional
+from app.utils.datetime_utils import get_kst_now_str
 
 from app.services.ai.veo.pipelines import (
     render_scene_sequence,
@@ -96,7 +97,7 @@ def create_veo_task_record() -> str:
         "storyboard": None,
         "quality_report": None,
         "usage_summary": None,
-        "created_at": int(time.time())
+        "created_at": get_kst_now_str()
     }
     return task_id
 

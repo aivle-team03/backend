@@ -1,4 +1,5 @@
 from datetime import datetime
+from app.utils.datetime_utils import get_kst_now
 from math import ceil
 from typing import Dict, List, Optional
 
@@ -646,7 +647,7 @@ def complete_action_history(
     action.image_url = image_url
     action.action_status = ActionStatus.COMPLETED.value
     action.approval_status = ApprovalStatus.PENDING.value
-    action.completed_at = datetime.now()
+    action.completed_at = get_kst_now()
     action.approver_uid = None
     action.approver_name = None
     action.approval_date = None
@@ -684,7 +685,7 @@ def approve_action_history(
     action.approval_status = ApprovalStatus.APPROVED.value
     action.approver_uid = approver_user.uid
     action.approver_name = approver_user.name
-    action.approval_date = datetime.now()
+    action.approval_date = get_kst_now()
 
     try:
         db.commit()
@@ -722,7 +723,7 @@ def reject_action_history(
     action.completed_at = None
     action.approver_uid = approver_user.uid
     action.approver_name = approver_user.name
-    action.approval_date = datetime.now()
+    action.approval_date = get_kst_now()
     action.rejection_reason = rejection_reason
 
     try:
