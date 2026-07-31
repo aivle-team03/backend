@@ -10,13 +10,15 @@ from app.models.report import Report
 
 
 def get_dashboard_summary(db: Session, company_id: int) -> dict:
-    detected_count = db.query(Event).filter(Event.company_id == company_id).count()
+    detected_count = db.query(Event).filter(Event.company_id == company_id, Event.is_deleted == False,).count()
     
     violation_count = (
         db.query(Event)
         .join(EventCategory, Event.category_id == EventCategory.category_id)
         .filter(
             Event.company_id == company_id,
+            Event.is_deleted == False,  # 💡 [추가] 소프트 삭제 필터
+            EventCategory.is_deleted == False,
             EventCategory.category.in_(["위험", "경고"])
         )
         .count()
@@ -55,7 +57,7 @@ def get_recent_events(db: Session, company_id: int, limit: int = 10) -> List[dic
     results = db.query(Event, EventCategory, CCTV)\
         .join(EventCategory, Event.category_id == EventCategory.category_id)\
         .join(CCTV, Event.camera_id == CCTV.cctv_id)\
-        .filter(Event.company_id == company_id)\
+        .filter(Event.company_id == company_id, Event.is_deleted == False, EventCategory.is_deleted == False,)\
         .order_by(Event.date.desc())\
         .limit(limit).all()
         
@@ -76,7 +78,7 @@ def get_recent_events(db: Session, company_id: int, limit: int = 10) -> List[dic
 def get_zone_statistics(db: Session, company_id: int):
     locations = (
         db.query(CCTV.location)
-        .filter(CCTV.company_id == company_id)
+        .filter(CCTV.company_id == company_id, CCTV.is_deleted == False,)
         .distinct()
         .all()
     )
@@ -89,7 +91,8 @@ def get_zone_statistics(db: Session, company_id: int):
             db.query(CCTV)
             .filter(
                 CCTV.company_id == company_id,
-                CCTV.location == loc
+                CCTV.location == loc,
+                CCTV.is_deleted == False,
             )
             .all()
         )
@@ -104,7 +107,8 @@ def get_zone_statistics(db: Session, company_id: int):
                 db.query(Event)
                 .filter(
                     Event.company_id == company_id,
-                    Event.camera_id.in_(cctv_ids)
+                    Event.camera_id.in_(cctv_ids),
+                    Event.is_deleted == False,
                 )
                 .count()
             )
@@ -112,7 +116,8 @@ def get_zone_statistics(db: Session, company_id: int):
                 db.query(Event)
                 .filter(
                     Event.company_id == company_id,
-                    Event.camera_id.in_(cctv_ids)
+                    Event.camera_id.in_(cctv_ids),
+                    Event.is_deleted == False,
                 )
                 .all()
             )
@@ -122,7 +127,7 @@ def get_zone_statistics(db: Session, company_id: int):
                     db.query(Checklist)
                     .filter(
                         Checklist.company_id == company_id,
-                        Checklist.event_id == ev.event_id
+                        Checklist.event_id == ev.event_id,
                     )
                     .order_by(Checklist.checklist_id.desc())
                     .first()
@@ -148,7 +153,8 @@ def calculate_safety_grade(db: Session, company_id: int):
         db.query(Event)
         .filter(
             Event.company_id == company_id,
-            Event.date >= thirty_days_ago
+            Event.date >= thirty_days_ago,
+            Event.is_deleted == False,
         )
         .all()
     )
@@ -210,7 +216,7 @@ def calculate_safety_grade(db: Session, company_id: int):
 
 
 def get_reports_by_date(db: Session, company_id: int, start_date: datetime = None, end_date: datetime = None):
-    query = db.query(Report).filter(Report.company_id == company_id)
+    query = db.query(Report).filter(Report.company_id == company_id, Report.is_deleted == False,)
     if start_date and end_date:
         query = query.filter(Report.created_at.between(start_date, end_date))
     return query.order_by(Report.created_at.desc()).all()
@@ -221,7 +227,8 @@ def generate_report_ai_summary(db: Session, report_id: int, company_id: int):
         db.query(Report)
         .filter(
             Report.report_id == report_id,
-            Report.company_id == company_id
+            Report.company_id == company_id,
+            Report.is_deleted == False,
         )
         .first()
     )

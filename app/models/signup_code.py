@@ -21,4 +21,4 @@ class SignupCode(Base):
     created_at = Column(DateTime, nullable=False, default=func.now(), server_default=func.now())  # 생성일시
 
     company = relationship("Company", back_populates="signup_codes")
-    user = relationship("User", backref="signup_codes")
+    user = relationship("User", backref="signup_codes", passive_deletes=True)

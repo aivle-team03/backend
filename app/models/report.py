@@ -1,4 +1,4 @@
-from sqlalchemy import Column, BigInteger, String, DateTime, ForeignKey, func, Text
+from sqlalchemy import Column, BigInteger, String, DateTime, ForeignKey, func, Text, Boolean
 from sqlalchemy.orm import relationship
 from typing import List
 from app.db.db import Base
@@ -25,6 +25,7 @@ class Report(Base):
         back_populates="report",
         cascade="all, delete-orphan",
     )
+    is_deleted = Column(Boolean, nullable=False, default=False)
 
     @property
     def event_ids(self) -> List[int]:
