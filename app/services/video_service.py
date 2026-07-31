@@ -17,6 +17,8 @@ from app.models.education import Education
 TASK_STORE: Dict[str, Dict] = {}
 
 
+from app.utils.datetime_utils import get_kst_now_str
+
 def create_task_record() -> str:
     """새로운 비동기 영상 제작 태스크 생성 및 ID 반환"""
     task_id = f"task_{uuid.uuid4().hex[:12]}"
@@ -27,7 +29,7 @@ def create_task_record() -> str:
         "video_url": None,
         "education_id": None,
         "error_message": None,
-        "created_at": int(time.time())
+        "created_at": get_kst_now_str()
     }
     return task_id
 

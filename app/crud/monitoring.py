@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, or_
 from datetime import datetime
+from app.utils.datetime_utils import get_kst_now
 from app.models.event import Event
 from app.models.checklist import Checklist
 
@@ -97,7 +98,7 @@ def create_action_request(db: Session, event_id: int, target_uid: int, message: 
     db_checklist = Checklist(
         company_id=company_id,
         event_id=event_id,
-        date=datetime.utcnow(),
+        date=get_kst_now(),
         status="조치 대기",
         uid=target_uid,
         camera_id=event.camera_id,
