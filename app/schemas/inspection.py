@@ -54,6 +54,7 @@ class InspectionHistoryBase(BaseModel):
     date: datetime
     location: str  # 예: "A동 1층" (개별 구역)
     uid: Optional[int] = None
+    user_name: Optional[str] = None
     status: str  # "점검 대기", "점검 완료"
     is_action_required: bool = False
     content: Optional[str] = None
@@ -70,6 +71,7 @@ class InspectionHistoryUpdate(BaseModel):
     date: Optional[datetime] = None
     location: Optional[str] = None
     uid: Optional[int] = None
+    user_name: Optional[str] = None
     status: Optional[str] = None
     is_action_required: Optional[bool] = None
     content: Optional[str] = None

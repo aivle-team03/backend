@@ -29,6 +29,7 @@ def post_create_report(
             db=db,
             company_id=current_user.company_id,
             uid=current_user.uid,
+            writer=current_user.name,
             content=req.content,
             event_ids=req.event_ids,
             checklist_ids=req.checklist_ids,

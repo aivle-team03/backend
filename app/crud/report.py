@@ -19,6 +19,7 @@ def create_report(
     checklist_ids: Optional[List[int]] = None,
     inspection_history_ids: Optional[List[int]] = None,
     action_history_ids: Optional[List[int]] = None,
+    writer: Optional[str] = None,
 ) -> Report:
     if action_history_ids:
         action_count = (
@@ -33,11 +34,16 @@ def create_report(
             raise ValueError(
                 "연결할 조치 이력을 찾을 수 없거나 다른 회사의 조치 이력입니다."
             )
+    if not writer and uid:
+        user = db.query(User).filter(User.uid == uid).first()
+        if user:
+            writer = user.name
 
     summary = content[:50] + "..." if len(content) > 50 else content
     report = Report(
         company_id=company_id,
         uid=uid,
+        writer=writer,
         content=content,
         summary=summary,
         created_at=datetime.utcnow()
@@ -106,6 +112,7 @@ def get_reports(
     if writer:
         query = query.filter(
             or_(
+                Report.writer.like(f"%{writer}%"),
                 User.name.like(f"%{writer}%"),
                 User.user_id.like(f"%{writer}%")
             )
@@ -123,6 +130,7 @@ def get_reports(
 
     items = []
     for report, writer_name in rows:
+        writer_display = report.writer or writer_name or "알 수 없음"
         item_dict = {
             "report_id": report.report_id,
             "company_id": report.company_id,
@@ -130,7 +138,7 @@ def get_reports(
             "content": report.content,
             "summary": report.summary,
             "created_at": report.created_at,
-            "writer": writer_name or "작성자 미상",
+            "writer": writer_display,
             "action_history_ids": report.action_history_ids,
         }
         items.append(item_dict)

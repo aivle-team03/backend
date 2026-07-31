@@ -13,12 +13,14 @@ class EducationStatus(Base):
         ),
     )
 
+    status_id = Column(BigInteger, primary_key=True, autoincrement=True)
+
     uid = Column(
         BigInteger,
-        ForeignKey("user.uid"),
-        primary_key=True,
-        nullable=False,
+        ForeignKey('user.uid', ondelete='SET NULL'),
+        nullable=True,
     )
+    user_name = Column(String(100), nullable=True)
     education_id = Column(
         BigInteger,
         ForeignKey("education.education_id"),

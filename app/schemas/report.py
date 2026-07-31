@@ -26,7 +26,7 @@ class ReportUpdateRequest(BaseModel):
 class ReportDetailResponse(BaseModel):
     report_id: int
     company_id: int
-    uid: int
+    uid: Optional[int] = None
     content: str
     summary: Optional[str] = None
     created_at: datetime

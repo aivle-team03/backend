@@ -189,7 +189,7 @@ def read_inspection_history_detail(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="해당 점검 이력을 찾을 수 없거나 접근 권한이 없습니다.",
         )
-    return history
+    return inspection_crud._serialize_history(history)
 
 
 @router.post("/histories/create", response_model=InspectionHistoryResponse, status_code=status.HTTP_201_CREATED)

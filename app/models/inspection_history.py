@@ -8,7 +8,12 @@ class InspectionHistory(Base):
     inspection_history_id = Column(BigInteger, primary_key=True)                                     # PK
     company_id = Column(BigInteger, ForeignKey("company.company_id"), nullable=False)     # FK (회사 아이디)
     inspection_id = Column(BigInteger, ForeignKey("inspection.inspection_id"), nullable=False) # FK (점검 아이디)
-    uid = Column(BigInteger, ForeignKey("user.uid"), nullable=True)                      # 담당자
+    uid = Column(
+      BigInteger,
+      ForeignKey('user.uid', ondelete='SET NULL'),
+      nullable=True,
+    ) 
+    user_name = Column(String(100), nullable=True)
     name = Column(String(100), nullable=False) 
     location = Column(String(50), nullable=False)  
     date = Column(DateTime, nullable=False)                                       # 점검 일시

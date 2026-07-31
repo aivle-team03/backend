@@ -251,7 +251,11 @@ def get_education_attendees(db: Session, company_id: int, education_id: int) -> 
     attendees = [
         {
             "uid": user.uid,
-            "name": user.name,
+            "name": (
+                user.name
+                if user
+                else (status_row.user_name if status_row else "퇴사자")
+            ),
             "category": user.category,
             "status": status_row.status if status_row else INCOMPLETE,
             "completed_date": status_row.completed_date if status_row else None,
@@ -285,9 +289,12 @@ def complete_education(
     if status_row is None:
         status_row = EducationStatus(
             uid=user.uid,
+            user_name=user.name,
             education_id=education.education_id,
         )
         db.add(status_row)
+    else:
+        status_row.user_name = user.name
 
     status_row.status = COMPLETED
     status_row.completed_date = date.today()
