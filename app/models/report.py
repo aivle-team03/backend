@@ -1,4 +1,4 @@
-from sqlalchemy import Column, BigInteger, String, DateTime, ForeignKey, func, Text
+from sqlalchemy import Column, BigInteger, String, DateTime, ForeignKey, func, Text, Boolean
 from sqlalchemy.orm import relationship
 from typing import List
 from app.db.db import Base
@@ -8,19 +8,12 @@ class Report(Base):
 
     report_id = Column(BigInteger, primary_key=True, autoincrement=True)
 
-    uid = Column(
-        BigInteger,
-        ForeignKey("user.uid", ondelete="SET NULL"),
-        nullable=True,
-    )
+    uid = Column(BigInteger, ForeignKey("user.uid", ondelete='SET NULL'), nullable=True)
+    writer = Column(String(100), nullable=True)
     content = Column(Text, nullable=False)
     summary = Column(String(100), nullable=False)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
-    company_id = Column(
-        BigInteger,
-        ForeignKey("company.company_id", ondelete="CASCADE"),
-        nullable=False,
-    )  # 회사 아이디
+    company_id = Column(BigInteger, ForeignKey("company.company_id", ondelete="CASCADE"), nullable=False)  #회사 아이디
 
     user = relationship("User", back_populates="reports")
     event_maps = relationship("ReportEventMap", back_populates="report", cascade="all, delete-orphan")
@@ -32,6 +25,7 @@ class Report(Base):
         back_populates="report",
         cascade="all, delete-orphan",
     )
+    is_deleted = Column(Boolean, nullable=False, default=False)
 
     @property
     def event_ids(self) -> List[int]:

@@ -8,6 +8,7 @@ from sqlalchemy import (
     String,
     Text,
     func,
+    Boolean,
 )
 from sqlalchemy.orm import relationship
 
@@ -20,6 +21,35 @@ class ActionHistory(Base):
         CheckConstraint(
             "type IN ('게시판', '이벤트', '점검이력', '직접추가')",
             name="ck_action_history_type",
+        ),
+        CheckConstraint(
+            """
+            (
+                type = '게시판'
+                AND board_id IS NOT NULL
+                AND event_id IS NULL
+                AND inspection_history_id IS NULL
+            )
+            OR (
+                type = '이벤트'
+                AND board_id IS NULL
+                AND event_id IS NOT NULL
+                AND inspection_history_id IS NULL
+            )
+            OR (
+                type = '점검이력'
+                AND board_id IS NULL
+                AND event_id IS NULL
+                AND inspection_history_id IS NOT NULL
+            )
+            OR (
+                type = '직접추가'
+                AND board_id IS NULL
+                AND event_id IS NULL
+                AND inspection_history_id IS NULL
+            )
+            """,
+            name="ck_action_history_source",
         ),
         CheckConstraint(
             "action_status IN ('조치 대기', '조치 완료')",
@@ -66,6 +96,34 @@ class ActionHistory(Base):
             """,
             name="ck_action_history_rejection",
         ),
+        CheckConstraint(
+            """
+            (
+                approval_status IS NULL
+                AND approver_uid IS NULL
+                AND approval_date IS NULL
+            )
+            OR (
+                approval_status = '승인 대기'
+                AND approver_uid IS NULL
+                AND approval_date IS NULL
+            )
+            OR (
+                approval_status IN ('승인 완료', '반려')
+                AND (approver_uid IS NOT NULL OR approver_name IS NOT NULL)
+                AND approval_date IS NOT NULL
+            )
+            """,
+            name="ck_action_history_approver",
+        ),
+        CheckConstraint(
+            """
+            action_status != '조치 완료' 
+            OR handler_uid IS NOT NULL 
+            OR handler_name IS NOT NULL
+            """,
+            name="ck_action_history_handler",
+        ),
         Index(
             "ix_action_history_company_created",
             "company_id",
@@ -92,37 +150,36 @@ class ActionHistory(Base):
     )
     board_id = Column(
         BigInteger,
-        ForeignKey("board.board_id", ondelete="SET NULL"),
+        ForeignKey("board.board_id"),
         nullable=True,
     )
     event_id = Column(
         BigInteger,
-        ForeignKey("event.event_id", ondelete="SET NULL"),
+        ForeignKey("event.event_id"),
         nullable=True,
     )
     inspection_history_id = Column(
         BigInteger,
-        ForeignKey(
-            "inspection_history.inspection_history_id",
-            ondelete="SET NULL",
-        ),
+        ForeignKey("inspection_history.inspection_history_id"),
         nullable=True,
     )
     category_id = Column(
         BigInteger,
-        ForeignKey("event_category.category_id", ondelete="SET NULL"),
-        nullable=True,
+        ForeignKey("event_category.category_id"),
+        nullable=False,
     )
     handler_uid = Column(
         BigInteger,
-        ForeignKey("user.uid", ondelete="SET NULL"),
+        ForeignKey("user.uid", ondelete='SET NULL'),
         nullable=True,
     )
+    handler_name = Column(String(100), nullable=True)
     approver_uid = Column(
         BigInteger,
-        ForeignKey("user.uid", ondelete="SET NULL"),
+        ForeignKey("user.uid", ondelete='SET NULL'),
         nullable=True,
     )
+    approver_name = Column(String(100), nullable=True)
     action_name = Column(String(200), nullable=False)
     type = Column(String(50), nullable=False)
     location = Column(String(255), nullable=False)
@@ -144,6 +201,7 @@ class ActionHistory(Base):
     approval_status = Column(String(50), nullable=True)
     approval_date = Column(DateTime, nullable=True)
     rejection_reason = Column(Text, nullable=True)
+    is_deleted = Column(Boolean, nullable=False, default=False)
 
     company = relationship("Company")
     board = relationship("Board")

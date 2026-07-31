@@ -46,9 +46,9 @@ class UserCompletionRatesResponse(BaseModel):
     total_rate: float        # 전체 이수율
 
 class UserEducationResponse(BaseModel):
-    uid: int
+    uid: Optional[int] = None
     company_id: int
-    user_id: str
+    user_id: Optional[str] = None
     name: str
     educations: List[EducationStatusResponse]
 
@@ -71,10 +71,11 @@ class EducationStatusSummaryResponse(BaseModel):
 class EducationCompletionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    uid: int
+    uid: Optional[int] = None
+    user_name: Optional[str] = None
     education_id: int
     status: EducationProgressStatus
-    completed_date: date
+    completed_date: Optional[date] = None
 
 
 # 관리자용 카테고리별 이수 현황 통계
@@ -88,6 +89,41 @@ class AdminCategoryCompletionItem(BaseModel):
 class AdminCategoryCompletionResponse(BaseModel):
     categories: List[AdminCategoryCompletionItem]
     total_completion_rate: float
+
+
+class EducationAttendeeResponse(BaseModel):
+    uid: Optional[int] = None
+    name: str
+    category: Optional[str] = None
+    education_id: Optional[int] = None
+    education_title: Optional[str] = None
+    status: EducationProgressStatus
+    completed_date: Optional[date] = None
+
+
+class AdminEducationCourseDashboardItem(EducationStatusSummaryResponse):
+    attendees: List[EducationAttendeeResponse]
+
+
+class AdminEducationCategoryDashboardItem(AdminCategoryCompletionItem):
+    attendees: List[EducationAttendeeResponse]
+
+
+class AdminEducationDashboardResponse(BaseModel):
+    courses: List[AdminEducationCourseDashboardItem]
+    categories: List[AdminEducationCategoryDashboardItem]
+    total_target_count: int
+    total_completed_count: int
+    total_completion_rate: float
+    attendees: List[EducationAttendeeResponse]
+
+
+class EducationAttendeeListResponse(BaseModel):
+    education_id: int
+    target_count: int
+    completed_count: int
+    completion_rate: float
+    attendees: List[EducationAttendeeResponse]
 
 
 # AI 교육 자료 생성 요청/응답

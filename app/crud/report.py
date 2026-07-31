@@ -19,6 +19,7 @@ def create_report(
     checklist_ids: Optional[List[int]] = None,
     inspection_history_ids: Optional[List[int]] = None,
     action_history_ids: Optional[List[int]] = None,
+    writer: Optional[str] = None,
 ) -> Report:
     if action_history_ids:
         action_count = (
@@ -26,6 +27,7 @@ def create_report(
             .filter(
                 ActionHistory.company_id == company_id,
                 ActionHistory.action_history_id.in_(action_history_ids),
+                ActionHistory.is_deleted == False,
             )
             .count()
         )
@@ -33,14 +35,20 @@ def create_report(
             raise ValueError(
                 "연결할 조치 이력을 찾을 수 없거나 다른 회사의 조치 이력입니다."
             )
+    if not writer and uid:
+        user = db.query(User).filter(User.uid == uid).first()
+        if user:
+            writer = user.name
 
     summary = content[:50] + "..." if len(content) > 50 else content
     report = Report(
         company_id=company_id,
         uid=uid,
+        writer=writer,
         content=content,
         summary=summary,
-        created_at=datetime.utcnow()
+        created_at=datetime.utcnow(),
+        is_deleted=False,
     )
     db.add(report)
     db.flush() 
@@ -94,7 +102,7 @@ def get_reports(
     query = (
         db.query(Report, User.name.label("writer_name"))
         .outerjoin(User, Report.uid == User.uid)
-        .filter(Report.company_id == company_id)
+        .filter(Report.company_id == company_id, Report.is_deleted == False,)
     )
 
     if start_date:
@@ -106,6 +114,7 @@ def get_reports(
     if writer:
         query = query.filter(
             or_(
+                Report.writer.like(f"%{writer}%"),
                 User.name.like(f"%{writer}%"),
                 User.user_id.like(f"%{writer}%")
             )
@@ -123,6 +132,7 @@ def get_reports(
 
     items = []
     for report, writer_name in rows:
+        writer_display = report.writer or writer_name or "알 수 없음"
         item_dict = {
             "report_id": report.report_id,
             "company_id": report.company_id,
@@ -130,7 +140,7 @@ def get_reports(
             "content": report.content,
             "summary": report.summary,
             "created_at": report.created_at,
-            "writer": writer_name or "작성자 미상",
+            "writer": writer_display,
             "action_history_ids": report.action_history_ids,
         }
         items.append(item_dict)
@@ -142,7 +152,8 @@ def get_report_by_id(db: Session, report_id: int, company_id: int) -> Optional[R
         db.query(Report)
         .filter(
             Report.report_id == report_id,
-            Report.company_id == company_id
+            Report.company_id == company_id,
+            Report.is_deleted == False,
         )
         .first()
     )
@@ -153,7 +164,8 @@ def update_report(db: Session, report_id: int, uid: int, company_id: int, conten
         .filter(
             Report.report_id == report_id,
             Report.company_id == company_id,
-            Report.uid == uid
+            Report.uid == uid,
+            Report.is_deleted == False,
         )
         .first()
     )
@@ -172,13 +184,14 @@ def delete_report(db: Session, report_id: int, uid: int, company_id: int) -> boo
         .filter(
             Report.report_id == report_id,
             Report.company_id == company_id,
-            Report.uid == uid
+            Report.uid == uid,
+            Report.is_deleted == False,
         )
         .first()
     )
     if not report:
         return False
         
-    db.delete(report)
+    report.is_deleted = True
     db.commit()
     return True

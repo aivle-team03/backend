@@ -2,8 +2,10 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from typing import Optional
+from app.models.action_history import ActionHistory
 from app.models.board import Board
 from app.models.user import User
+from app.schemas.action_history import ActionStatus, SourceType
 
 # 생성
 def create_board(
@@ -25,7 +27,8 @@ def create_board(
         event_category_id=event_category_id,
         status=status,
         location=location,
-        image_url=image_url
+        image_url=image_url,
+        is_deleted=False,
     )
     db.add(db_board)
     db.commit()
@@ -43,8 +46,15 @@ def get_boards(
     location: Optional[str] = None,
     keyword: Optional[str] = None
 ):
-    query = db.query(Board, User.name.label("writer_name")).outerjoin(User, Board.uid == User.uid).filter(Board.company_id == company_id)
-
+    query = (
+        db.query(Board, User.name.label("writer_name"))
+        .outerjoin(User, Board.uid == User.uid)
+        .filter(
+            Board.company_id == company_id,
+            Board.is_deleted == False,
+        )
+    )
+    
     if category:
         query = query.filter(Board.event_category_id == category)
     if status:
@@ -68,7 +78,7 @@ def get_boards(
             "board_id": board.board_id,
             "company_id": board.company_id,
             "uid": board.uid,
-            "writer": writer_name or "작성자 미상",
+            "writer": writer_name or "알 수 없음",
             "title": board.title,
             "board_contents": board.board_contents,
             "event_category_id": board.event_category_id,
@@ -89,7 +99,8 @@ def get_board_by_id(db: Session, board_id: int, company_id: int):
         .outerjoin(User, Board.uid == User.uid)
         .filter(
             Board.board_id == board_id,
-            Board.company_id == company_id
+            Board.company_id == company_id,
+            Board.is_deleted == False,
         )
         .first()
     )
@@ -102,7 +113,7 @@ def get_board_by_id(db: Session, board_id: int, company_id: int):
         "board_id": board.board_id,
         "company_id": board.company_id,
         "uid": board.uid,
-        "writer": writer_name or "작성자 미상",
+        "writer": writer_name or "알 수 없음",
         "title": board.title,
         "board_contents": board.board_contents,
         "event_category_id": board.event_category_id,
@@ -141,14 +152,61 @@ def update_board(
     db.refresh(board)
     return board
 
-# 게시글 상태 수정
-def update_board_status(db: Session, board: Board, status: str) -> Board:
+# 게시글 상태 수정 및 게시판 조치 이력 생성
+def update_board_status(
+    db: Session,
+    board_id: int,
+    company_id: int,
+    status: str,
+) -> Optional[Board]:
+    # Lock the board row so concurrent requests cannot create duplicate actions.
+    board = db.query(Board).filter(
+        Board.board_id == board_id,
+        Board.company_id == company_id,
+        Board.is_deleted == False,
+    ).with_for_update().first()
+    if not board:
+        return None
+
+    received_status = "\uC811\uC218"
+    if status == received_status and board.status != received_status:
+        existing_action = db.query(ActionHistory).filter(
+            ActionHistory.company_id == company_id,
+            ActionHistory.board_id == board.board_id,
+            ActionHistory.type == SourceType.BOARD.value,
+            ActionHistory.is_deleted == False,
+        ).first()
+
+        if not existing_action:
+            if not board.event_category_id:
+                raise ValueError(
+                    "\uAC8C\uC2DC\uAE00 \uCE74\uD14C\uACE0\uB9AC\uAC00 \uC5C6\uC5B4 \uC870\uCE58 \uD56D\uBAA9\uC744 \uC0DD\uC131\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4."
+                )
+
+            db.add(ActionHistory(
+                company_id=company_id,
+                board_id=board.board_id,
+                category_id=board.event_category_id,
+                action_name=board.title,
+                type=SourceType.BOARD.value,
+                location=board.location or "\uC704\uCE58 \uBBF8\uC9C0\uC815",
+                content=board.board_contents,
+                action_status=ActionStatus.WAITING.value,
+                image_url=board.image_url,
+                is_deleted=False,
+            ))
+
     board.status = status
-    db.commit()
-    db.refresh(board)
+    try:
+        db.commit()
+        db.refresh(board)
+    except Exception:
+        db.rollback()
+        raise
+
     return board
 
 # 게시글 삭제
 def delete_board(db: Session, board: Board):
-    db.delete(board)
+    board.is_deleted = True
     db.commit()

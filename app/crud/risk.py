@@ -32,14 +32,20 @@ def get_risk_category_list(db: Session, company_id: int) -> List[RiskFactorRespo
     """
     복잡한 대시보드 객체 대신, 단순 카테고리 리스트 배열만 반환
     """
-    categories = db.query(EventCategory).filter(
-        (EventCategory.company_id == company_id) | (EventCategory.company_id.is_(None))
-    ).all() if hasattr(EventCategory, "company_id") else db.query(EventCategory).all()
+    query = db.query(EventCategory).filter(
+        EventCategory.is_deleted == False
+    )
+    if hasattr(EventCategory, "company_id"):
+        query = query.filter(
+            (EventCategory.company_id == company_id)
+            | (EventCategory.company_id.is_(None))
+        )
+    categories = query.all()
 
     # Event 카운트 집계
     event_counts = (
         db.query(Event.category_id, func.count(Event.event_id).label("cnt"))
-        .filter(Event.company_id == company_id) 
+        .filter(Event.company_id == company_id, Event.is_deleted == False,) 
         .group_by(Event.category_id)
         .all()
     )
@@ -66,14 +72,20 @@ def get_risk_category_list(db: Session, company_id: int) -> List[RiskFactorRespo
 
 
 def get_risk_dashboard_data(db: Session, company_id: int) -> RiskManagementDashboardResponse:
-    categories = db.query(EventCategory).filter(
-        (EventCategory.company_id == company_id) | (EventCategory.company_id.is_(None))
-    ).all() if hasattr(EventCategory, "company_id") else db.query(EventCategory).all()
+    query = db.query(EventCategory).filter(
+        EventCategory.is_deleted == False
+    )
+    if hasattr(EventCategory, "company_id"):
+        query = query.filter(
+            (EventCategory.company_id == company_id)
+            | (EventCategory.company_id.is_(None))
+        )
+    categories = query.all()
 
     # 1. 카테고리별 Event 빈도(count) 집계
     event_counts = (
         db.query(Event.category_id, func.count(Event.event_id).label("cnt"))
-        .filter(Event.company_id == company_id)
+        .filter(Event.company_id == company_id, Event.is_deleted == False,)
         .group_by(Event.category_id)
         .all()
     )
@@ -114,7 +126,7 @@ def get_risk_dashboard_data(db: Session, company_id: int) -> RiskManagementDashb
 
 
 def update_event_category_level(db: Session, category_id: int, new_level: int, company_id: int) -> EventCategory:
-    category = db.query(EventCategory).filter(EventCategory.category_id == category_id)
+    category = db.query(EventCategory).filter(EventCategory.category_id == category_id, EventCategory.is_deleted == False,)
     if hasattr(EventCategory, "company_id"):
         category = category.filter(
             (EventCategory.company_id == company_id)
@@ -133,6 +145,7 @@ def create_event_category(db: Session, payload: EventCategoryCreate, company_id:
         category=payload.category,
         category_name=payload.category_name,
         level=payload.level,
+        is_deleted=False,
     )
     if hasattr(EventCategory, "company_id"):
         new_cat.company_id = company_id
@@ -143,7 +156,7 @@ def create_event_category(db: Session, payload: EventCategoryCreate, company_id:
 
 
 def delete_event_category(db: Session, category_id: int, company_id: int) -> bool:
-    category = db.query(EventCategory).filter(EventCategory.category_id == category_id)
+    category = db.query(EventCategory).filter(EventCategory.category_id == category_id, EventCategory.is_deleted == False,)
     if hasattr(EventCategory, "company_id"):
         category = category.filter(EventCategory.company_id == company_id)
 
@@ -151,6 +164,6 @@ def delete_event_category(db: Session, category_id: int, company_id: int) -> boo
     if not category:
         return False
     
-    db.delete(category)
+    category.is_deleted = True
     db.commit()
     return True

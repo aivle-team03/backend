@@ -63,6 +63,7 @@ def _get_action(
         .filter(
             ActionHistory.action_history_id == action_history_id,
             ActionHistory.company_id == company_id,
+            ActionHistory.is_deleted == False,
         )
         .first()
     )
@@ -78,6 +79,7 @@ def _get_category(
         .filter(
             EventCategory.category_id == category_id,
             EventCategory.company_id == company_id,
+            EventCategory.is_deleted == False,
         )
         .first()
     )
@@ -178,6 +180,8 @@ def _apply_filters(
                 ActionHistory.action_name.ilike(pattern),
                 ActionHistory.location.ilike(pattern),
                 ActionHistory.content.ilike(pattern),
+                ActionHistory.handler_name.ilike(pattern),
+                ActionHistory.approver_name.ilike(pattern),
                 ActionHistory.handler.has(User.name.ilike(pattern)),
                 ActionHistory.handler.has(User.user_id.ilike(pattern)),
                 ActionHistory.category.has(
@@ -237,6 +241,7 @@ def create_action_history(
             .filter(
                 Board.board_id == request.source_id,
                 Board.company_id == company_id,
+                Board.is_deleted == False,
             )
             .first()
         )
@@ -258,6 +263,7 @@ def create_action_history(
             .filter(
                 Event.event_id == request.source_id,
                 Event.company_id == company_id,
+                Event.is_deleted == False,
             )
             .first()
         )
@@ -275,6 +281,7 @@ def create_action_history(
             .filter(
                 InspectionHistory.inspection_history_id == request.source_id,
                 InspectionHistory.company_id == company_id,
+                InspectionHistory.is_deleted == False,
             )
             .first()
         )
@@ -308,19 +315,23 @@ def create_action_history(
         raise ActionHistoryValidationError("조치 위치를 확인할 수 없습니다.")
 
     _get_category(db, category_id, company_id)
+    handler_name = None
     if request.handler_uid is not None:
-        _get_handler(db, request.handler_uid, company_id)
+        handler = _get_handler(db, request.handler_uid, company_id)
+        handler_name = handler.name
 
     action = ActionHistory(
         company_id=company_id,
         category_id=category_id,
         handler_uid=request.handler_uid,
+        handler_name=handler_name,
         action_name=action_name,
         type=source_type,
         location=location,
         content=request.content,
         action_status=ActionStatus.WAITING.value,
         approval_status=None,
+        is_deleted=False,
         **source_columns,
     )
 
@@ -358,7 +369,8 @@ def get_action_histories(
     sort_order: str = "desc",
 ) -> Dict:
     query = db.query(ActionHistory).filter(
-        ActionHistory.company_id == company_id
+        ActionHistory.company_id == company_id,
+        ActionHistory.is_deleted == False,
     )
     query = _apply_filters(
         query,
@@ -537,14 +549,17 @@ def assign_action_handlers(
     handler_uid: Optional[int],
     company_id: int,
 ) -> List[Dict]:
+    handler_name = None
     if handler_uid is not None:
-        _get_handler(db, handler_uid, company_id)
+        handler = _get_handler(db, handler_uid, company_id)
+        handler_name = handler.name
 
     actions = (
         db.query(ActionHistory)
         .filter(
             ActionHistory.action_history_id.in_(action_history_ids),
             ActionHistory.company_id == company_id,
+            ActionHistory.is_deleted == False,
         )
         .all()
     )
@@ -562,6 +577,7 @@ def assign_action_handlers(
     try:
         for action in actions:
             action.handler_uid = handler_uid
+            action.handler_name = handler_name
         db.commit()
     except Exception:
         db.rollback()
@@ -623,12 +639,16 @@ def complete_action_history(
             "승인 대기 또는 승인 완료 상태의 조치는 다시 완료할 수 없습니다."
         )
 
+    if action.handler:
+        action.handler_name = action.handler.name
+
     action.content = content
     action.image_url = image_url
     action.action_status = ActionStatus.COMPLETED.value
     action.approval_status = ApprovalStatus.PENDING.value
     action.completed_at = datetime.now()
     action.approver_uid = None
+    action.approver_name = None
     action.approval_date = None
 
     try:
@@ -648,7 +668,7 @@ def approve_action_history(
     *,
     action_history_id: int,
     company_id: int,
-    approver_uid: int,
+    approver_user: User,
 ) -> Dict:
     action = _get_action(db, action_history_id, company_id)
     if not action:
@@ -662,7 +682,8 @@ def approve_action_history(
         )
 
     action.approval_status = ApprovalStatus.APPROVED.value
-    action.approver_uid = approver_uid
+    action.approver_uid = approver_user.uid
+    action.approver_name = approver_user.name
     action.approval_date = datetime.now()
 
     try:
@@ -682,7 +703,7 @@ def reject_action_history(
     *,
     action_history_id: int,
     company_id: int,
-    approver_uid: int,
+    approver_user: User,
     rejection_reason: str,
 ) -> Dict:
     action = _get_action(db, action_history_id, company_id)
@@ -699,7 +720,8 @@ def reject_action_history(
     action.action_status = ActionStatus.WAITING.value
     action.approval_status = ApprovalStatus.REJECTED.value
     action.completed_at = None
-    action.approver_uid = approver_uid
+    action.approver_uid = approver_user.uid
+    action.approver_name = approver_user.name
     action.approval_date = datetime.now()
     action.rejection_reason = rejection_reason
 

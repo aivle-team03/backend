@@ -345,7 +345,7 @@ def approve_action_history(
             db,
             action_history_id=action_history_id,
             company_id=current_admin.company_id,
-            approver_uid=current_admin.uid,
+            approver_user=current_admin,
         )
     except Exception as error:
         _raise_http_error(error)
@@ -366,7 +366,7 @@ def reject_action_history(
             db,
             action_history_id=action_history_id,
             company_id=current_admin.company_id,
-            approver_uid=current_admin.uid,
+            approver_user=current_admin,
             rejection_reason=request.rejection_reason,
         )
     except Exception as error:

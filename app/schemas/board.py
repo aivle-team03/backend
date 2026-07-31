@@ -8,7 +8,7 @@ class BoardResponse(BaseModel):
     board_id: int
     company_id: int
     uid: Optional[int] = None
-    writer: Optional[str] = None
+    writer: Optional[str] = "알 수 없음"
     title: str
     board_contents: str
     event_category_id: Optional[int] = None

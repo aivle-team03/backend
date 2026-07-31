@@ -101,7 +101,8 @@ def patch_board(
 ):
     board = db.query(Board).filter(
         Board.board_id == board_id,
-        Board.company_id == current_user.company_id
+        Board.company_id == current_user.company_id,
+        Board.is_deleted == False,
     ).first()
     if not board:
         raise HTTPException(status_code=404, detail="게시글을 찾을 수 없습니다.")
@@ -131,7 +132,8 @@ def remove_board(
 ):
     board = db.query(Board).filter(
         Board.board_id == board_id,
-        Board.company_id == current_user.company_id
+        Board.company_id == current_user.company_id,
+        Board.is_deleted == False,
     ).first()
     if not board:
         raise HTTPException(status_code=404, detail="게시글을 찾을 수 없습니다.")
@@ -147,13 +149,17 @@ def patch_board_status(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    board_obj = db.query(Board).filter(
-        Board.board_id == board_id,
-        Board.company_id == current_user.company_id
-    ).first()
-    
-    if not board_obj:
+    try:
+        updated_board = update_board_status(
+            db,
+            board_id=board_id,
+            company_id=current_user.company_id,
+            status=status_req.status,
+        )
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err))
+
+    if not updated_board:
         raise HTTPException(status_code=404, detail="게시글을 찾을 수 없습니다.")
 
-    updated_board = update_board_status(db, board_obj, status=status_req.status)
-    return updated_board
+    return get_board_by_id(db, board_id=board_id, company_id=current_user.company_id)

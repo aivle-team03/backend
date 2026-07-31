@@ -11,7 +11,7 @@ def get_monitoring_events(db: Session, company_id: int, cctv_id: int = None, sta
             Checklist.event_id,
             func.max(Checklist.checklist_id).label("max_checklist_id")
         )
-        .filter(Checklist.company_id == company_id)
+        .filter(Checklist.company_id == company_id,)
         .group_by(Checklist.event_id)
         .subquery()
     )
@@ -24,7 +24,7 @@ def get_monitoring_events(db: Session, company_id: int, cctv_id: int = None, sta
             joinedload(Event.cctv),
             joinedload(Event.checklists)
         )
-        .filter(Event.company_id == company_id)
+        .filter(Event.company_id == company_id, Event.is_deleted == False,)
     )
 
     if cctv_id is not None:
@@ -65,7 +65,8 @@ def get_monitoring_event_by_id(db: Session, event_id: int, company_id: int):
         )
         .filter(
             Event.event_id == event_id,
-            Event.company_id == company_id
+            Event.company_id == company_id,
+            Event.is_deleted == False,
         )
         .first()
     )
@@ -84,7 +85,8 @@ def create_action_request(db: Session, event_id: int, target_uid: int, message: 
         db.query(Event)
         .filter(
             Event.event_id == event_id,
-            Event.company_id == company_id
+            Event.company_id == company_id,
+            Event.is_deleted == False,
         )
         .first()
     )
@@ -100,7 +102,8 @@ def create_action_request(db: Session, event_id: int, target_uid: int, message: 
         uid=target_uid,
         camera_id=event.camera_id,
         content=message,
-        image_url=None
+        image_url=None,
+        is_deleted=False,
     )
     db.add(db_checklist)
     db.commit()

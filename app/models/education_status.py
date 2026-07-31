@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, CheckConstraint, Column, Date, ForeignKey, String
+from sqlalchemy import BigInteger, CheckConstraint, Column, Date, ForeignKey, String, Boolean
 from sqlalchemy.orm import relationship
 
 from app.db.db import Base
@@ -12,13 +12,12 @@ class EducationStatus(Base):
             name="ck_education_status_status",
         ),
     )
-
     uid = Column(
         BigInteger,
-        ForeignKey("user.uid", ondelete="CASCADE"),
-        primary_key=True,
-        nullable=False,
+        ForeignKey('user.uid', ondelete='SET NULL'),
+        nullable=True,
     )
+    user_name = Column(String(100), nullable=True)
     education_id = Column(
         BigInteger,
         ForeignKey("education.education_id", ondelete="CASCADE"),
@@ -32,6 +31,7 @@ class EducationStatus(Base):
         server_default="미이수",
     )
     completed_date = Column(Date, nullable=True)
+    is_deleted = Column(Boolean, nullable=False, default=False)
 
     user = relationship("User", backref="education_statuses")
     education = relationship("Education", back_populates="statuses")
