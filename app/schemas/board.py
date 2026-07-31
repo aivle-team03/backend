@@ -7,8 +7,8 @@ from datetime import datetime
 class BoardResponse(BaseModel):
     board_id: int
     company_id: int
-    uid: int
-    writer: Optional[str] = None
+    uid: Optional[int] = None
+    writer: Optional[str] = "알 수 없음"
     title: str
     board_contents: str
     event_category_id: Optional[int] = None

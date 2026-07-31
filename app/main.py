@@ -7,6 +7,8 @@ from app.db.db import SessionLocal, get_db, engine, Base
 import app.models
 from app.api.routers import api_router
 from app.core.exceptions import setup_logging, setup_exception_handlers
+from app.crud.inspection import generate_scheduled_inspection_histories
+from apscheduler.schedulers.background import BackgroundScheduler
 
 # 파일 로깅 활성화
 setup_logging()
@@ -41,3 +43,19 @@ app.include_router(api_router, prefix="/api")
 @app.get("/")
 def read_root():
     return {"message": "MySQL 연결 성공!"}
+
+def run_daily_inspection_job():
+  """매일 자정에 실행되는 스케줄러 작업"""
+  db = SessionLocal()
+  try:
+    generate_scheduled_inspection_histories(db)
+  finally:
+    db.close()
+
+
+scheduler = BackgroundScheduler()
+# 매일 자정 00시 00분에 실행
+scheduler.add_job(
+    run_daily_inspection_job, 'cron', hour=0, minute=0, id='daily_inspection_job'
+)
+scheduler.start()

@@ -276,7 +276,10 @@ async def post_generate_video(
     title: Optional[str] = Form(None),
     category: Optional[str] = Form("공통"),
     type: Optional[str] = Form("필수"),
-    request: Optional[str] = Form(None)
+    request: Optional[str] = Form(None),
+    current_admin: User = Depends(
+        get_current_admin
+    ),
 ):
     """
     관리자: 교육 문서(PDF/PPTX/TXT) 또는 텍스트 입력으로 AI 영상 자동 제작 비동기 요청 API (Education DB 자동 적재)

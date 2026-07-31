@@ -109,14 +109,18 @@ class ActionHistory(Base):
             )
             OR (
                 approval_status IN ('승인 완료', '반려')
-                AND approver_uid IS NOT NULL
+                AND (approver_uid IS NOT NULL OR approver_name IS NOT NULL)
                 AND approval_date IS NOT NULL
             )
             """,
             name="ck_action_history_approver",
         ),
         CheckConstraint(
-            "action_status != '조치 완료' OR handler_uid IS NOT NULL",
+            """
+            action_status != '조치 완료' 
+            OR handler_uid IS NOT NULL 
+            OR handler_name IS NOT NULL
+            """,
             name="ck_action_history_handler",
         ),
         Index(
@@ -165,14 +169,16 @@ class ActionHistory(Base):
     )
     handler_uid = Column(
         BigInteger,
-        ForeignKey("user.uid"),
+        ForeignKey("user.uid", ondelete='SET NULL'),
         nullable=True,
     )
+    handler_name = Column(String(100), nullable=True)
     approver_uid = Column(
         BigInteger,
-        ForeignKey("user.uid"),
+        ForeignKey("user.uid", ondelete='SET NULL'),
         nullable=True,
     )
+    approver_name = Column(String(100), nullable=True)
     action_name = Column(String(200), nullable=False)
     type = Column(String(50), nullable=False)
     location = Column(String(255), nullable=False)
