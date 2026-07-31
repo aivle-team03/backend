@@ -35,6 +35,7 @@ class InspectionUpdate(BaseModel):
 class InspectionResponse(InspectionBase):
     inspection_id: int
     company_id: int
+    category_id: Optional[int] = None
     category: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -75,7 +76,7 @@ class InspectionHistoryUpdate(BaseModel):
 # 점검 이력 응답 (Response)
 class InspectionHistoryResponse(InspectionHistoryBase):
     inspection_history_id: int
-    inspection_id: int
+    inspection_id: Optional[int] = None
     company_id: int
     category_name: Optional[str] = None
     user_name: Optional[str] = None

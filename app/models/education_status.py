@@ -15,13 +15,13 @@ class EducationStatus(Base):
 
     uid = Column(
         BigInteger,
-        ForeignKey("user.uid"),
+        ForeignKey("user.uid", ondelete="CASCADE"),
         primary_key=True,
         nullable=False,
     )
     education_id = Column(
         BigInteger,
-        ForeignKey("education.education_id"),
+        ForeignKey("education.education_id", ondelete="CASCADE"),
         primary_key=True,
         nullable=False,
     )

@@ -7,9 +7,21 @@ class Event(Base):
     __tablename__ = "event"
 
     event_id = Column(BigInteger, primary_key=True)                           # PK
-    company_id = Column(BigInteger, ForeignKey("company.company_id"), nullable=False)  #회사 아이디
-    category_id = Column(BigInteger, ForeignKey("event_category.category_id"), nullable=False) # FK
-    cctv_id = Column(BigInteger, ForeignKey("cctv.cctv_id"), nullable=False) # FK
+    company_id = Column(
+        BigInteger,
+        ForeignKey("company.company_id", ondelete="CASCADE"),
+        nullable=False,
+    )  # 회사 아이디
+    category_id = Column(
+        BigInteger,
+        ForeignKey("event_category.category_id", ondelete="SET NULL"),
+        nullable=True,
+    )  # FK
+    cctv_id = Column(
+        BigInteger,
+        ForeignKey("cctv.cctv_id", ondelete="SET NULL"),
+        nullable=True,
+    )  # FK
     date = Column(DateTime, nullable=False)                                   # 감지 일시
     image_url = Column(String(255), nullable=True)                            # 이미지 URL
 

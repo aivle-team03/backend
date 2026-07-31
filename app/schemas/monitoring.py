@@ -25,8 +25,8 @@ class CCTVInfo(BaseModel):
 class EventDetailResponse(BaseModel):
     event_id: int = Field(None, validation_alias="camera_id")
     company_id: int
-    category_id: int
-    cctv_id: int
+    category_id: Optional[int] = None
+    cctv_id: Optional[int] = None
     date: datetime
     image_url: Optional[str] = None
     category: Optional[EventCategoryInfo] = None
@@ -45,11 +45,11 @@ class ActionRequest(BaseModel):
 class ActionRequestResponse(BaseModel):
     checklist_id: int
     company_id: int
-    event_id: int
+    event_id: Optional[int] = None
     date: datetime
     status: str
-    uid: int
-    camera_id: int
+    uid: Optional[int] = None
+    camera_id: Optional[int] = None
     content: str
     image_url: Optional[str] = None
 

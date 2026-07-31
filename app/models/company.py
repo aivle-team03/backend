@@ -9,5 +9,10 @@ class Company(Base):
     company_name = Column(String(100), nullable=False)
     created_at = Column(DateTime, nullable=False, default=func.now(), server_default=func.now())
 
-    signup_codes = relationship("SignupCode", back_populates="company", cascade="all, delete-orphan")
-    users = relationship("User", back_populates="company")
+    signup_codes = relationship(
+        "SignupCode",
+        back_populates="company",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    users = relationship("User", back_populates="company", passive_deletes=True)

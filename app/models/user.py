@@ -13,7 +13,11 @@ class User(Base):
     role = Column(String(50), nullable=False)                                 # 권한
     category = Column(String(100), nullable=True)                             # 카테고리 (일반유저 선택 시: 지게차, 화물트럭 등)
     company_code = Column(String(50), nullable=True)                          # 회사 코드
-    company_id = Column(BigInteger, ForeignKey("company.company_id"), nullable=True)              # 회사 아이디
+    company_id = Column(
+        BigInteger,
+        ForeignKey("company.company_id", ondelete="CASCADE"),
+        nullable=True,
+    )  # 회사 아이디
     created_at = Column(DateTime, nullable=False, default=func.now(), server_default=func.now())  # 생성일
 
     company = relationship("Company", back_populates="users")

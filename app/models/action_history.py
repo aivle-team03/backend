@@ -22,35 +22,6 @@ class ActionHistory(Base):
             name="ck_action_history_type",
         ),
         CheckConstraint(
-            """
-            (
-                type = '게시판'
-                AND board_id IS NOT NULL
-                AND event_id IS NULL
-                AND inspection_history_id IS NULL
-            )
-            OR (
-                type = '이벤트'
-                AND board_id IS NULL
-                AND event_id IS NOT NULL
-                AND inspection_history_id IS NULL
-            )
-            OR (
-                type = '점검이력'
-                AND board_id IS NULL
-                AND event_id IS NULL
-                AND inspection_history_id IS NOT NULL
-            )
-            OR (
-                type = '직접추가'
-                AND board_id IS NULL
-                AND event_id IS NULL
-                AND inspection_history_id IS NULL
-            )
-            """,
-            name="ck_action_history_source",
-        ),
-        CheckConstraint(
             "action_status IN ('조치 대기', '조치 완료')",
             name="ck_action_history_action_status",
         ),
@@ -95,30 +66,6 @@ class ActionHistory(Base):
             """,
             name="ck_action_history_rejection",
         ),
-        CheckConstraint(
-            """
-            (
-                approval_status IS NULL
-                AND approver_uid IS NULL
-                AND approval_date IS NULL
-            )
-            OR (
-                approval_status = '승인 대기'
-                AND approver_uid IS NULL
-                AND approval_date IS NULL
-            )
-            OR (
-                approval_status IN ('승인 완료', '반려')
-                AND approver_uid IS NOT NULL
-                AND approval_date IS NOT NULL
-            )
-            """,
-            name="ck_action_history_approver",
-        ),
-        CheckConstraint(
-            "action_status != '조치 완료' OR handler_uid IS NOT NULL",
-            name="ck_action_history_handler",
-        ),
         Index(
             "ix_action_history_company_created",
             "company_id",
@@ -140,37 +87,40 @@ class ActionHistory(Base):
     action_history_id = Column(BigInteger, primary_key=True, autoincrement=True)
     company_id = Column(
         BigInteger,
-        ForeignKey("company.company_id"),
+        ForeignKey("company.company_id", ondelete="CASCADE"),
         nullable=False,
     )
     board_id = Column(
         BigInteger,
-        ForeignKey("board.board_id"),
+        ForeignKey("board.board_id", ondelete="SET NULL"),
         nullable=True,
     )
     event_id = Column(
         BigInteger,
-        ForeignKey("event.event_id"),
+        ForeignKey("event.event_id", ondelete="SET NULL"),
         nullable=True,
     )
     inspection_history_id = Column(
         BigInteger,
-        ForeignKey("inspection_history.inspection_history_id"),
+        ForeignKey(
+            "inspection_history.inspection_history_id",
+            ondelete="SET NULL",
+        ),
         nullable=True,
     )
     category_id = Column(
         BigInteger,
-        ForeignKey("event_category.category_id"),
-        nullable=False,
+        ForeignKey("event_category.category_id", ondelete="SET NULL"),
+        nullable=True,
     )
     handler_uid = Column(
         BigInteger,
-        ForeignKey("user.uid"),
+        ForeignKey("user.uid", ondelete="SET NULL"),
         nullable=True,
     )
     approver_uid = Column(
         BigInteger,
-        ForeignKey("user.uid"),
+        ForeignKey("user.uid", ondelete="SET NULL"),
         nullable=True,
     )
     action_name = Column(String(200), nullable=False)

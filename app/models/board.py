@@ -7,9 +7,21 @@ class Board(Base):
 
 # ERD기반으로 추가하였습니다. 추후 수정 가능 
     board_id = Column(BigInteger, primary_key=True, autoincrement=True)  # PK
-    company_id = Column(BigInteger, ForeignKey("company.company_id"), nullable=False)       # 회사 아이디
-    uid = Column(BigInteger, ForeignKey("user.uid"), nullable=False)     # 작성자 FK
-    event_category_id = Column(BigInteger, ForeignKey("event_category.category_id"), nullable=True) # 카테고리 FK
+    company_id = Column(
+        BigInteger,
+        ForeignKey("company.company_id", ondelete="CASCADE"),
+        nullable=False,
+    )  # 회사 아이디
+    uid = Column(
+        BigInteger,
+        ForeignKey("user.uid", ondelete="SET NULL"),
+        nullable=True,
+    )  # 작성자 FK
+    event_category_id = Column(
+        BigInteger,
+        ForeignKey("event_category.category_id", ondelete="SET NULL"),
+        nullable=True,
+    )  # 카테고리 FK
     title = Column(String(200), nullable=False)                          # 제목
     board_contents = Column(Text, nullable=False)                        # 내용
     status = Column(String(50), nullable=False, default="접수")           # 조치 상태 (예: 접수, 조치중, 완료)
