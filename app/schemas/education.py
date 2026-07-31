@@ -90,6 +90,41 @@ class AdminCategoryCompletionResponse(BaseModel):
     total_completion_rate: float
 
 
+class EducationAttendeeResponse(BaseModel):
+    uid: int
+    name: str
+    category: Optional[str] = None
+    education_id: Optional[int] = None
+    education_title: Optional[str] = None
+    status: EducationProgressStatus
+    completed_date: Optional[date] = None
+
+
+class AdminEducationCourseDashboardItem(EducationStatusSummaryResponse):
+    attendees: List[EducationAttendeeResponse]
+
+
+class AdminEducationCategoryDashboardItem(AdminCategoryCompletionItem):
+    attendees: List[EducationAttendeeResponse]
+
+
+class AdminEducationDashboardResponse(BaseModel):
+    courses: List[AdminEducationCourseDashboardItem]
+    categories: List[AdminEducationCategoryDashboardItem]
+    total_target_count: int
+    total_completed_count: int
+    total_completion_rate: float
+    attendees: List[EducationAttendeeResponse]
+
+
+class EducationAttendeeListResponse(BaseModel):
+    education_id: int
+    target_count: int
+    completed_count: int
+    completion_rate: float
+    attendees: List[EducationAttendeeResponse]
+
+
 # AI 교육 자료 생성 요청/응답
 class AIEducationGenerateRequest(BaseModel):
     work_type: str        # 작업 유형 (예: 용접/절단)
