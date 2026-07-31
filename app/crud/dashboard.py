@@ -17,7 +17,7 @@ def get_dashboard_summary(db: Session, company_id: int) -> dict:
         .join(EventCategory, Event.category_id == EventCategory.category_id)
         .filter(
             Event.company_id == company_id,
-            Event.is_deleted == False,  # 💡 [추가] 소프트 삭제 필터
+            Event.is_deleted == False,
             EventCategory.is_deleted == False,
             EventCategory.category.in_(["위험", "경고"])
         )

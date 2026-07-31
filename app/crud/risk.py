@@ -34,7 +34,7 @@ def get_risk_category_list(db: Session, company_id: int) -> List[RiskFactorRespo
     """
     query = db.query(EventCategory).filter(
         EventCategory.is_deleted == False
-    )  # 💡 [추가] 삭제 안 된 카테고리만
+    )
     if hasattr(EventCategory, "company_id"):
         query = query.filter(
             (EventCategory.company_id == company_id)
@@ -74,7 +74,7 @@ def get_risk_category_list(db: Session, company_id: int) -> List[RiskFactorRespo
 def get_risk_dashboard_data(db: Session, company_id: int) -> RiskManagementDashboardResponse:
     query = db.query(EventCategory).filter(
         EventCategory.is_deleted == False
-    )  # 💡 [추가] 삭제 안 된 카테고리만
+    )
     if hasattr(EventCategory, "company_id"):
         query = query.filter(
             (EventCategory.company_id == company_id)
