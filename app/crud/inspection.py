@@ -44,12 +44,20 @@ def _serialize_inspection(inspection: Inspection) -> dict:
 def _serialize_history(history: InspectionHistory) -> dict:
     """InspectionHistory 객체에 카테고리명 및 담당자 이름 주입"""
     category_str = "기타"
+    
     if hasattr(history, "inspection") and history.inspection:
         insp = history.inspection
-        if hasattr(insp, "category") and insp.category:
-            category_str = insp.category.category
-        elif hasattr(insp, "event_category") and insp.event_category:
-            category_str = insp.event_category.category
+
+    # Inspection 모델에 category 관계가 맺혀있는 경우
+    if hasattr(insp, "category") and insp.category:
+        cat_obj = insp.category
+        # EventCategory/Category 테이블의 실제 컬럼명들을 차례대로 확인
+        if hasattr(cat_obj, "category") and cat_obj.category:
+            category_str = cat_obj.category
+        elif hasattr(cat_obj, "category_name") and cat_obj.category_name:
+            category_str = cat_obj.category_name
+        elif hasattr(cat_obj, "name") and cat_obj.name:
+            category_str = cat_obj.name
 
     user_name = history.user_name
     if hasattr(history, "user") and history.user:
@@ -126,9 +134,17 @@ def create_inspection(
     db.refresh(db_obj)
 
     created = (
-        db.query(Inspection)
-        .options(joinedload(Inspection.category),joinedload(Inspection.user),)
-        .filter(Inspection.inspection_id == db_obj.inspection_id)
+        db.query(InspectionHistory)
+        .options(
+            joinedload(InspectionHistory.inspection).joinedload(
+                Inspection.category
+            ),
+            joinedload(InspectionHistory.user),
+        )
+        .filter(
+            InspectionHistory.inspection_history_id
+            == db_obj.inspection_history_id
+        )
         .first()
     )
     return _serialize_inspection(created)
