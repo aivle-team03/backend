@@ -96,7 +96,7 @@ class ActionHistory(Base):
             name="ck_action_history_rejection",
         ),
         CheckConstraint(
-          """
+            """
             (
                 approval_status IS NULL
                 AND approver_uid IS NULL
@@ -113,10 +113,10 @@ class ActionHistory(Base):
                 AND approval_date IS NOT NULL
             )
             """,
-          name="ck_action_history_approver",
+            name="ck_action_history_approver",
         ),
         CheckConstraint(
-            """
+                """
                 action_status != '조치 완료' 
                 OR handler_uid IS NOT NULL 
                 OR handler_name IS NOT NULL
@@ -139,7 +139,7 @@ class ActionHistory(Base):
             "handler_uid",
             "action_status",
         ),
-  )
+    )
 
     action_history_id = Column(BigInteger, primary_key=True, autoincrement=True)
     company_id = Column(

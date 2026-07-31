@@ -71,7 +71,6 @@ class EducationStatusSummaryResponse(BaseModel):
 class EducationCompletionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    status_id: Optional[int] = None
     uid: Optional[int] = None
     user_name: Optional[str] = None
     education_id: int
@@ -93,7 +92,7 @@ class AdminCategoryCompletionResponse(BaseModel):
 
 
 class EducationAttendeeResponse(BaseModel):
-    uid: int
+    uid: Optional[int] = None
     name: str
     category: Optional[str] = None
     education_id: Optional[int] = None
