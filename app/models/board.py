@@ -1,4 +1,4 @@
-from sqlalchemy import Column, BigInteger, String, Text, DateTime, ForeignKey, func
+from sqlalchemy import Column, BigInteger, String, Text, DateTime, ForeignKey, func, Boolean
 from sqlalchemy.orm import relationship
 from app.db.db import Base
 
@@ -17,6 +17,7 @@ class Board(Base):
     image_url = Column(String(255), nullable=True)                       # 첨부 이미지 URL
     created_at = Column(DateTime, nullable=False, default=func.now(), server_default=func.now())
     updated_at = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
+    is_deleted = Column(Boolean, nullable=False, default=False)
 
     user = relationship("User", backref="boards")
     event_category = relationship("EventCategory", backref="boards")

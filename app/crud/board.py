@@ -27,7 +27,8 @@ def create_board(
         event_category_id=event_category_id,
         status=status,
         location=location,
-        image_url=image_url
+        image_url=image_url,
+        is_deleted=False,
     )
     db.add(db_board)
     db.commit()
@@ -45,8 +46,15 @@ def get_boards(
     location: Optional[str] = None,
     keyword: Optional[str] = None
 ):
-    query = db.query(Board, User.name.label("writer_name")).outerjoin(User, Board.uid == User.uid).filter(Board.company_id == company_id)
-
+    query = (
+        db.query(Board, User.name.label("writer_name"))
+        .outerjoin(User, Board.uid == User.uid)
+        .filter(
+            Board.company_id == company_id,
+            Board.is_deleted == False,
+        )
+    )
+    
     if category:
         query = query.filter(Board.event_category_id == category)
     if status:
@@ -91,7 +99,8 @@ def get_board_by_id(db: Session, board_id: int, company_id: int):
         .outerjoin(User, Board.uid == User.uid)
         .filter(
             Board.board_id == board_id,
-            Board.company_id == company_id
+            Board.company_id == company_id,
+            Board.is_deleted == False,
         )
         .first()
     )
@@ -154,6 +163,7 @@ def update_board_status(
     board = db.query(Board).filter(
         Board.board_id == board_id,
         Board.company_id == company_id,
+        Board.is_deleted == False,
     ).with_for_update().first()
     if not board:
         return None
@@ -164,6 +174,7 @@ def update_board_status(
             ActionHistory.company_id == company_id,
             ActionHistory.board_id == board.board_id,
             ActionHistory.type == SourceType.BOARD.value,
+            ActionHistory.is_deleted == False,
         ).first()
 
         if not existing_action:
@@ -182,6 +193,7 @@ def update_board_status(
                 content=board.board_contents,
                 action_status=ActionStatus.WAITING.value,
                 image_url=board.image_url,
+                is_deleted=False,
             ))
 
     board.status = status
@@ -196,5 +208,5 @@ def update_board_status(
 
 # 게시글 삭제
 def delete_board(db: Session, board: Board):
-    db.delete(board)
+    board.is_deleted = True
     db.commit()

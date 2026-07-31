@@ -1,4 +1,4 @@
-from sqlalchemy import Column, BigInteger, String, ForeignKey, Text
+from sqlalchemy import Column, BigInteger, String, ForeignKey, Text, Boolean
 from sqlalchemy.orm import relationship
 from app.db.db import Base
 
@@ -13,6 +13,7 @@ class Inspection(Base):
     location = Column(String(250), nullable=False)                                        # 점검 구역 (,로 구역 구분)
     cycle = Column(String(50), nullable=False)                                            # 점검 주기 (매일, 매주 등)
     content = Column(Text, nullable=True)   
+    is_deleted = Column(Boolean, nullable=False, default=False)
 
     company = relationship("Company")
     histories = relationship("InspectionHistory", back_populates="inspection")

@@ -30,7 +30,8 @@ def get_education_by_id(
         db.query(Education)
         .filter(
             Education.education_id == education_id,
-            Education.company_id == company_id
+            Education.company_id == company_id,
+            Education.is_deleted == False,
         )
         .first()
     )
@@ -41,7 +42,7 @@ def get_my_education_list(
     user: User,
     category: Optional[str] = None,
 ):
-    query = db.query(Education).filter(Education.company_id == user.company_id)
+    query = db.query(Education).filter(Education.company_id == user.company_id, Education.is_deleted == False,)
     if category:
         query = query.filter(Education.category == category)
     return query.order_by(Education.education_id.asc()).all()
@@ -81,7 +82,7 @@ def get_user_education_statuses(
 ):
     query = (
         db.query(Education, EducationStatus)
-        .filter(Education.company_id == user.company_id)
+        .filter(Education.company_id == user.company_id, Education.is_deleted == False,)
         .outerjoin(
             EducationStatus,
             and_(
@@ -179,7 +180,7 @@ def get_education_status_summaries(
     education_id: Optional[int] = None,
     completion_status: Optional[str] = None,
 ):
-    education_query = db.query(Education).filter(Education.company_id == company_id)
+    education_query = db.query(Education).filter(Education.company_id == company_id, Education.is_deleted == False,)
     if education_id is not None:
         education_query = education_query.filter(
             Education.education_id == education_id
@@ -325,6 +326,7 @@ def create_ai_generated_education(
         video_url="/static/videos/ai_safety_sample.mp4",
         category=work_type,
         type="필수",
+        is_deleted=False,
     )
     db.add(new_edu)
     db.commit()
@@ -344,7 +346,7 @@ def create_ai_generated_education(
 def get_category_completion_stats(db: Session, company_id: int) -> Dict:
     educations = (
         db.query(Education)
-        .filter(Education.company_id == company_id)
+        .filter(Education.company_id == company_id, Education.is_deleted == False,)
         .all()
     )
 
@@ -438,7 +440,7 @@ def get_admin_education_dashboard(db: Session, company_id: int) -> Dict:
     )
     educations = (
         db.query(Education)
-        .filter(Education.company_id == company_id)
+        .filter(Education.company_id == company_id, Education.is_deleted == False,)
         .order_by(Education.education_id.asc())
         .all()
     )

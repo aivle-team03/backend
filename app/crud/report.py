@@ -27,6 +27,7 @@ def create_report(
             .filter(
                 ActionHistory.company_id == company_id,
                 ActionHistory.action_history_id.in_(action_history_ids),
+                ActionHistory.is_deleted == False,
             )
             .count()
         )
@@ -46,7 +47,8 @@ def create_report(
         writer=writer,
         content=content,
         summary=summary,
-        created_at=datetime.utcnow()
+        created_at=datetime.utcnow(),
+        is_deleted=False,
     )
     db.add(report)
     db.flush() 
@@ -100,7 +102,7 @@ def get_reports(
     query = (
         db.query(Report, User.name.label("writer_name"))
         .outerjoin(User, Report.uid == User.uid)
-        .filter(Report.company_id == company_id)
+        .filter(Report.company_id == company_id, Report.is_deleted == False,)
     )
 
     if start_date:
@@ -150,7 +152,8 @@ def get_report_by_id(db: Session, report_id: int, company_id: int) -> Optional[R
         db.query(Report)
         .filter(
             Report.report_id == report_id,
-            Report.company_id == company_id
+            Report.company_id == company_id,
+            Report.is_deleted == False,
         )
         .first()
     )
@@ -161,7 +164,8 @@ def update_report(db: Session, report_id: int, uid: int, company_id: int, conten
         .filter(
             Report.report_id == report_id,
             Report.company_id == company_id,
-            Report.uid == uid
+            Report.uid == uid,
+            Report.is_deleted == False,
         )
         .first()
     )
@@ -180,13 +184,14 @@ def delete_report(db: Session, report_id: int, uid: int, company_id: int) -> boo
         .filter(
             Report.report_id == report_id,
             Report.company_id == company_id,
-            Report.uid == uid
+            Report.uid == uid,
+            Report.is_deleted == False,
         )
         .first()
     )
     if not report:
         return False
         
-    db.delete(report)
+    report.is_deleted = True
     db.commit()
     return True

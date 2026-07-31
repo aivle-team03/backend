@@ -8,6 +8,7 @@ from sqlalchemy import (
     String,
     Text,
     func,
+    Boolean,
 )
 from sqlalchemy.orm import relationship
 
@@ -200,6 +201,7 @@ class ActionHistory(Base):
     approval_status = Column(String(50), nullable=True)
     approval_date = Column(DateTime, nullable=True)
     rejection_reason = Column(Text, nullable=True)
+    is_deleted = Column(Boolean, nullable=False, default=False)
 
     company = relationship("Company")
     board = relationship("Board")

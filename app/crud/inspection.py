@@ -91,7 +91,7 @@ def get_inspections_by_company(
     inspections = (
         db.query(Inspection)
         .options(joinedload(Inspection.category), joinedload(Inspection.user),)  # EventCategory 미리 로드
-        .filter(Inspection.company_id == company_id)
+        .filter(Inspection.company_id == company_id, Inspection.is_deleted == False,)
         .offset(skip)
         .limit(limit)
         .all()
@@ -110,6 +110,7 @@ def get_inspection_by_id(
         .filter(
             Inspection.inspection_id == inspection_id,
             Inspection.company_id == company_id,
+            Inspection.is_deleted == False,
         )
         .first()
     )
@@ -162,6 +163,7 @@ def update_inspection(
         .filter(
             Inspection.inspection_id == inspection_id,
             Inspection.company_id == company_id,
+            Inspection.is_deleted == False,
         )
         .first()
     )
@@ -198,13 +200,14 @@ def delete_inspection(
         .filter(
             Inspection.inspection_id == inspection_id,
             Inspection.company_id == company_id,
+            Inspection.is_deleted == False,
         )
         .first()
     )
     if not db_obj:
         return False
 
-    db.delete(db_obj)
+    db_obj.is_deleted = True
     db.commit()
     return True
 
@@ -227,6 +230,7 @@ def get_histories_by_inspection(
         .filter(
             InspectionHistory.inspection_id == inspection_id,
             InspectionHistory.company_id == company_id,
+            InspectionHistory.is_deleted == False,
         )
         .order_by(InspectionHistory.date.desc())
         .all()
@@ -243,6 +247,7 @@ def get_history_by_id(
         .filter(
             InspectionHistory.inspection_history_id == inspection_history_id,
             InspectionHistory.company_id == company_id,
+            InspectionHistory.is_deleted == False,
         )
         .first()
     )
@@ -264,7 +269,7 @@ def get_all_histories_by_company(
             joinedload(InspectionHistory.inspection).joinedload(Inspection.category),
             joinedload(InspectionHistory.user),
         )
-        .filter(InspectionHistory.company_id == company_id)
+        .filter(InspectionHistory.company_id == company_id, InspectionHistory.is_deleted == False,)
     )
 
     if status:
@@ -311,6 +316,7 @@ def get_histories_by_user(
         .filter(
             InspectionHistory.company_id == company_id,
             InspectionHistory.uid == uid,
+            InspectionHistory.is_deleted == False,
         )
     )
 
@@ -335,6 +341,7 @@ def create_inspection_history(
         .filter(
             Inspection.inspection_id == history_in.inspection_id,
             Inspection.company_id == company_id,
+            Inspection.is_deleted == False,
         )
         .first()
     )
@@ -381,6 +388,7 @@ def update_inspection_history(
         .filter(
             InspectionHistory.inspection_history_id == inspection_history_id,
             InspectionHistory.company_id == company_id,
+            InspectionHistory.is_deleted == False,
         )
         .first()
     )
@@ -428,13 +436,14 @@ def delete_inspection_history(
         .filter(
             InspectionHistory.inspection_history_id == inspection_history_id,
             InspectionHistory.company_id == company_id,
+            InspectionHistory.is_deleted == False,
         )
         .first()
     )
     if not db_obj:
         return False
 
-    db.delete(db_obj)
+    db_obj.is_deleted = True
     db.commit()
     return True
 
@@ -453,7 +462,9 @@ def generate_scheduled_inspection_histories(db: Session, company_id: int = None)
     is_last_day_of_month = day_of_month == last_day_of_month
 
     # 1. 대상 회사의 전체 Inspection 목록 조회
-    query = db.query(Inspection)
+    query = db.query(Inspection).filter(
+        Inspection.is_deleted == False
+    )
     if company_id:
         query = query.filter(Inspection.company_id == company_id)
 
@@ -497,6 +508,7 @@ def generate_scheduled_inspection_histories(db: Session, company_id: int = None)
                     .filter(
                         InspectionHistory.inspection_id == insp.inspection_id,
                         InspectionHistory.company_id == insp.company_id,
+                        InspectionHistory.is_deleted == False,
                         extract('year', InspectionHistory.date) == now.year,
                         extract('month', InspectionHistory.date) == now.month,
                     )
@@ -508,6 +520,7 @@ def generate_scheduled_inspection_histories(db: Session, company_id: int = None)
                     .filter(
                         InspectionHistory.inspection_id == insp.inspection_id,
                         InspectionHistory.company_id == insp.company_id,
+                        InspectionHistory.is_deleted == False,
                         InspectionHistory.date >= datetime.combine(today_date, datetime.min.time()),
                         InspectionHistory.date <= datetime.combine(today_date, datetime.max.time()),
                     )
@@ -531,6 +544,7 @@ def generate_scheduled_inspection_histories(db: Session, company_id: int = None)
                         status='점검 대기',
                         is_action_required=False,
                         content=f'[{insp.cycle}] 정기 점검 자동 생성 건입니다.',
+                        is_deleted=False,
                     )
                     db.add(new_history)
                     created_count += 1

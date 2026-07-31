@@ -1,4 +1,4 @@
-from sqlalchemy import Column, BigInteger, String, DateTime, ForeignKey
+from sqlalchemy import Column, BigInteger, String, DateTime, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from app.db.db import Base
 
@@ -12,6 +12,7 @@ class Event(Base):
     cctv_id = Column(BigInteger, ForeignKey("cctv.cctv_id"), nullable=False) # FK
     date = Column(DateTime, nullable=False)                                   # 감지 일시
     image_url = Column(String(255), nullable=True)                            # 이미지 URL
+    is_deleted = Column(Boolean, nullable=False, default=False)
 
     category = relationship("EventCategory", back_populates="events")
     cctv = relationship("CCTV", back_populates="events")

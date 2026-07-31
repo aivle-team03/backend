@@ -63,6 +63,7 @@ def _get_action(
         .filter(
             ActionHistory.action_history_id == action_history_id,
             ActionHistory.company_id == company_id,
+            ActionHistory.is_deleted == False,
         )
         .first()
     )
@@ -78,6 +79,7 @@ def _get_category(
         .filter(
             EventCategory.category_id == category_id,
             EventCategory.company_id == company_id,
+            EventCategory.is_deleted == False,
         )
         .first()
     )
@@ -239,6 +241,7 @@ def create_action_history(
             .filter(
                 Board.board_id == request.source_id,
                 Board.company_id == company_id,
+                Board.is_deleted == False,
             )
             .first()
         )
@@ -260,6 +263,7 @@ def create_action_history(
             .filter(
                 Event.event_id == request.source_id,
                 Event.company_id == company_id,
+                Event.is_deleted == False,
             )
             .first()
         )
@@ -277,6 +281,7 @@ def create_action_history(
             .filter(
                 InspectionHistory.inspection_history_id == request.source_id,
                 InspectionHistory.company_id == company_id,
+                InspectionHistory.is_deleted == False,
             )
             .first()
         )
@@ -326,6 +331,7 @@ def create_action_history(
         content=request.content,
         action_status=ActionStatus.WAITING.value,
         approval_status=None,
+        is_deleted=False,
         **source_columns,
     )
 
@@ -363,7 +369,8 @@ def get_action_histories(
     sort_order: str = "desc",
 ) -> Dict:
     query = db.query(ActionHistory).filter(
-        ActionHistory.company_id == company_id
+        ActionHistory.company_id == company_id,
+        ActionHistory.is_deleted == False,
     )
     query = _apply_filters(
         query,
@@ -552,6 +559,7 @@ def assign_action_handlers(
         .filter(
             ActionHistory.action_history_id.in_(action_history_ids),
             ActionHistory.company_id == company_id,
+            ActionHistory.is_deleted == False,
         )
         .all()
     )

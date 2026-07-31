@@ -20,6 +20,7 @@ class InspectionHistory(Base):
     status = Column(String(50), nullable=False)                                           # 점검 진행 상황 (점검 대기, 점검 완료)
     is_action_required = Column(Boolean, nullable=False, default=False)                  # 조치로 넘어갔는지 여부
     content = Column(Text, nullable=True)                                                 # 내용
+    is_deleted = Column(Boolean, nullable=False, default=False)
 
     inspection = relationship("Inspection", back_populates="histories")
     company = relationship("Company")
