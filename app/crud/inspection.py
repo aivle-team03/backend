@@ -1,6 +1,7 @@
+import calendar
 from datetime import datetime
 from typing import List, Optional
-from sqlalchemy import func
+from sqlalchemy import func, extract
 from sqlalchemy.orm import Session, joinedload
 from app.models import Inspection, InspectionHistory, EventCategory, User
 from app.schemas.inspection import (
@@ -21,16 +22,22 @@ def _serialize_inspection(inspection: Inspection) -> dict:
         category_str = inspection.category.category or inspection.category.category_name
     elif hasattr(inspection, "event_category") and inspection.event_category:
         category_str = inspection.event_category.category or inspection.event_category.category_name
+        
+    user_name = None
+    if hasattr(inspection, "user") and inspection.user:
+        user_name = inspection.user.name
 
     return {
         "inspection_id": inspection.inspection_id,
         "company_id": inspection.company_id,
         "name": inspection.name,
         "category_id": inspection.category_id,
-        "category": category_str,  # 🚀 "소방안전", "시설안전" 등의 문자열 전달
+        "category": category_str,
         "location": inspection.location,
         "cycle": inspection.cycle,
         "content": inspection.content,
+        "uid": inspection.uid,
+        "user_name": user_name,
     }
 
 
@@ -75,7 +82,7 @@ def get_inspections_by_company(
     """해당 회사의 전체 점검 목록 조회 (카테고리 문자열 포함)"""
     inspections = (
         db.query(Inspection)
-        .options(joinedload(Inspection.category))  # EventCategory 미리 로드
+        .options(joinedload(Inspection.category), joinedload(Inspection.user),)  # EventCategory 미리 로드
         .filter(Inspection.company_id == company_id)
         .offset(skip)
         .limit(limit)
@@ -90,7 +97,8 @@ def get_inspection_by_id(
     """해당 회사의 특정 점검 항목 단건 조회"""
     insp = (
         db.query(Inspection)
-        .options(joinedload(Inspection.category))
+        .options(joinedload(Inspection.category),
+                joinedload(Inspection.user),)
         .filter(
             Inspection.inspection_id == inspection_id,
             Inspection.company_id == company_id,
@@ -119,7 +127,7 @@ def create_inspection(
 
     created = (
         db.query(Inspection)
-        .options(joinedload(Inspection.category))
+        .options(joinedload(Inspection.category),joinedload(Inspection.user),)
         .filter(Inspection.inspection_id == db_obj.inspection_id)
         .first()
     )
@@ -158,7 +166,7 @@ def update_inspection(
 
     updated = (
         db.query(Inspection)
-        .options(joinedload(Inspection.category))
+        .options(joinedload(Inspection.category),joinedload(Inspection.user),)
         .filter(Inspection.inspection_id == inspection_id)
         .first()
     )
@@ -401,3 +409,100 @@ def delete_inspection_history(
     db.delete(db_obj)
     db.commit()
     return True
+
+def generate_scheduled_inspection_histories(db: Session, company_id: int = None):
+    """
+    모든 조건(주말 포함, 2월/월말 고려, ID 해시 분산, uid 상속, 구역(,) 분할)이 적용된 점검 이력 자동 생성 스케줄러
+    """
+    now = datetime.now()
+    today_date = now.date()
+
+    weekday = now.weekday()  # 0: 월 ~ 6: 일 (주말 포함)
+    day_of_month = now.day   # 1 ~ 31일
+
+    # 해당 달의 마지막 날짜 구하기 (2월: 28/29일, 4월: 30일 등)
+    _, last_day_of_month = calendar.monthrange(now.year, now.month)
+    is_last_day_of_month = day_of_month == last_day_of_month
+
+    # 1. 대상 회사의 전체 Inspection 목록 조회
+    query = db.query(Inspection)
+    if company_id:
+        query = query.filter(Inspection.company_id == company_id)
+
+    inspections = query.all()
+    created_count = 0
+
+    for insp in inspections:
+        should_create = False
+
+        # ----------------------------------------------------
+        # 💡 [1] 주말 포함 & 월말 예외 처리된 해시 분산 로직
+        # ----------------------------------------------------
+        if insp.cycle == '매일':
+            should_create = True
+
+        elif insp.cycle == '매주':
+            if (insp.inspection_id % 7) == weekday:
+                should_create = True
+
+        elif insp.cycle == '매월':
+            target_day = (insp.inspection_id % 28) + 1
+            if day_of_month == target_day:
+                should_create = True
+            elif is_last_day_of_month and target_day > last_day_of_month:
+                should_create = True
+
+        # ----------------------------------------------------
+        # 💡 [2] 구역(,) 분할 및 이력 생성 (중복 방지)
+        # ----------------------------------------------------
+        if should_create:
+            # 쉼표(,) 기준으로 location 분할 및 공백 제거
+            if insp.location:
+                locations = [loc.strip() for loc in insp.location.split(',') if loc.strip()]
+            else:
+                locations = ['구역 미지정']
+
+            # 매월: 이번 달(Year, Month) 중복 체크 / 매일·매주: 오늘(Year, Month, Day) 중복 체크
+            if insp.cycle == '매월':
+                existing_histories = (
+                    db.query(InspectionHistory)
+                    .filter(
+                        InspectionHistory.inspection_id == insp.inspection_id,
+                        InspectionHistory.company_id == insp.company_id,
+                        extract('year', InspectionHistory.date) == now.year,
+                        extract('month', InspectionHistory.date) == now.month,
+                    )
+                    .all()
+                )
+            else:
+                existing_histories = (
+                    db.query(InspectionHistory)
+                    .filter(
+                        InspectionHistory.inspection_id == insp.inspection_id,
+                        InspectionHistory.company_id == insp.company_id,
+                        InspectionHistory.date >= datetime.combine(today_date, datetime.min.time()),
+                        InspectionHistory.date <= datetime.combine(today_date, datetime.max.time()),
+                    )
+                    .all()
+                )
+
+            existing_locations = {h.location for h in existing_histories}
+
+            for loc in locations:
+                if loc not in existing_locations:
+                    new_history = InspectionHistory(
+                        company_id=insp.company_id,
+                        inspection_id=insp.inspection_id,
+                        uid=insp.uid,
+                        name=insp.name,
+                        location=loc,
+                        date=now,
+                        status='점검 대기',
+                        is_action_required=False,
+                        content=f'[{insp.cycle}] 정기 점검 자동 생성 건입니다.',
+                    )
+                    db.add(new_history)
+                    created_count += 1
+
+    db.commit()
+    return created_count

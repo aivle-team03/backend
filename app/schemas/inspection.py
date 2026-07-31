@@ -15,6 +15,7 @@ class InspectionBase(BaseModel):
     location: str  # 예: "A동 1층, B동 3층"
     cycle: str
     content: Optional[str] = None
+    uid: Optional[int] = None
 
 
 # 점검 생성 (POST Request)
@@ -29,6 +30,7 @@ class InspectionUpdate(BaseModel):
     location: Optional[str] = None
     cycle: Optional[str] = None
     content: Optional[str] = None
+    uid: Optional[int] = None
 
 
 # 점검 단건 응답 (Response)
@@ -36,6 +38,7 @@ class InspectionResponse(InspectionBase):
     inspection_id: int
     company_id: int
     category: Optional[str] = None
+    user_name: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
