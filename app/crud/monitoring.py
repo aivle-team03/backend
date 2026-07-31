@@ -11,7 +11,7 @@ def get_monitoring_events(db: Session, company_id: int, cctv_id: int = None, sta
             Checklist.event_id,
             func.max(Checklist.checklist_id).label("max_checklist_id")
         )
-        .filter(Checklist.company_id == company_id, Checklist.is_deleted == False,)
+        .filter(Checklist.company_id == company_id,)
         .group_by(Checklist.event_id)
         .subquery()
     )
