@@ -8,7 +8,8 @@ class Report(Base):
 
     report_id = Column(BigInteger, primary_key=True, autoincrement=True)
 
-    uid = Column(BigInteger, ForeignKey("user.uid"), nullable=False)
+    uid = Column(BigInteger, ForeignKey("user.uid", ondelete='SET NULL'), nullable=True)
+    writer = Column(String(100), nullable=True)
     content = Column(Text, nullable=False)
     summary = Column(String(100), nullable=False)
     created_at = Column(DateTime, nullable=False, server_default=func.now())

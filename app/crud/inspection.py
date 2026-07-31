@@ -51,7 +51,7 @@ def _serialize_history(history: InspectionHistory) -> dict:
         elif hasattr(insp, "event_category") and insp.event_category:
             category_str = insp.event_category.category
 
-    user_name = None
+    user_name = history.user_name
     if hasattr(history, "user") and history.user:
         user_name = history.user.name
 
@@ -330,6 +330,11 @@ def create_inspection_history(
         if hasattr(history_in, "model_dump")
         else history_in.dict()
     )
+    
+    if data.get("uid") and not data.get("user_name"):
+        user = db.query(User).filter(User.uid == data["uid"]).first()
+        if user:
+            data["user_name"] = user.name
 
     db_obj = InspectionHistory(**data, company_id=company_id)
     db.add(db_obj)
@@ -372,6 +377,13 @@ def update_inspection_history(
         if hasattr(history_in, "model_dump")
         else history_in.dict(exclude_unset=True)
     )
+    
+    if "uid" in update_data:
+        if update_data["uid"]:
+            user = db.query(User).filter(User.uid == update_data["uid"]).first()
+            update_data["user_name"] = user.name if user else None
+        else:
+            update_data["user_name"] = None
 
     for field, value in update_data.items():
         setattr(db_obj, field, value)
@@ -487,6 +499,8 @@ def generate_scheduled_inspection_histories(db: Session, company_id: int = None)
                 )
 
             existing_locations = {h.location for h in existing_histories}
+            
+            user_name_snapshot = insp.user.name if insp.user else None
 
             for loc in locations:
                 if loc not in existing_locations:
@@ -494,6 +508,7 @@ def generate_scheduled_inspection_histories(db: Session, company_id: int = None)
                         company_id=insp.company_id,
                         inspection_id=insp.inspection_id,
                         uid=insp.uid,
+                        user_name=user_name_snapshot,
                         name=insp.name,
                         location=loc,
                         date=now,
