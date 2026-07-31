@@ -2,8 +2,10 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from typing import Optional
+from app.models.action_history import ActionHistory
 from app.models.board import Board
 from app.models.user import User
+from app.schemas.action_history import ActionStatus, SourceType
 
 # 생성
 def create_board(
@@ -141,11 +143,55 @@ def update_board(
     db.refresh(board)
     return board
 
-# 게시글 상태 수정
-def update_board_status(db: Session, board: Board, status: str) -> Board:
+# 게시글 상태 수정 및 게시판 조치 이력 생성
+def update_board_status(
+    db: Session,
+    board_id: int,
+    company_id: int,
+    status: str,
+) -> Optional[Board]:
+    # Lock the board row so concurrent requests cannot create duplicate actions.
+    board = db.query(Board).filter(
+        Board.board_id == board_id,
+        Board.company_id == company_id,
+    ).with_for_update().first()
+    if not board:
+        return None
+
+    received_status = "\uC811\uC218"
+    if status == received_status and board.status != received_status:
+        existing_action = db.query(ActionHistory).filter(
+            ActionHistory.company_id == company_id,
+            ActionHistory.board_id == board.board_id,
+            ActionHistory.type == SourceType.BOARD.value,
+        ).first()
+
+        if not existing_action:
+            if not board.event_category_id:
+                raise ValueError(
+                    "\uAC8C\uC2DC\uAE00 \uCE74\uD14C\uACE0\uB9AC\uAC00 \uC5C6\uC5B4 \uC870\uCE58 \uD56D\uBAA9\uC744 \uC0DD\uC131\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4."
+                )
+
+            db.add(ActionHistory(
+                company_id=company_id,
+                board_id=board.board_id,
+                category_id=board.event_category_id,
+                action_name=board.title,
+                type=SourceType.BOARD.value,
+                location=board.location or "\uC704\uCE58 \uBBF8\uC9C0\uC815",
+                content=board.board_contents,
+                action_status=ActionStatus.WAITING.value,
+                image_url=board.image_url,
+            ))
+
     board.status = status
-    db.commit()
-    db.refresh(board)
+    try:
+        db.commit()
+        db.refresh(board)
+    except Exception:
+        db.rollback()
+        raise
+
     return board
 
 # 게시글 삭제
