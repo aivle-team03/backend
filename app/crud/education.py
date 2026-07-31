@@ -297,3 +297,92 @@ def create_ai_generated_education(
         "safety_guideline": guidelines,
         "generated_video_url": new_edu.video_url
     }
+
+
+# 5. 관리자용 카테고리별 이수 현황 통계 조회
+def get_category_completion_stats(db: Session, company_id: int) -> Dict:
+    educations = (
+        db.query(Education)
+        .filter(Education.company_id == company_id)
+        .all()
+    )
+
+    categories = list(set([edu.category for edu in educations if edu.category]))
+    
+    user_cats = (
+        db.query(User.category)
+        .filter(User.company_id == company_id, User.category.isnot(None))
+        .distinct()
+        .all()
+    )
+    for (ucat,) in user_cats:
+        if ucat and ucat not in categories:
+            categories.append(ucat)
+
+    if not categories:
+        categories = ["공통", "지게차", "화물트럭"]
+
+    categories.sort()
+
+    total_users_count = (
+        db.query(func.count(User.uid))
+        .filter(User.company_id == company_id)
+        .scalar()
+    ) or 0
+
+    category_stats = []
+    total_target = 0
+    total_completed = 0
+
+    for cat in categories:
+        cat_edus = [e for e in educations if e.category == cat]
+        if cat_edus:
+            cat_edu_ids = [e.education_id for e in cat_edus]
+            cat_target = len(cat_edu_ids) * total_users_count
+            cat_completed = (
+                db.query(func.count(EducationStatus.uid))
+                .join(User, User.uid == EducationStatus.uid)
+                .filter(
+                    User.company_id == company_id,
+                    EducationStatus.education_id.in_(cat_edu_ids),
+                    EducationStatus.status == COMPLETED,
+                )
+                .scalar()
+            ) or 0
+        else:
+            cat_users_count = (
+                db.query(func.count(User.uid))
+                .filter(User.company_id == company_id, User.category == cat)
+                .scalar()
+            ) or 0
+            cat_target = len(educations) * cat_users_count
+            cat_completed = (
+                db.query(func.count(EducationStatus.uid))
+                .join(User, User.uid == EducationStatus.uid)
+                .filter(
+                    User.company_id == company_id,
+                    User.category == cat,
+                    EducationStatus.status == COMPLETED,
+                )
+                .scalar()
+            ) or 0
+
+        rate = round(cat_completed / cat_target * 100, 1) if cat_target > 0 else 0.0
+        category_stats.append(
+            {
+                "category": cat,
+                "target_count": cat_target,
+                "completed_count": cat_completed,
+                "completion_rate": rate,
+            }
+        )
+        total_target += cat_target
+        total_completed += cat_completed
+
+    overall_rate = round(total_completed / total_target * 100, 1) if total_target > 0 else 0.0
+
+    return {
+        "categories": category_stats,
+        "total_completion_rate": overall_rate,
+    }
+
