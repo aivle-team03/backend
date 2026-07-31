@@ -16,6 +16,22 @@ from app.services.ai.veo.video_editor import _concat_video_clips_ffmpeg
 VEO_MAX_CLIP_SECONDS = MAX_CLIP_SECONDS
 
 
+def _cleanup_temp_clips(clip_paths: List[str]):
+    """병합 완료 후 static/videos/veo_clips/ 내의 임시 비디오 클립 파일들 자동 삭제 및 디스크 용량 정돈"""
+    if not clip_paths:
+        return
+    deleted_count = 0
+    for clip in clip_paths:
+        try:
+            if clip and os.path.exists(clip) and "veo_clips" in clip.replace("\\", "/"):
+                os.remove(clip)
+                deleted_count += 1
+        except Exception as e:
+            print(f"[VeoClipsCleanup] 임시 클립 삭제 중 예외 ({clip}): {e}")
+    if deleted_count > 0:
+        print(f"[VeoClipsCleanup] SUCCESS: 임시 veo_clips 렌더링 클립 {deleted_count}개 자동 삭제 및 디스크 용량 정돈 완료!")
+
+
 def _split_script_into_segments(script: str, budgets: List[int]) -> List[str]:
     """
     한국어 대본(script)을 문장 단위로 잘라, budgets 리스트에 지정된 글자 수 예산에 맞춰
@@ -94,6 +110,9 @@ async def generate_veo_pipeline_from_file(
             import shutil
             shutil.copy(video_clips[0], output_video_path)
 
+    # 병합 완료 후 static/videos/veo_clips/ 임시 8초 클립 파일 정리 및 삭제
+    _cleanup_temp_clips(video_clips)
+
     return {
         "status": "success",
         "track": "veo_track",
@@ -123,6 +142,9 @@ async def generate_veo_video_from_storyboard(
     if not merged_ok and video_clips and os.path.exists(video_clips[0]):
         import shutil
         shutil.copy(video_clips[0], output_video_path)
+
+    # 병합 완료 후 static/videos/veo_clips/ 임시 8초 클립 파일 정리 및 삭제
+    _cleanup_temp_clips(video_clips)
 
     return {
         "video_url": "/" + output_video_path.replace("\\", "/"),
