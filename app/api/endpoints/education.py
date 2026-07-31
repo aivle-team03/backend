@@ -44,6 +44,11 @@ from app.services.video_service import (
     get_task_status,
     process_video_generation_pipeline
 )
+from app.services.veo_service import (
+    create_veo_task_record,
+    get_veo_task_status,
+    process_veo_summary_video_pipeline
+)
 
 education_router = APIRouter()
 admin_education_router = APIRouter()
@@ -332,5 +337,76 @@ def read_video_status(task_id: str):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="해당 작업(task_id)을 찾을 수 없습니다."
+        )
+    return status_info
+
+
+# ==========================================
+# 3. Google Veo AI 동영상 전용 API (Track 2)
+# ==========================================
+
+@education_router.post("/veo-generate", response_model=VideoGenerateResponse, status_code=status.HTTP_202_ACCEPTED)
+async def post_generate_veo_video(
+    background_tasks: BackgroundTasks,
+    file: Optional[UploadFile] = File(None),
+    text_content: Optional[str] = Form(None),
+    title: Optional[str] = Form(None),
+    category: Optional[str] = Form("공통"),
+    type: Optional[str] = Form("필수"),
+    request: Optional[str] = Form(None),
+    current_admin: User = Depends(get_current_admin)
+):
+    """
+    [Track 2] Google Veo AI (Vertex AI Veo) 동영상 생성 비동기 API (Education DB 자동 영속화)
+    - 업로드된 문서(PDF/TXT) 글자 수 및 세부 정보에 따라 24초~80초 재생 영상이 100% 동적으로 자동 생성됩니다.
+    """
+    if not file and not text_content:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="문서 파일(file) 또는 텍스트 내용(text_content) 중 하나는 필수입니다."
+        )
+
+    task_id = create_veo_task_record()
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+    raw_content = None
+    if file:
+        file_path = os.path.join(UPLOAD_DIR, f"{task_id}_{file.filename}")
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    else:
+        file_path = os.path.join(UPLOAD_DIR, f"{task_id}_text.txt")
+        raw_content = text_content.encode("utf-8")
+        with open(file_path, "wb") as buffer:
+            buffer.write(raw_content)
+
+    background_tasks.add_task(
+        process_veo_summary_video_pipeline,
+        task_id=task_id,
+        file_path=file_path,
+        company_id=current_admin.company_id,
+        title=title,
+        category=category,
+        type=type,
+        request=request
+    )
+
+    return {
+        "task_id": task_id,
+        "status": "PENDING",
+        "message": "Google Veo 동영상 생성 작업이 시작되었습니다. /api/education/veo-generate/{task_id}/status 로 진행 상태를 조회하세요."
+    }
+
+
+@education_router.get("/veo-generate/{task_id}/status", response_model=VideoStatusResponse)
+def read_veo_video_status(task_id: str):
+    """
+    Google Veo 동영상 제작 작업 처리 상태 및 생성 완료된 video_url / DB education_id 조회 API
+    """
+    status_info = get_veo_task_status(task_id)
+    if not status_info:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 Veo 작업(task_id)을 찾을 수 없습니다."
         )
     return status_info
