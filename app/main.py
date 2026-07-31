@@ -1,14 +1,17 @@
+import os
+import logging
 from fastapi import FastAPI, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-import os
 from app.db.db import SessionLocal, get_db, engine, Base
 import app.models
 from app.api.routers import api_router
 from app.core.exceptions import setup_logging, setup_exception_handlers
 from app.crud.inspection import generate_scheduled_inspection_histories
 from apscheduler.schedulers.background import BackgroundScheduler
+
+logger = logging.getLogger("app.scheduler")
 
 # 파일 로깅 활성화
 setup_logging()
@@ -44,13 +47,17 @@ app.include_router(api_router, prefix="/api")
 def read_root():
     return {"message": "MySQL 연결 성공!"}
 
+
 def run_daily_inspection_job():
-  """매일 자정에 실행되는 스케줄러 작업"""
-  db = SessionLocal()
-  try:
-    generate_scheduled_inspection_histories(db)
-  finally:
-    db.close()
+    """매일 자정에 실행되는 스케줄러 작업"""
+    db = SessionLocal()
+    try:
+        generate_scheduled_inspection_histories(db)
+        logger.info("매일 정기 점검 이력 자동 생성 완료")
+    except Exception as e:
+        logger.error(f"스케줄러 작업 실행 중 오류 발생: {e}", exc_info=True)
+    finally:
+        db.close()
 
 
 scheduler = BackgroundScheduler()
