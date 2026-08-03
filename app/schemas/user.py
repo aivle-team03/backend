@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional
 
@@ -68,3 +68,6 @@ class PasswordFindResponse(BaseModel):
 class UserRoleUpdateRequest(BaseModel):
     role: Optional[str] = None
     category: Optional[str] = None
+
+class UserDeleteRequest(BaseModel):
+    password: str = Field(..., description="본인 확인용 현재 비밀번호")
