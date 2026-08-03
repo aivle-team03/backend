@@ -10,7 +10,8 @@ from app.schemas.user import (
     PasswordChangeRequest,
     NotificationToggleRequest,
     PasswordFindResponse,
-    UserRoleUpdateRequest
+    UserRoleUpdateRequest,
+    UserWithdrawRequest
 )
 from app.schemas.signup_code import (
     SignupCodeCreate,
@@ -23,7 +24,8 @@ from app.crud.user import (
     change_user_password,
     find_user_password,
     update_user_role,
-    update_user_category_and_role
+    update_user_category_and_role,
+    withdraw_user
 )
 from app.crud.signup_code import (
     create_signup_code,
@@ -227,3 +229,21 @@ def patch_admin_user_role_legacy(
         raise HTTPException(status_code=404, detail="해당 사용자를 찾을 수 없습니다.")
     return u
 
+@router.delete("/me", status_code=status.HTTP_200_OK, summary="[유저] 회원 탈퇴")
+def withdraw_me(
+    req: UserWithdrawRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    로그인한 유저 본인 계정 탈퇴 API
+    - 비밀번호 검증 후 DB에서 회원 정보를 삭제합니다.
+    """
+    success = withdraw_user(db, user=current_user, password=req.password)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="비밀번호가 일치하지 않아 회원탈퇴를 진행할 수 없습니다."
+        )
+    
+    return {"message": "회원 탈퇴가 성공적으로 처리되었습니다."}

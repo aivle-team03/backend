@@ -114,3 +114,15 @@ def update_user_category_and_role(
     db.commit()
     db.refresh(user)
     return user
+
+def withdraw_user(db: Session, user: User, password: str) -> bool:
+    """
+    유저 본인 회원탈퇴 처리
+    - 입력받은 비밀번호 검증 후 삭제
+    """
+    if not verify_password(password, user.password):
+        return False
+    
+    db.delete(user)
+    db.commit()
+    return True

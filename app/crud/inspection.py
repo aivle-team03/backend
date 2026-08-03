@@ -136,16 +136,14 @@ def create_inspection(
     db.refresh(db_obj)
 
     created = (
-        db.query(InspectionHistory)
+        db.query(Inspection)
         .options(
-            joinedload(InspectionHistory.inspection).joinedload(
-                Inspection.category
-            ),
-            joinedload(InspectionHistory.user),
+            joinedload(Inspection.category),
+            joinedload(Inspection.user),
         )
         .filter(
-            InspectionHistory.inspection_history_id
-            == db_obj.inspection_history_id
+            Inspection.inspection_id == db_obj.inspection_id,
+            Inspection.company_id == company_id,
         )
         .first()
     )
