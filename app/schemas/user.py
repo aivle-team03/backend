@@ -69,5 +69,5 @@ class UserRoleUpdateRequest(BaseModel):
     role: Optional[str] = None
     category: Optional[str] = None
 
-class UserWithdrawRequest(BaseModel):
+class UserDeleteRequest(BaseModel):
     password: str = Field(..., description="본인 확인용 현재 비밀번호")

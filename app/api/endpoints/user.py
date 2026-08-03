@@ -11,7 +11,7 @@ from app.schemas.user import (
     NotificationToggleRequest,
     PasswordFindResponse,
     UserRoleUpdateRequest,
-    UserWithdrawRequest
+    UserDeleteRequest,
 )
 from app.schemas.signup_code import (
     SignupCodeCreate,
@@ -25,7 +25,7 @@ from app.crud.user import (
     find_user_password,
     update_user_role,
     update_user_category_and_role,
-    withdraw_user
+    delete_user
 )
 from app.crud.signup_code import (
     create_signup_code,
@@ -230,8 +230,8 @@ def patch_admin_user_role_legacy(
     return u
 
 @router.delete("/me", status_code=status.HTTP_200_OK, summary="[유저] 회원 탈퇴")
-def withdraw_me(
-    req: UserWithdrawRequest,
+def delete_me(
+    req: UserDeleteRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -239,7 +239,7 @@ def withdraw_me(
     로그인한 유저 본인 계정 탈퇴 API
     - 비밀번호 검증 후 DB에서 회원 정보를 삭제합니다.
     """
-    success = withdraw_user(db, user=current_user, password=req.password)
+    success = delete_user(db, user=current_user, password=req.password)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

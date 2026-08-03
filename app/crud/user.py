@@ -115,7 +115,7 @@ def update_user_category_and_role(
     db.refresh(user)
     return user
 
-def withdraw_user(db: Session, user: User, password: str) -> bool:
+def delete_user(db: Session, user: User, password: str) -> bool:
     """
     유저 본인 회원탈퇴 처리
     - 입력받은 비밀번호 검증 후 삭제

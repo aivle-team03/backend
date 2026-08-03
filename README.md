@@ -188,6 +188,7 @@ uvicorn app.main:app --reload
 | | `PATCH` | `/api/users/me/notifications` | 항목별 알림 수신 여부 설정 |
 | | `GET` | `/api/users/find/password` | 아이디/이름으로 비밀번호 찾기 메일 안내 |
 | | `GET` | `/api/users` | 전체 사용자 목록 조회 |
+| | `DELETE ` | `/api/users/me` | 회원 탈퇴 |
 | **Admin** | `GET` | `/api/admin/categories` | 장비 카테고리 목록 조회 |
 | | `POST` | `/api/admin/invite-codes` | 가입 회원가입 초대 코드 생성 |
 | | `GET` | `/api/admin/invite-codes` | 발급된 회원가입 초대 코드 목록 조회 |
