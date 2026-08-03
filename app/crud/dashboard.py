@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import datetime, timedelta
+from app.utils.datetime_utils import get_kst_now
 from typing import List
 from app.models.cctv import CCTV
 from app.models.event import Event
@@ -148,7 +149,7 @@ def get_zone_statistics(db: Session, company_id: int):
 
 
 def calculate_safety_grade(db: Session, company_id: int):
-    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    thirty_days_ago = get_kst_now() - timedelta(days=30)
     events = (
         db.query(Event)
         .filter(

@@ -33,6 +33,7 @@ def post_create_report(
             content=req.content,
             event_ids=req.event_ids,
             checklist_ids=req.checklist_ids,
+            inspection_history_ids=getattr(req, "inspection_history_ids", None),
             action_history_ids=req.action_history_ids,
         )
     except ValueError as error:

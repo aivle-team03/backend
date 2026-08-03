@@ -6,7 +6,7 @@ class Inspection(Base):
     __tablename__ = "inspection"
 
     inspection_id = Column(BigInteger, primary_key=True)                                  # PK
-    company_id = Column(BigInteger, ForeignKey("company.company_id"), nullable=False)     # FK (회사 아이디)
+    company_id = Column(BigInteger, ForeignKey("company.company_id", ondelete="CASCADE"), nullable=False)     # FK (회사 아이디)
     category_id = Column(BigInteger, ForeignKey("event_category.category_id"), nullable=False) # FK (카테고리 아이디)
     uid = Column(BigInteger, ForeignKey("user.uid", ondelete='SET NULL'), nullable=True)                      # 담당자
     name = Column(String(100), nullable=False)                                           # 점검 이름

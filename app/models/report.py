@@ -13,7 +13,7 @@ class Report(Base):
     content = Column(Text, nullable=False)
     summary = Column(String(100), nullable=False)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
-    company_id = Column(BigInteger, ForeignKey("company.company_id"), nullable=False)  #회사 아이디
+    company_id = Column(BigInteger, ForeignKey("company.company_id", ondelete="CASCADE"), nullable=False)  #회사 아이디
 
     user = relationship("User", back_populates="reports")
     event_maps = relationship("ReportEventMap", back_populates="report", cascade="all, delete-orphan")

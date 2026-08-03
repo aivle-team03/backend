@@ -145,7 +145,7 @@ class ActionHistory(Base):
     action_history_id = Column(BigInteger, primary_key=True, autoincrement=True)
     company_id = Column(
         BigInteger,
-        ForeignKey("company.company_id"),
+        ForeignKey("company.company_id", ondelete="CASCADE"),
         nullable=False,
     )
     board_id = Column(

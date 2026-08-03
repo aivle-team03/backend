@@ -6,7 +6,7 @@ class InspectionHistory(Base):
     __tablename__ = "inspection_history"
 
     inspection_history_id = Column(BigInteger, primary_key=True)                                     # PK
-    company_id = Column(BigInteger, ForeignKey("company.company_id"), nullable=False)     # FK (회사 아이디)
+    company_id = Column(BigInteger, ForeignKey("company.company_id", ondelete="CASCADE"), nullable=False)     # FK (회사 아이디)
     inspection_id = Column(BigInteger, ForeignKey("inspection.inspection_id"), nullable=False) # FK (점검 아이디)
     uid = Column(
       BigInteger,

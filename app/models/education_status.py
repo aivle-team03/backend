@@ -20,7 +20,7 @@ class EducationStatus(Base):
     user_name = Column(String(100), nullable=True)
     education_id = Column(
         BigInteger,
-        ForeignKey("education.education_id"),
+        ForeignKey("education.education_id", ondelete="CASCADE"),
         primary_key=True,
         nullable=False,
     )
