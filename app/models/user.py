@@ -21,3 +21,9 @@ class User(Base):
     checklists = relationship("Checklist", back_populates="user")
     inspections = relationship("Inspection", back_populates="user")
     inspection_histories = relationship("InspectionHistory", back_populates="user")
+    education_statuses = relationship(
+      "EducationStatus",
+      back_populates="user",
+      cascade="all, delete-orphan",
+      passive_deletes=True,
+  )

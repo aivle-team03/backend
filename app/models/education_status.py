@@ -14,7 +14,7 @@ class EducationStatus(Base):
     )
     uid = Column(
         BigInteger,
-        ForeignKey('user.uid', ondelete='SET NULL'),
+        ForeignKey('user.uid', ondelete='CASCADE'),
         nullable=True,
     )
     user_name = Column(String(100), nullable=True)
@@ -33,5 +33,5 @@ class EducationStatus(Base):
     completed_date = Column(Date, nullable=True)
     is_deleted = Column(Boolean, nullable=False, default=False)
 
-    user = relationship("User", backref="education_statuses")
+    user = relationship("User", back_populates="education_statuses")
     education = relationship("Education", back_populates="statuses")
