@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, CheckConstraint, Column, Date, ForeignKey, String, Boolean
+from sqlalchemy import BigInteger, CheckConstraint, Column, Date, ForeignKey, String, Boolean, Integer, Float
 from sqlalchemy.orm import relationship
 
 from app.db.db import Base
@@ -32,6 +32,9 @@ class EducationStatus(Base):
     )
     completed_date = Column(Date, nullable=True)
     is_deleted = Column(Boolean, nullable=False, default=False)
+    last_position_seconds = Column(Integer, nullable=False, default=0, server_default="0")
+    progress_percent = Column(Float, nullable=False, default=0.0, server_default="0.0")
 
     user = relationship("User", back_populates="education_statuses")
     education = relationship("Education", back_populates="statuses")
+

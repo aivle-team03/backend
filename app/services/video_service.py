@@ -43,6 +43,7 @@ def get_task_status(task_id: str) -> Optional[Dict]:
 async def process_video_generation_pipeline(
     task_id: str,
     file_path: str,
+    company_id: int,
     raw_content: Optional[bytes] = None,
     title: Optional[str] = None,
     category: Optional[str] = "공통",
@@ -120,6 +121,7 @@ async def process_video_generation_pipeline(
                 edu_title = f"AI 자동 생성 안전 교육 ({task_id})"
 
             new_edu = Education(
+                company_id=company_id,
                 title=edu_title,
                 video_url=video_url,
                 category=category or "공통",

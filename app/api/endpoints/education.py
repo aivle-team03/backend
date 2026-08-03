@@ -10,6 +10,7 @@ from app.crud.education import get_education_attendees
 from app.schemas.education import EducationAttendeeListResponse
 from app.crud.education import (
     complete_education,
+    update_education_progress,
     get_education_by_id,
     get_education_status_summaries,
     get_my_education_list,
@@ -27,6 +28,7 @@ from app.models import User
 from app.schemas.education import (
     EducationCompletionFilter,
     EducationCompletionResponse,
+    EducationProgressUpdate,
     EducationResponse,
     EducationStatusResponse,
     EducationStatusSummaryResponse,
@@ -141,6 +143,33 @@ def post_my_education_complete(
             detail="교육을 찾을 수 없습니다",
         )
     return complete_education(db, user=current_user, education=education)
+
+
+@education_router.post(
+    "/{education_id}/progress",
+    response_model=EducationCompletionResponse,
+    summary="[유저] 교육 영상 시청 진척도 및 위치 업데이트",
+)
+def post_my_education_progress(
+    payload: EducationProgressUpdate,
+    education_id: int = Path(..., ge=1),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """시청 중 주기적으로 위치(초) 및 진척도(%) 업데이트 (80% 이상 시 자동으로 이수 처리)"""
+    education = get_education_by_id(db, education_id=education_id, company_id=current_user.company_id)
+    if education is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="교육을 찾을 수 없습니다",
+        )
+    return update_education_progress(
+        db,
+        user=current_user,
+        education=education,
+        last_position_seconds=payload.last_position_seconds,
+        progress_percent=payload.progress_percent,
+    )
 
 
 # ==========================================
@@ -315,6 +344,7 @@ async def post_generate_video(
         task_id=task_id,
         file_path=file_path,
         raw_content=raw_content,
+        company_id=current_admin.company_id,
         title=title,
         category=category,
         type=type

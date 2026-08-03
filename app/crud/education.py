@@ -42,7 +42,15 @@ def get_my_education_list(
     user: User,
     category: Optional[str] = None,
 ):
-    query = db.query(Education).filter(Education.company_id == user.company_id, Education.is_deleted == False,)
+    allowed_categories = list(ALL_EMPLOYEE_CATEGORIES)
+    if user.category and user.category not in allowed_categories:
+        allowed_categories.append(user.category)
+
+    query = db.query(Education).filter(
+        Education.company_id == user.company_id,
+        Education.is_deleted == False,
+        Education.category.in_(allowed_categories),
+    )
     if category:
         query = query.filter(Education.category == category)
     return query.order_by(Education.education_id.asc()).all()
@@ -71,6 +79,8 @@ def _status_response(education: Education, status_row: Optional[EducationStatus]
         "type": education.type,
         "status": progress_status,
         "completed_date": status_row.completed_date if status_row else None, # 이수 완료일
+        "last_position_seconds": status_row.last_position_seconds if status_row else 0,
+        "progress_percent": status_row.progress_percent if status_row else 0.0,
     }
 
 
@@ -80,9 +90,17 @@ def get_user_education_statuses(
     category: Optional[str] = None,
     completion_status: Optional[str] = None,
 ):
+    allowed_categories = list(ALL_EMPLOYEE_CATEGORIES)
+    if user.category and user.category not in allowed_categories:
+        allowed_categories.append(user.category)
+
     query = (
         db.query(Education, EducationStatus)
-        .filter(Education.company_id == user.company_id, Education.is_deleted == False,)
+        .filter(
+            Education.company_id == user.company_id,
+            Education.is_deleted == False,
+            Education.category.in_(allowed_categories),
+        )
         .outerjoin(
             EducationStatus,
             and_(
@@ -298,7 +316,49 @@ def complete_education(
         status_row.user_name = user.name
 
     status_row.status = COMPLETED
+    status_row.progress_percent = 100.0
     status_row.completed_date = date.today()
+    db.commit()
+    db.refresh(status_row)
+    return status_row
+
+
+def update_education_progress(
+    db: Session,
+    user: User,
+    education: Education,
+    last_position_seconds: int,
+    progress_percent: float,
+) -> EducationStatus:
+    status_row = (
+        db.query(EducationStatus)
+        .filter(
+            EducationStatus.uid == user.uid,
+            EducationStatus.education_id == education.education_id,
+        )
+        .first()
+    )
+    if status_row is None:
+        status_row = EducationStatus(
+            uid=user.uid,
+            user_name=user.name,
+            education_id=education.education_id,
+        )
+        db.add(status_row)
+    else:
+        status_row.user_name = user.name
+
+    status_row.last_position_seconds = max(0, last_position_seconds)
+    status_row.progress_percent = min(100.0, max(0.0, progress_percent))
+
+    # 80% 이상시 자동 이수 처리
+    if status_row.progress_percent >= 80.0:
+        status_row.status = COMPLETED
+        if not status_row.completed_date:
+            status_row.completed_date = date.today()
+    elif status_row.progress_percent > 0.0 and status_row.status == INCOMPLETE:
+        status_row.status = IN_PROGRESS
+
     db.commit()
     db.refresh(status_row)
     return status_row
