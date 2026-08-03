@@ -3,6 +3,7 @@ import string
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from app.models.signup_code import SignupCode
+from app.utils.datetime_utils import get_kst_now
 
 DEFAULT_CATEGORIES = [
     "지게차", "화물트럭", "토잉카", "팔레트",
@@ -35,7 +36,8 @@ def create_signup_code(db: Session, company_id: int, role: str, category: Option
         code=code_str,
         role=role,
         category=category,
-        is_used=False
+        is_used=False,
+        created_at=get_kst_now(),
     )
     db.add(db_code)
     db.commit()
