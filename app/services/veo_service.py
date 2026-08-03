@@ -2,7 +2,7 @@ import os
 import asyncio
 import uuid
 import time
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from app.services.ai.veo.pipelines import (
     render_scene_sequence,

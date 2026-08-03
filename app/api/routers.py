@@ -13,6 +13,7 @@ from app.api.endpoints import report
 from app.api.endpoints import risk
 from app.api.endpoints import inspection
 from app.api.endpoints import action_history
+from app.api.endpoints import agent_inspection_action
 
 api_router = APIRouter()
 
@@ -30,6 +31,11 @@ api_router.include_router(
     action_history.router,
     prefix="/action-histories",
     tags=["action-histories"],
+)
+api_router.include_router(
+    agent_inspection_action.router,
+    prefix="/agent-data/inspection-action",
+    tags=["agent-inspection-action"],
 )
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
 api_router.include_router(chatbot.chatbot_router, prefix="/chatbot", tags=["chatbot"])
