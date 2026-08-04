@@ -30,6 +30,12 @@ class EducationResponse(BaseModel):
 class EducationStatusResponse(EducationResponse):
     status: EducationProgressStatus
     completed_date: Optional[date] = None
+    last_position_seconds: int = 0
+    progress_percent: float = 0.0
+
+class EducationProgressUpdate(BaseModel):
+    last_position_seconds: int = 0
+    progress_percent: float = 0.0
 
 # UI기반작성
 # 유저 상단 요약 카운트 응답
@@ -76,6 +82,8 @@ class EducationCompletionResponse(BaseModel):
     education_id: int
     status: EducationProgressStatus
     completed_date: Optional[date] = None
+    last_position_seconds: int = 0
+    progress_percent: float = 0.0
 
 
 # 관리자용 카테고리별 이수 현황 통계
@@ -99,6 +107,8 @@ class EducationAttendeeResponse(BaseModel):
     education_title: Optional[str] = None
     status: EducationProgressStatus
     completed_date: Optional[date] = None
+    last_position_seconds: int = 0
+    progress_percent: float = 0.0
 
 
 class AdminEducationCourseDashboardItem(EducationStatusSummaryResponse):
