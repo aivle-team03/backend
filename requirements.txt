@@ -7,3 +7,6 @@ passlib[bcrypt]
 python-jose[cryptography]
 python-multipart
 cloudinary
+tenacity
+redis
+celery

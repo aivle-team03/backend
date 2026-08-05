@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status, UploadFile, File, Form, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status, UploadFile, File, Form
 from sqlalchemy.orm import Session
 import os
 import shutil
@@ -44,12 +44,12 @@ from app.schemas.ai_video import VideoGenerateResponse, VideoStatusResponse
 from app.services.video_service import (
     create_task_record,
     get_task_status,
-    process_video_generation_pipeline
+    process_video_pipeline_task
 )
 from app.services.veo_service import (
     create_veo_task_record,
     get_veo_task_status,
-    process_veo_summary_video_pipeline
+    process_veo_pipeline_task
 )
 
 education_router = APIRouter()
@@ -304,7 +304,6 @@ UPLOAD_DIR = "static/uploads"
 
 @education_router.post("/ai-generate", response_model=VideoGenerateResponse, status_code=status.HTTP_202_ACCEPTED)
 async def post_generate_video(
-    background_tasks: BackgroundTasks,
     file: Optional[UploadFile] = File(None),
     text_content: Optional[str] = Form(None),
     title: Optional[str] = Form(None),
@@ -338,16 +337,15 @@ async def post_generate_video(
         with open(file_path, "wb") as buffer:
             buffer.write(raw_content)
 
-    # FastAPI BackgroundTasks로 비동기 파이프라인 수행 및 Education DB 저장을 위한 파라미터 전달
-    background_tasks.add_task(
-        process_video_generation_pipeline,
+    # Celery 워커 큐로 비동기 전송
+    process_video_pipeline_task.delay(
         task_id=task_id,
         file_path=file_path,
-        raw_content=raw_content,
         company_id=current_admin.company_id,
         title=title,
         category=category,
-        type=type
+        type=type,
+        request=request
     )
 
     return {
@@ -377,7 +375,6 @@ def read_video_status(task_id: str):
 
 @education_router.post("/veo-generate", response_model=VideoGenerateResponse, status_code=status.HTTP_202_ACCEPTED)
 async def post_generate_veo_video(
-    background_tasks: BackgroundTasks,
     file: Optional[UploadFile] = File(None),
     text_content: Optional[str] = Form(None),
     title: Optional[str] = Form(None),
@@ -410,8 +407,7 @@ async def post_generate_veo_video(
         with open(file_path, "wb") as buffer:
             buffer.write(raw_content)
 
-    background_tasks.add_task(
-        process_veo_summary_video_pipeline,
+    process_veo_pipeline_task.delay(
         task_id=task_id,
         file_path=file_path,
         company_id=current_admin.company_id,
