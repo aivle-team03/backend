@@ -30,7 +30,7 @@ def _save_gtts_sync(text: str, output_path: str):
 async def create_audio_from_text(
     text: str,
     output_path: str,
-    voice: str = "ko-KR-HyunsuNeural"
+    voice: str = "ko-KR-HyunsuMultilingualNeural"
 ) -> str:
     """
     edge-tts 및 gTTS를 활용하여 대본을 자연스러운 한국어 AI 음성 파일(.mp3)로 비동기 생성
