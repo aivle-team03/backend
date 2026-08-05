@@ -10,5 +10,3 @@ cloudinary
 tenacity
 redis
 celery
-ultralytics
-opencv-python
