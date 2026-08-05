@@ -36,12 +36,11 @@ def setup_logging():
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.INFO)
     
-    # 기존 등록되어 있을 수 있는 핸들러 중복 방지 위해 초기화 후 추가
-    if root_logger.hasHandlers():
-        root_logger.handlers.clear()
-        
-    root_logger.addHandler(file_handler)
-    root_logger.addHandler(console_handler)
+    # 중복 추가 방지 (기존 핸들러를 무조건 삭제하지 않음)
+    has_file_handler = any(isinstance(h, RotatingFileHandler) for h in root_logger.handlers)
+    if not has_file_handler:
+        root_logger.addHandler(file_handler)
+        root_logger.addHandler(console_handler)
     
     logger.info("어플리케이션 파일 기반 로깅 시스템 활성화 완료.")
 
@@ -66,7 +65,8 @@ def setup_exception_handlers(app: FastAPI):
         
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
-        details = exc.errors()
+        # 내부 구조 노출을 최소화하기 위해 에러 내용 정제
+        details = [{"loc": err.get("loc"), "msg": err.get("msg"), "type": err.get("type")} for err in exc.errors()]
         logger.warning(
             f"요청 데이터 검증 실패(Pydantic) - 경로: {request.url.path} | 에러 내역: {details}"
         )

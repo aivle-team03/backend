@@ -1,8 +1,9 @@
 """Korea Standard Time (KST, UTC+9) timezone helper module."""
-from datetime import datetime, timezone, timedelta
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 # 대한민국 표준시 시간대 (Asia/Seoul, UTC+9)
-KST = timezone(timedelta(hours=9))
+KST = ZoneInfo("Asia/Seoul")
 
 
 def get_kst_now() -> datetime:

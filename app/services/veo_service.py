@@ -1,18 +1,13 @@
 import os
 import asyncio
-import uuid
-import time
-from typing import Dict, Optional, Any
+from typing import Dict, Any, Optional
+
+from app.core.celery_app import celery_app
 from app.utils.datetime_utils import get_kst_now_str
 from app.utils.cloudinary_utils import upload_video_to_cloudinary
 
-from app.services.ai.veo.pipelines import (
-    render_scene_sequence,
-    render_long_video,
-    render_extended_summary,
-    render_summary,
-    render_storyboard,
-)
+from app.services.ai.veo.constants import MAX_CLIP_SECONDS
+from app.services.ai.veo.pipelines import _cleanup_temp_clips, generate_veo_video_from_storyboard
 from app.services.ai.parser import parse_document_content
 from app.services.ai.veo.prompt_builder import get_token_usage, reset_token_usage
 from app.services.ai.education_video_pipeline import (
@@ -26,8 +21,7 @@ from app.db.db import SessionLocal
 from app.models.education import Education
 
 
-# Veo 서비스용 인메모리 작업 상태 저장소
-VEO_TASK_STORE: Dict[str, Dict] = {}
+from app.crud.video_task import create_task, get_task, update_task
 
 
 def calculate_veo_usage_and_cost(
@@ -85,27 +79,11 @@ def calculate_veo_usage_and_cost(
 
 def create_veo_task_record() -> str:
     """새로운 Veo 비동기 동영상 제작 태스크 생성 및 ID 반환"""
-    task_id = f"veo_task_{uuid.uuid4().hex[:12]}"
-    VEO_TASK_STORE[task_id] = {
-        "task_id": task_id,
-        "status": "PENDING",
-        "progress_percent": 0,
-        "video_url": None,
-        "education_id": None,
-        "error_message": None,
-        "document_analysis": None,
-        "learning_objectives": None,
-        "storyboard": None,
-        "quality_report": None,
-        "usage_summary": None,
-        "created_at": get_kst_now_str()
-    }
-    return task_id
-
+    return create_task(task_type="VEO")
 
 def get_veo_task_status(task_id: str) -> Optional[Dict]:
     """Veo 태스크 처리 상태 및 결과 반환"""
-    return VEO_TASK_STORE.get(task_id)
+    return get_task(task_id)
 
 
 async def process_veo_summary_video_pipeline(
@@ -116,7 +94,6 @@ async def process_veo_summary_video_pipeline(
     category: Optional[str] = "공통",
     type: Optional[str] = "필수",
     request: Optional[str] = None,
-    mode: str = "concat",  # "concat" (장면분할 FFmpeg 병합), "long_video" (Extend+병합), "extend" (Extension 체인), "summary" (8초 단일)
     target_duration_seconds: Optional[int] = None
 ):
     """
@@ -127,91 +104,88 @@ async def process_veo_summary_video_pipeline(
     3. Vertex AI Veo 8초 동영상 생성 ➔ FFmpeg 자동 병합
     4. DB(Education) 테이블에 생성 결과 및 비디오 URL 영속화
     """
-    record = VEO_TASK_STORE.get(task_id)
+    record = get_task(task_id)
     if not record:
         return
 
+    # Redis 브로커는 워커가 완료 응답 전에 죽으면 visibility timeout 뒤 메시지를 재전달한다.
+    # 이미 시작된 적 있는 태스크(PENDING이 아닌 상태)가 다시 들어오면 그 재전달이므로 실행하지 않는다.
+    # 그대로 두면 몇 시간 전 요청이 바뀐 코드로 되살아나 중복 영상과 DB 레코드를 만든다.
+    if record.get("status") != "PENDING":
+        print(f"[VeoService] 이미 시작된 태스크가 재전달되어 실행을 건너뜁니다 (status={record.get('status')}, task_id={task_id})")
+        if record.get("status") == "PROCESSING":
+            update_task(task_id, status="FAILED", error_message="작업이 중단된 뒤 재전달되어 실행하지 않았습니다. 다시 요청해 주세요.")
+        return
+
     try:
-        record["status"] = "PROCESSING"
-        record["progress_percent"] = 15
+        update_task(task_id, status="PROCESSING", progress_percent=15)
         reset_token_usage()
 
-        safe_title = title if title else f"Veo_AI_Safety_{uuid.uuid4().hex[:6]}"
-        output_video_path = f"static/videos/{safe_title}.mp4"
+        # 파일명·public_id는 task_id를 쓴다. 제목 기반 이름은 동일 제목 재요청 시 서로 덮어쓰고,
+        # 정규식으로 모든 문자가 걸러지면 빈 이름이 된다. DB에는 사용자가 입력한 원본 title을 저장한다.
+        output_video_path = f"static/videos/{task_id}.mp4"
 
-        record["progress_percent"] = 30
+        update_task(task_id, progress_percent=30)
 
         # Structured education-video pipeline: parse -> analyze -> objectives -> storyboard -> render -> inspect.
-        if mode == "concat":
-            parsed_text, _ = await asyncio.to_thread(parse_document_content, file_path)
-            record["progress_percent"] = 25
-            analysis = await analyze_document(parsed_text)
-            record["document_analysis"] = analysis
-            record["progress_percent"] = 35
-            objectives = await extract_learning_objectives(analysis)
-            record["learning_objectives"] = objectives
-            record["progress_percent"] = 45
-            storyboard = await create_storyboard(
-                parsed_text, analysis, objectives, request, target_duration_seconds
-            )
-            record["storyboard"] = storyboard
-            record["progress_percent"] = 55
-            render_result = await render_storyboard(storyboard, output_video_path)
-            quality_report = await inspect_video_quality_async(
-                storyboard, render_result["video_clips"], output_video_path
-            )
-            record["quality_report"] = quality_report
-
-            # 집계 및 비용 계산
-            tokens = get_token_usage()
-            total_sec = len(storyboard) * 8
-            usage_summary = calculate_veo_usage_and_cost(
-                task_id, len(storyboard), total_sec, tokens["input_tokens"], tokens["output_tokens"]
-            )
-            record["usage_summary"] = usage_summary
-
-            # if not quality_report["passed"]:
-            #     raise RuntimeError(f"Video quality checks failed: {quality_report['failed_checks']}")
-            result = {**render_result, "scenes": storyboard}
-        elif mode == "long_video":
-            print(f"[VeoService] Veo 롱비디오 파이프라인 가동 ({task_id})...")
-            result = await render_long_video(
-                file_path=file_path,
-                target_duration_seconds=target_duration_seconds or 32,
-                request=request,
-                output_video_path=output_video_path
-            )
-        elif mode == "extend":
-            print(f"[VeoService] Veo 동적 영상 연장(Video Extension) 파이프라인 가동 ({task_id})...")
-            result = await render_extended_summary(
-                file_path=file_path,
-                request=request,
-                output_video_path=output_video_path,
-                target_duration_seconds=target_duration_seconds
-            )
-        elif mode == "summary":
-            print(f"[VeoService] Veo 단일 8초 마스터 요약 파이프라인 가동 ({task_id})...")
-            result = await render_summary(
-                file_path=file_path,
-                request=request,
-                output_video_path=output_video_path
-            )
-        elif mode not in {"concat", "long_video", "extend", "summary"}:
-            # 기본 모드: 장면별 8초 클립 생성 후 FFmpeg 자동 병합 ("concat")
-            print(f"[VeoService] Veo 장면 분할 FFmpeg 병합 파이프라인 가동 ({task_id})...")
-            result = await render_scene_sequence(
-                file_path=file_path,
-                request=request,
-                output_video_path=output_video_path,
-                target_duration_seconds=target_duration_seconds or 32
+        parsed_text, _ = await asyncio.to_thread(parse_document_content, file_path)
+        update_task(task_id, progress_percent=25)
+        analysis = await analyze_document(parsed_text)
+        update_task(task_id, document_analysis=analysis, progress_percent=35)
+        objectives = await extract_learning_objectives(analysis)
+        update_task(task_id, learning_objectives=objectives, progress_percent=45)
+        storyboard = await create_storyboard(
+            parsed_text, analysis, objectives, request, target_duration_seconds
+        )
+        # Gemini 호출 실패로 고정 Fallback 대본이 쓰이면 문서 내용이 전혀 반영되지 않은 영상이 나온다.
+        # 제목·카테고리는 사용자 입력 그대로라 결과만 보고는 구분할 수 없으므로 저장하지 않고 실패 처리한다.
+        if any(s.get("is_fallback") for s in storyboard):
+            raise RuntimeError(
+                "문서 기반 대본 생성에 실패했습니다 (Gemini API 호출 실패 또는 호출 한도 초과). "
+                "잠시 후 다시 시도해 주세요."
             )
 
-        record["progress_percent"] = 80
+        update_task(task_id, storyboard=storyboard, progress_percent=55)
+        render_result = await generate_veo_video_from_storyboard(storyboard, output_video_path, task_id)
+        quality_report = await inspect_video_quality_async(
+            storyboard, render_result["video_clips"], output_video_path
+        )
+        update_task(task_id, quality_report=quality_report)
+
+        # 품질 검수가 개별 클립 파일 존재 여부를 확인한 뒤에 임시 클립을 정리한다.
+        _cleanup_temp_clips(render_result["clip_dir"])
+
+        # 집계 및 비용 계산
+        tokens = get_token_usage()
+        total_sec = sum(s.get("duration_seconds", MAX_CLIP_SECONDS) for s in storyboard)
+        usage_summary = calculate_veo_usage_and_cost(
+            task_id, len(storyboard), total_sec, tokens["input_tokens"], tokens["output_tokens"]
+        )
+        update_task(task_id, usage_summary=usage_summary)
+
+        # if not quality_report["passed"]:
+        #     raise RuntimeError(f"Video quality checks failed: {quality_report['failed_checks']}")
+        result = {**render_result, "scenes": storyboard}
+
+        update_task(task_id, progress_percent=80)
 
         # Cloudinary 클라우드 스토리지 동영상 업로드
-        local_video_url = result.get("video_url", f"/static/videos/{safe_title}.mp4")
-        cloudinary_url = await upload_video_to_cloudinary(output_video_path, folder="veo_safety_videos", public_id=safe_title)
+        local_video_url = result.get("video_url", f"/static/videos/{task_id}.mp4")
+        cloudinary_url = await upload_video_to_cloudinary(output_video_path, folder="veo_safety_videos", public_id=task_id)
         video_url = cloudinary_url if cloudinary_url else local_video_url
+
+        # 휴지통 비우기: 업로드 성공 시 로컬 비디오 파일 삭제
+        if cloudinary_url and os.path.exists(output_video_path):
+            try:
+                os.remove(output_video_path)
+            except Exception:
+                pass
+        # 원본 텍스트/파일 삭제
+        if file_path and os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except Exception:
+                pass
 
         summary_script = result.get("summary_script", "Google Veo AI 자동 생성 현장 안전 교육 동영상")
         master_prompt = result.get("master_veo_prompt", "")
@@ -234,22 +208,39 @@ async def process_veo_summary_video_pipeline(
             # final_status = "AWAITING_REVIEW" if hitl_required else "COMPLETED"
             final_status = "COMPLETED"  # 임시 주석 처리: 시각 점수가 미달이어도 COMPLETED로 자동 저장
 
-            record["status"] = final_status
-            record["progress_percent"] = 100
-            record["video_url"] = video_url
-            record["education_id"] = new_edu.education_id
+            update_task(task_id, status=final_status, progress_percent=100, video_url=video_url, education_id=new_edu.education_id)
             print(f"[VeoService] SUCCESS: Veo 동영상 생성 및 DB(Education ID: {new_edu.education_id}) 저장 완료 (COMPLETED)!")
         except Exception as dbe:
             db.rollback()
             print(f"[VeoService] DB 저장 중 예외 발생: {dbe}")
             hitl_required = bool(quality_report and quality_report.get("hitl_required"))
-            record["status"] = "AWAITING_REVIEW" if hitl_required else "COMPLETED"
-            record["progress_percent"] = 100
-            record["video_url"] = video_url
+            update_task(task_id, status="AWAITING_REVIEW" if hitl_required else "COMPLETED", progress_percent=100, video_url=video_url)
         finally:
             db.close()
 
     except Exception as e:
         print(f"[VeoService] Veo 파이프라인 실행 중 오류: {e}")
-        record["status"] = "FAILED"
-        record["error_message"] = str(e)
+        update_task(task_id, status="FAILED", error_message=str(e))
+
+@celery_app.task(name="veo_service.process_veo_pipeline_task")
+def process_veo_pipeline_task(
+    task_id: str,
+    file_path: str,
+    company_id: int = 1,
+    title: Optional[str] = None,
+    category: Optional[str] = "공통",
+    type: Optional[str] = "필수",
+    request: Optional[str] = None,
+    target_duration_seconds: Optional[int] = None
+):
+    """Celery 워커가 실행할 동기 래퍼 함수"""
+    asyncio.run(process_veo_summary_video_pipeline(
+        task_id=task_id,
+        file_path=file_path,
+        company_id=company_id,
+        title=title,
+        category=category,
+        type=type,
+        request=request,
+        target_duration_seconds=target_duration_seconds
+    ))
