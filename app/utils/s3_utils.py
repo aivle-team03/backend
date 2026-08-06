@@ -24,7 +24,7 @@ async def upload_video_to_s3(
     """
     if not file_path or not os.path.exists(file_path):
         print(f"[S3Upload] 업로드 대상 파일이 존재하지 않습니다: {file_path}")
-        return None
+        raise FileNotFoundError(f"업로드 대상 파일이 존재하지 않습니다: {file_path}")
 
     aws_access_key = os.getenv("AWS_ACCESS_KEY_ID")
     aws_secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
@@ -56,11 +56,11 @@ async def upload_video_to_s3(
             s3_url = f"https://{bucket}.s3.{region}.amazonaws.com/{object_name}"
             print(f"[S3Upload] SUCCESS: S3 클라우드 업로드 완료 -> {s3_url}")
             return s3_url
-        except ImportError:
+        except ImportError as e:
             print("[S3Upload] ERROR: 'boto3' 패키지가 설치되어 있지 않습니다. (pip install boto3 필요)")
-            return None
+            raise RuntimeError("boto3 패키지가 설치되어 있지 않습니다.") from e
         except Exception as e:
             print(f"[S3Upload] WARNING: AWS S3 동영상 업로드 예외 발생: {e}")
-            return None
+            raise RuntimeError(f"AWS S3 동영상 업로드 실패: {e}") from e
 
     return await asyncio.to_thread(_sync_s3_upload)

@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status, UploadFile, File, Form, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status, UploadFile, File, Form
 from sqlalchemy.orm import Session
 import os
 import shutil
@@ -10,6 +10,7 @@ from app.crud.education import get_education_attendees
 from app.schemas.education import EducationAttendeeListResponse
 from app.crud.education import (
     complete_education,
+    update_education_progress,
     get_education_by_id,
     get_education_status_summaries,
     get_my_education_list,
@@ -27,6 +28,7 @@ from app.models import User
 from app.schemas.education import (
     EducationCompletionFilter,
     EducationCompletionResponse,
+    EducationProgressUpdate,
     EducationResponse,
     EducationStatusResponse,
     EducationStatusSummaryResponse,
@@ -42,12 +44,12 @@ from app.schemas.ai_video import VideoGenerateResponse, VideoStatusResponse
 from app.services.video_service import (
     create_task_record,
     get_task_status,
-    process_video_generation_pipeline
+    process_video_pipeline_task
 )
 from app.services.veo_service import (
     create_veo_task_record,
     get_veo_task_status,
-    process_veo_summary_video_pipeline
+    process_veo_pipeline_task
 )
 
 education_router = APIRouter()
@@ -141,6 +143,33 @@ def post_my_education_complete(
             detail="교육을 찾을 수 없습니다",
         )
     return complete_education(db, user=current_user, education=education)
+
+
+@education_router.post(
+    "/{education_id}/progress",
+    response_model=EducationCompletionResponse,
+    summary="[유저] 교육 영상 시청 진척도 및 위치 업데이트",
+)
+def post_my_education_progress(
+    payload: EducationProgressUpdate,
+    education_id: int = Path(..., ge=1),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """시청 중 주기적으로 위치(초) 및 진척도(%) 업데이트 (80% 이상 시 자동으로 이수 처리)"""
+    education = get_education_by_id(db, education_id=education_id, company_id=current_user.company_id)
+    if education is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="교육을 찾을 수 없습니다",
+        )
+    return update_education_progress(
+        db,
+        user=current_user,
+        education=education,
+        last_position_seconds=payload.last_position_seconds,
+        progress_percent=payload.progress_percent,
+    )
 
 
 # ==========================================
@@ -275,7 +304,6 @@ UPLOAD_DIR = "static/uploads"
 
 @education_router.post("/ai-generate", response_model=VideoGenerateResponse, status_code=status.HTTP_202_ACCEPTED)
 async def post_generate_video(
-    background_tasks: BackgroundTasks,
     file: Optional[UploadFile] = File(None),
     text_content: Optional[str] = Form(None),
     title: Optional[str] = Form(None),
@@ -309,15 +337,15 @@ async def post_generate_video(
         with open(file_path, "wb") as buffer:
             buffer.write(raw_content)
 
-    # FastAPI BackgroundTasks로 비동기 파이프라인 수행 및 Education DB 저장을 위한 파라미터 전달
-    background_tasks.add_task(
-        process_video_generation_pipeline,
+    # Celery 워커 큐로 비동기 전송
+    process_video_pipeline_task.delay(
         task_id=task_id,
         file_path=file_path,
-        raw_content=raw_content,
+        company_id=current_admin.company_id,
         title=title,
         category=category,
-        type=type
+        type=type,
+        request=request
     )
 
     return {
@@ -347,7 +375,6 @@ def read_video_status(task_id: str):
 
 @education_router.post("/veo-generate", response_model=VideoGenerateResponse, status_code=status.HTTP_202_ACCEPTED)
 async def post_generate_veo_video(
-    background_tasks: BackgroundTasks,
     file: Optional[UploadFile] = File(None),
     text_content: Optional[str] = Form(None),
     title: Optional[str] = Form(None),
@@ -380,8 +407,7 @@ async def post_generate_veo_video(
         with open(file_path, "wb") as buffer:
             buffer.write(raw_content)
 
-    background_tasks.add_task(
-        process_veo_summary_video_pipeline,
+    process_veo_pipeline_task.delay(
         task_id=task_id,
         file_path=file_path,
         company_id=current_admin.company_id,

@@ -1,3 +1,8 @@
+from typing import Optional
+
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
 def detect_facilities_sim(filename: str):
     return {
         "status": "안전",
@@ -36,4 +41,62 @@ def verify_action_sim(before_filename: str, after_filename: str):
         "similarity_score": 0.94,
         "status": "해결됨",
         "description": "조치 전 이미지에 감지되었던 가연성 박스 적치물이 조치 후 이미지에서는 완전히 소거된 것이 검증되었습니다. 조치 결과 승인을 승인 권장합니다."
+    }
+
+def create_ai_event(
+    db: Session,
+    cctv_id: int,
+    category_id: int,
+    image_url: Optional[str] = None,
+):
+    # CCTV의 company_id 조회
+    cctv = db.execute(
+        text("""
+            SELECT company_id
+            FROM cctv
+            WHERE cctv_id = :cctv_id
+              AND is_deleted = 0
+        """),
+        {"cctv_id": cctv_id},
+    ).fetchone()
+
+    if cctv is None:
+        return None
+
+    company_id = cctv[0]
+
+    # event 테이블 저장
+    db.execute(
+        text("""
+            INSERT INTO event
+            (
+                company_id,
+                category_id,
+                cctv_id,
+                date,
+                image_url,
+                is_deleted
+            )
+            VALUES
+            (
+                :company_id,
+                :category_id,
+                :cctv_id,
+                NOW(),
+                :image_url,
+                0
+            )
+        """),
+        {
+            "company_id": company_id,
+            "category_id": category_id,
+            "cctv_id": cctv_id,
+            "image_url": image_url,
+        },
+    )
+
+    db.commit()
+
+    return {
+        "message": "이벤트 저장 완료"
     }

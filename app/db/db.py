@@ -14,12 +14,22 @@ if not DATABASE_URL:
         print("[DB] NOTICE: DATABASE_URL not set in .env, falling back to local SQLite: sqlite:///./app.db")
 
 # app/db/db.py
+connect_args = {}
+# MySQL일 경우에만 SSL 인증서 적용
+if DATABASE_URL and DATABASE_URL.startswith("mysql"):
+    # 프로젝트 최상단(root)의 ca.pem을 가리키도록 수정
+    ca_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "ca.pem"))
+    if os.path.exists(ca_path):
+        connect_args["ssl"] = {"ca": ca_path}
+    else:
+        print(f"[DB] WARNING: CA 인증서 파일을 찾을 수 없습니다: {ca_path}")
+
 engine = create_engine(
     DATABASE_URL,
     pool_size=5,
     max_overflow=2,
     pool_recycle=1800,
-    connect_args={"ssl": {"ca": "ca.pem"}}, # ca.pem SSL 인증서 지정
+    connect_args=connect_args,
     echo=True
 )
 
