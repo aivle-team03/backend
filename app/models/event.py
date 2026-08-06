@@ -29,5 +29,6 @@ class Event(Base):
     category = relationship("EventCategory", back_populates="events")
     cctv = relationship("CCTV", back_populates="events")
     checklists = relationship("Checklist", back_populates="event")
+    action_histories = relationship("ActionHistory", back_populates="event")
     report_maps = relationship("ReportEventMap", back_populates="event")
     company = relationship("Company")

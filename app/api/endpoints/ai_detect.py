@@ -61,6 +61,7 @@ def post_ai_event(
 
     return {
         "message": "이벤트 저장 완료",
+        "event_id": result["event_id"],
         "cctv_id": event.cctv_id,
         "category_id": event.category_id,
     }

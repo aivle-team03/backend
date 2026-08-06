@@ -205,7 +205,7 @@ class ActionHistory(Base):
 
     company = relationship("Company")
     board = relationship("Board")
-    event = relationship("Event")
+    event = relationship("Event", back_populates="action_histories")
     inspection_history = relationship("InspectionHistory")
     category = relationship("EventCategory")
     handler = relationship("User", foreign_keys=[handler_uid])
