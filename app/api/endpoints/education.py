@@ -19,7 +19,6 @@ from app.crud.education import (
     get_user_education_statuses,
     get_user_education_summary_counts, # 유저용 교육 요약 건수
     get_user_completion_rates, # 유저용 교육 이수 현황 백분율 조회
-    create_ai_generated_education, # 관리자용 AI 교육 자료 생성
     get_category_completion_stats, # 관리자용 카테고리별 이수 현황 그래프 통계 조회
     get_admin_education_dashboard,
 )
@@ -37,15 +36,8 @@ from app.schemas.education import (
     UserCompletionRatesResponse, # 유저용 교육 이수 현황 백분율 응답모델
     AdminCategoryCompletionResponse, # 관리자용 교육 이수 현황 그래프 통계 응답모델
     AdminEducationDashboardResponse,
-    AIEducationGenerateRequest, # 관리자용 AI 교육 자료 생성 요청모델
-    AIEducationGenerateResponse, # 관리자용 AI 교육 자료 생성 응답모델
 )
 from app.schemas.ai_video import VideoGenerateResponse, VideoStatusResponse
-from app.services.video_service import (
-    create_task_record,
-    get_task_status,
-    process_video_pipeline_task
-)
 from app.services.veo_service import (
     create_veo_task_record,
     get_veo_task_status,
@@ -281,93 +273,7 @@ def read_user_education(
     )
 
 
-@admin_education_router.post(
-    "/ai-generate",
-    response_model=AIEducationGenerateResponse,
-    summary="[관리자] AI 교육 자료 생성",
-)
-def post_ai_generate_education(
-    req: AIEducationGenerateRequest,    
-    current_admin: User = Depends(get_current_admin),
-    db: Session = Depends(get_db),
-):
-    """관리자 페이지 우측 하단 'AI 교육 자료 생성' (작업 유형, 사용 장비, 위험 요인 입력 후 생성)"""
-    return create_ai_generated_education(
-        db,
-        company_id=current_admin.company_id,
-        work_type=req.work_type,
-        equipment=req.equipment,
-        risk_factor=req.risk_factor
-    )
-
 UPLOAD_DIR = "static/uploads"
-
-@education_router.post("/ai-generate", response_model=VideoGenerateResponse, status_code=status.HTTP_202_ACCEPTED)
-async def post_generate_video(
-    file: Optional[UploadFile] = File(None),
-    text_content: Optional[str] = Form(None),
-    title: Optional[str] = Form(None),
-    category: Optional[str] = Form("공통"),
-    type: Optional[str] = Form("필수"),
-    request: Optional[str] = Form(None),
-    current_admin: User = Depends(
-        get_current_admin
-    ),
-):
-    """
-    관리자: 교육 문서(PDF/PPTX/TXT) 또는 텍스트 입력으로 AI 영상 자동 제작 비동기 요청 API (Education DB 자동 적재)
-    """
-    if not file and not text_content:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="문서 파일(file) 또는 텍스트 내용(text_content) 중 하나는 필수입니다."
-        )
-
-    task_id = create_task_record()
-    os.makedirs(UPLOAD_DIR, exist_ok=True)
-
-    raw_content = None
-    if file:
-        file_path = os.path.join(UPLOAD_DIR, f"{task_id}_{file.filename}")
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-    else:
-        file_path = os.path.join(UPLOAD_DIR, f"{task_id}_text.txt")
-        raw_content = text_content.encode("utf-8")
-        with open(file_path, "wb") as buffer:
-            buffer.write(raw_content)
-
-    # Celery 워커 큐로 비동기 전송
-    process_video_pipeline_task.delay(
-        task_id=task_id,
-        file_path=file_path,
-        company_id=current_admin.company_id,
-        title=title,
-        category=category,
-        type=type,
-        request=request
-    )
-
-    return {
-        "task_id": task_id,
-        "status": "PENDING",
-        "message": "AI 교육 영상 생성 작업이 시작되었습니다. task_id로 진행 상태를 조회하세요."
-    }
-
-
-@education_router.get("/ai-generate/{task_id}/status", response_model=VideoStatusResponse)
-def read_video_status(task_id: str):
-    """
-    AI 교육 영상 제작 작업 처리 상태 및 생성 완료된 video_url / DB education_id 조회 API
-    """
-    status_info = get_task_status(task_id)
-    if not status_info:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="해당 작업(task_id)을 찾을 수 없습니다."
-        )
-    return status_info
-
 
 # ==========================================
 # 3. Google Veo AI 동영상 전용 API (Track 2)

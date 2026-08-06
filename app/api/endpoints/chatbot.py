@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter
 from typing import List, Optional
 
 from app.schemas.chatbot import (

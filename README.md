@@ -60,10 +60,8 @@
 ### 🎓 10. 안전 교육 관리 & AI 영상 제작 파이프라인 (`/api/education`, `/api/admin/education`)
 - **유저 수강 관리**: 개인별 마감/진행/완료 교육 요약, 교육 목록 조회, 필수/정기 교육 이수율(%) 연산 및 80% 이상 수강 시 완료 처리 (`/api/education/{id}/complete`)
 - **관리자 대시보드 및 수강 대상자 목록**: 관리자 교육 대시보드 요약 (`/api/admin/education/dashboard`), 카테고리별 이수 통계 (`/api/admin/education/category-stats`), 교육별 수강 대상자 목록 조회 (`/api/admin/education/{id}/attendees`)
-- **AI 교육 콘텐츠 생성**: 작업 유형, 사용 장비, 위험 요인 기반 AI 교육 자료 자동 생성
-- **AI 교육 영상 제작 파이프라인 (Celery 비동기 워커)**: 문서(PDF/PPTX/TXT) 또는 텍스트 입력을 받아 영상을 자동 제작합니다. 요청 즉시 `task_id`를 반환하고(`202 Accepted`), 작업은 **Celery 워커**가 처리하며 진행 상태는 **Redis**에 저장되어 `status` API로 폴링합니다.
-  - **Track 1 — 이미지 합성 방식** (`/api/education/ai-generate`): 장면별 이미지 생성 + TTS 음성 합성 후 FFmpeg 병합
-  - **Track 2 — Google Veo 방식** (`/api/education/veo-generate`): 문서 분석 ➡️ 학습 목표 추출 ➡️ 스토리보드 생성 ➡️ **Vertex AI Veo 8초 클립 병렬 생성**(최대 4개 동시) ➡️ FFmpeg 병합 ➡️ **AI 품질 검수**(대본-음성 일치도 및 화면 텍스트 검사) ➡️ Cloudinary 업로드 및 `Education` 테이블 영속화
+- **AI 교육 영상 제작 파이프라인 (Celery 비동기 워커)**: 문서(PDF/PPTX/TXT) 또는 텍스트 입력을 받아 영상을 자동 제작합니다 (`/api/education/veo-generate`). 요청 즉시 `task_id`를 반환하고(`202 Accepted`), 작업은 **Celery 워커**가 처리하며 진행 상태는 **Redis**에 저장되어 `status` API로 폴링합니다.
+  - 문서 분석 ➡️ 학습 목표 추출 ➡️ 스토리보드 생성 ➡️ **Vertex AI Veo 8초 클립 병렬 생성**(최대 4개 동시) ➡️ FFmpeg 병합 ➡️ **AI 품질 검수**(대본-음성 일치도 및 화면 텍스트 검사) ➡️ Cloudinary 업로드 및 `Education` 테이블 영속화
 
 ### 📌 11. 공지사항 & 안전 게시판 (`/api/boards`)
 - 사내 공지 및 안전 제보/커뮤니티 게시판 CRUD
@@ -344,11 +342,8 @@ GET  /api/education/veo-generate/{task_id}/status
 | | `GET` | `/api/admin/education/status` | 관리자 대상자별 교육 리스트/이수 요약 |
 | | `GET` | `/api/admin/education/{id}/attendees` | 특정 교육 수강 대상자 목록 조회 |
 | | `GET` | `/api/admin/education/{uid}` | 관리자 특정 유저 교육 상세 조회 |
-| | `POST` | `/api/admin/education/ai-generate` | 관리자 AI 교육 자료 자동 생성 |
-| | `POST` | `/api/education/ai-generate` | [Track 1] 이미지 합성 방식 AI 영상 생성 비동기 요청 |
-| | `GET` | `/api/education/ai-generate/{task_id}/status` | [Track 1] 영상 생성 작업 진행 상태 조회 |
-| | `POST` | `/api/education/veo-generate` | [Track 2] Google Veo 방식 AI 영상 생성 비동기 요청 |
-| | `GET` | `/api/education/veo-generate/{task_id}/status` | [Track 2] Veo 영상 생성 진행 상태 및 품질 검수 결과 조회 |
+| | `POST` | `/api/education/veo-generate` | Google Veo AI 영상 생성 비동기 요청 |
+| | `GET` | `/api/education/veo-generate/{task_id}/status` | Veo 영상 생성 진행 상태 및 품질 검수 결과 조회 |
 | **Board** | `POST` | `/api/boards` | 게시글 등록 (사진 파일 첨부) |
 | | `GET` | `/api/boards` | 게시글 목록 조회 (검색/필터ing) |
 | | `GET` | `/api/boards/{id}` | 게시글 상세 조회 |

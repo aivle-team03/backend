@@ -364,44 +364,6 @@ def update_education_progress(
     return status_row
 
 
-# 4. AI 교육 자료 자동 생성 로직
-def create_ai_generated_education(
-    db: Session,
-    company_id: int,
-    work_type: str,
-    equipment: str,
-    risk_factor: str
-) -> Dict:
-    title = f"[{work_type}] {equipment} 사용 시 {risk_factor} 사고 예방 안전수칙"
-    summary = f"{work_type} 작업 중 {equipment} 조종 시 발생하기 쉬운 {risk_factor} 사고 방지를 위한 필수 안전 가이드입니다."
-    guidelines = [
-        f"작업 전 {equipment} 기계 장비의 안전점검 및 보호구 착용 확인",
-        f"{work_type} 작업 주변 안전구역 확보 및 서행 운행",
-        f"{risk_factor} 위험요소 사전 제거 및 2인 1조 작업 수행"
-    ]
-
-    new_edu = Education(
-        company_id=company_id,
-        title=title,
-        video_url="/static/videos/ai_safety_sample.mp4",
-        category=work_type,
-        type="필수",
-        is_deleted=False,
-    )
-    db.add(new_edu)
-    db.commit()
-    db.refresh(new_edu)
-
-    return {
-        "education_id": new_edu.education_id,
-        "company_id": new_edu.company_id,
-        "title": title,
-        "summary": summary,
-        "safety_guideline": guidelines,
-        "generated_video_url": new_edu.video_url
-    }
-
-
 # 5. 관리자용 카테고리별 이수 현황 통계 조회
 def get_category_completion_stats(db: Session, company_id: int) -> Dict:
     educations = (

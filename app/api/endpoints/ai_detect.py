@@ -1,5 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
-from typing import List
+from fastapi import APIRouter, UploadFile, File
 
 from app.schemas.ai_detect import (
     FacilityDetectionResponse,

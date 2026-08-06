@@ -7,7 +7,7 @@ celery_app = Celery(
     "worker",
     broker=REDIS_URL,
     backend=REDIS_URL,
-    include=['app.services.video_service', 'app.services.veo_service']
+    include=['app.services.veo_service']
 )
 
 celery_app.conf.update(
