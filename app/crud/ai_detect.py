@@ -55,7 +55,7 @@ def create_ai_event(
     # CCTV의 company_id 조회
     cctv = db.execute(
         text("""
-            SELECT company_id, cctv_name, location
+            SELECT company_id, location
             FROM cctv
             WHERE cctv_id = :cctv_id
               AND is_deleted = 0
@@ -66,7 +66,7 @@ def create_ai_event(
     if cctv is None:
         return None
 
-    company_id, cctv_name, location = cctv
+    company_id, location = cctv
     category_name = db.execute(
         text("SELECT category_name FROM event_category WHERE category_id = :category_id"),
         {"category_id": category_id},
@@ -136,23 +136,18 @@ def create_ai_event(
             },
         )
         event_id = result.lastrowid
-    if category_name == "화재 감지":
-        action_name = "CCTV 화재 감지"
-        action_content = "CCTV에서 AI 모델이 화재를 감지했습니다. 현장 확인 바랍니다."
-    else:
-        action_name = f"CCTV {category_name}"
-        action_content = f"CCTV에서 AI 모델이 {category_name} 위험을 감지했습니다. 현장 확인 바랍니다."
-
     db.add(ActionHistory(
         company_id=company_id,
         event_id=event_id,
         category_id=category_id,
         handler_uid=None,
         handler_name=None,
-        action_name=action_name,
+        # 조치명은 이벤트 카테고리 자체를 사용한다. AI 감지 문구를 여기서
+        # 하드코딩하지 않고, 상세 내용은 담당자가 조치 과정에서 작성한다.
+        action_name=category_name,
         type=SourceType.EVENT.value,
         location=location,
-        content=action_content,
+        content="",
         image_url=image_url,
         action_status=ActionStatus.WAITING.value,
         approval_status=None,
