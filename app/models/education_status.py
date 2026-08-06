@@ -15,6 +15,7 @@ class EducationStatus(Base):
     uid = Column(
         BigInteger,
         ForeignKey('user.uid', ondelete='CASCADE'),
+        primary_key=True,
         nullable=True,
     )
     user_name = Column(String(100), nullable=True)
