@@ -3,7 +3,8 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status, UploadFile, File, Form
 from sqlalchemy.orm import Session
 import os
-import shutil
+
+import httpx
 
 from app.crud.auth import get_current_admin, get_current_user
 from app.crud.education import get_education_attendees
@@ -19,9 +20,9 @@ from app.crud.education import (
     get_user_education_statuses,
     get_user_education_summary_counts, # 유저용 교육 요약 건수
     get_user_completion_rates, # 유저용 교육 이수 현황 백분율 조회
-    create_ai_generated_education, # 관리자용 AI 교육 자료 생성
     get_category_completion_stats, # 관리자용 카테고리별 이수 현황 그래프 통계 조회
     get_admin_education_dashboard,
+    save_generated_education, # 영상 생성 서비스 결과의 Education 영속화
 )
 from app.db.db import get_db
 from app.models import User
@@ -37,20 +38,8 @@ from app.schemas.education import (
     UserCompletionRatesResponse, # 유저용 교육 이수 현황 백분율 응답모델
     AdminCategoryCompletionResponse, # 관리자용 교육 이수 현황 그래프 통계 응답모델
     AdminEducationDashboardResponse,
-    AIEducationGenerateRequest, # 관리자용 AI 교육 자료 생성 요청모델
-    AIEducationGenerateResponse, # 관리자용 AI 교육 자료 생성 응답모델
 )
 from app.schemas.ai_video import VideoGenerateResponse, VideoStatusResponse
-from app.services.video_service import (
-    create_task_record,
-    get_task_status,
-    process_video_pipeline_task
-)
-from app.services.veo_service import (
-    create_veo_task_record,
-    get_veo_task_status,
-    process_veo_pipeline_task
-)
 
 education_router = APIRouter()
 admin_education_router = APIRouter()
@@ -281,97 +270,14 @@ def read_user_education(
     )
 
 
-@admin_education_router.post(
-    "/ai-generate",
-    response_model=AIEducationGenerateResponse,
-    summary="[관리자] AI 교육 자료 생성",
-)
-def post_ai_generate_education(
-    req: AIEducationGenerateRequest,    
-    current_admin: User = Depends(get_current_admin),
-    db: Session = Depends(get_db),
-):
-    """관리자 페이지 우측 하단 'AI 교육 자료 생성' (작업 유형, 사용 장비, 위험 요인 입력 후 생성)"""
-    return create_ai_generated_education(
-        db,
-        company_id=current_admin.company_id,
-        work_type=req.work_type,
-        equipment=req.equipment,
-        risk_factor=req.risk_factor
-    )
-
-UPLOAD_DIR = "static/uploads"
-
-@education_router.post("/ai-generate", response_model=VideoGenerateResponse, status_code=status.HTTP_202_ACCEPTED)
-async def post_generate_video(
-    file: Optional[UploadFile] = File(None),
-    text_content: Optional[str] = Form(None),
-    title: Optional[str] = Form(None),
-    category: Optional[str] = Form("공통"),
-    type: Optional[str] = Form("필수"),
-    request: Optional[str] = Form(None),
-    current_admin: User = Depends(
-        get_current_admin
-    ),
-):
-    """
-    관리자: 교육 문서(PDF/PPTX/TXT) 또는 텍스트 입력으로 AI 영상 자동 제작 비동기 요청 API (Education DB 자동 적재)
-    """
-    if not file and not text_content:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="문서 파일(file) 또는 텍스트 내용(text_content) 중 하나는 필수입니다."
-        )
-
-    task_id = create_task_record()
-    os.makedirs(UPLOAD_DIR, exist_ok=True)
-
-    raw_content = None
-    if file:
-        file_path = os.path.join(UPLOAD_DIR, f"{task_id}_{file.filename}")
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-    else:
-        file_path = os.path.join(UPLOAD_DIR, f"{task_id}_text.txt")
-        raw_content = text_content.encode("utf-8")
-        with open(file_path, "wb") as buffer:
-            buffer.write(raw_content)
-
-    # Celery 워커 큐로 비동기 전송
-    process_video_pipeline_task.delay(
-        task_id=task_id,
-        file_path=file_path,
-        company_id=current_admin.company_id,
-        title=title,
-        category=category,
-        type=type,
-        request=request
-    )
-
-    return {
-        "task_id": task_id,
-        "status": "PENDING",
-        "message": "AI 교육 영상 생성 작업이 시작되었습니다. task_id로 진행 상태를 조회하세요."
-    }
-
-
-@education_router.get("/ai-generate/{task_id}/status", response_model=VideoStatusResponse)
-def read_video_status(task_id: str):
-    """
-    AI 교육 영상 제작 작업 처리 상태 및 생성 완료된 video_url / DB education_id 조회 API
-    """
-    status_info = get_task_status(task_id)
-    if not status_info:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="해당 작업(task_id)을 찾을 수 없습니다."
-        )
-    return status_info
-
-
 # ==========================================
 # 3. Google Veo AI 동영상 전용 API (Track 2)
 # ==========================================
+# 영상 생성은 별도 서비스(aivle-team03/AI 의 videoagent)가 담당한다.
+# 백엔드는 인증과 company_id 판별, 결과의 DB 영속화만 맡는다.
+
+VIDEO_AGENT_URL = os.getenv("VIDEO_AGENT_URL", "http://127.0.0.1:8100").rstrip("/")
+
 
 @education_router.post("/veo-generate", response_model=VideoGenerateResponse, status_code=status.HTTP_202_ACCEPTED)
 async def post_generate_veo_video(
@@ -384,8 +290,9 @@ async def post_generate_veo_video(
     current_admin: User = Depends(get_current_admin)
 ):
     """
-    [Track 2] Google Veo AI (Vertex AI Veo) 동영상 생성 비동기 API (Education DB 자동 영속화)
-    - 업로드된 문서(PDF/TXT) 글자 수 및 세부 정보에 따라 24초~80초 재생 영상이 100% 동적으로 자동 생성됩니다.
+    [Track 2] Google Veo AI 동영상 생성 비동기 요청 API
+    - 업로드된 문서(PDF/PPTX/TXT) 또는 텍스트를 영상 생성 서비스로 전달하고 task_id를 반환한다.
+    - company_id는 클라이언트 입력이 아니라 인증된 관리자 계정에서 가져온다.
     """
     if not file and not text_content:
         raise HTTPException(
@@ -393,46 +300,88 @@ async def post_generate_veo_video(
             detail="문서 파일(file) 또는 텍스트 내용(text_content) 중 하나는 필수입니다."
         )
 
-    task_id = create_veo_task_record()
-    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    form = {"company_id": str(current_admin.company_id)}
+    for key, value in (
+        ("title", title),
+        ("category", category),
+        ("type", type),
+        ("request", request),
+        ("text_content", text_content),
+    ):
+        if value is not None:
+            form[key] = value
 
-    raw_content = None
+    files = None
     if file:
-        file_path = os.path.join(UPLOAD_DIR, f"{task_id}_{file.filename}")
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-    else:
-        file_path = os.path.join(UPLOAD_DIR, f"{task_id}_text.txt")
-        raw_content = text_content.encode("utf-8")
-        with open(file_path, "wb") as buffer:
-            buffer.write(raw_content)
+        # 파이프라인이 다른 서비스에 있으므로 백엔드는 파일을 디스크에 남기지 않고 그대로 넘긴다.
+        files = {"file": (file.filename, await file.read(), file.content_type)}
 
-    process_veo_pipeline_task.delay(
-        task_id=task_id,
-        file_path=file_path,
-        company_id=current_admin.company_id,
-        title=title,
-        category=category,
-        type=type,
-        request=request
-    )
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post(f"{VIDEO_AGENT_URL}/video/generate", data=form, files=files)
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"영상 생성 서비스에 연결할 수 없습니다: {e}"
+        )
 
-    return {
-        "task_id": task_id,
-        "status": "PENDING",
-        "message": "Google Veo 동영상 생성 작업이 시작되었습니다. /api/education/veo-generate/{task_id}/status 로 진행 상태를 조회하세요."
-    }
+    if resp.status_code != status.HTTP_202_ACCEPTED:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"영상 생성 서비스가 요청을 거부했습니다 (status={resp.status_code})."
+        )
+
+    return resp.json()
 
 
 @education_router.get("/veo-generate/{task_id}/status", response_model=VideoStatusResponse)
-def read_veo_video_status(task_id: str):
+async def read_veo_video_status(
+    task_id: str,
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
     """
-    Google Veo 동영상 제작 작업 처리 상태 및 생성 완료된 video_url / DB education_id 조회 API
+    Google Veo 동영상 제작 작업 처리 상태 조회 API
+    - 완료된 작업은 이 시점에 Education 테이블로 영속화된다(최초 1회).
     """
-    status_info = get_veo_task_status(task_id)
-    if not status_info:
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.get(f"{VIDEO_AGENT_URL}/video/generate/{task_id}/status")
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"영상 생성 서비스에 연결할 수 없습니다: {e}"
+        )
+
+    if resp.status_code == status.HTTP_404_NOT_FOUND:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="해당 Veo 작업(task_id)을 찾을 수 없습니다."
         )
+    if resp.status_code != status.HTTP_200_OK:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"영상 생성 서비스 조회에 실패했습니다 (status={resp.status_code})."
+        )
+
+    status_info = resp.json()
+
+    # 다른 회사의 task_id로 조회하는 것을 막는다. 존재 여부까지 숨기기 위해 403이 아니라 404를 쓴다.
+    owner_company_id = status_info.get("company_id")
+    if owner_company_id is not None and int(owner_company_id) != current_admin.company_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 Veo 작업(task_id)을 찾을 수 없습니다."
+        )
+
+    if status_info.get("status") == "COMPLETED" and status_info.get("video_url"):
+        education = save_generated_education(
+            db,
+            company_id=current_admin.company_id,
+            video_url=status_info["video_url"],
+            title=status_info.get("title"),
+            category=status_info.get("category"),
+            type=status_info.get("type"),
+        )
+        status_info["education_id"] = education.education_id
     return status_info

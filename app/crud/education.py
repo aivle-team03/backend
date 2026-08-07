@@ -364,42 +364,44 @@ def update_education_progress(
     return status_row
 
 
-# 4. AI 교육 자료 자동 생성 로직
-def create_ai_generated_education(
+def save_generated_education(
     db: Session,
     company_id: int,
-    work_type: str,
-    equipment: str,
-    risk_factor: str
-) -> Dict:
-    title = f"[{work_type}] {equipment} 사용 시 {risk_factor} 사고 예방 안전수칙"
-    summary = f"{work_type} 작업 중 {equipment} 조종 시 발생하기 쉬운 {risk_factor} 사고 방지를 위한 필수 안전 가이드입니다."
-    guidelines = [
-        f"작업 전 {equipment} 기계 장비의 안전점검 및 보호구 착용 확인",
-        f"{work_type} 작업 주변 안전구역 확보 및 서행 운행",
-        f"{risk_factor} 위험요소 사전 제거 및 2인 1조 작업 수행"
-    ]
+    video_url: str,
+    title: Optional[str] = None,
+    category: Optional[str] = None,
+    type: Optional[str] = None,
+) -> Education:
+    """영상 생성 서비스가 완료한 결과를 Education 테이블에 적재한다.
+
+    프론트가 상태를 5초마다 폴링하므로 완료 후에도 같은 요청이 여러 번 들어온다.
+    video_url은 task_id 기반이라 작업당 유일하므로, 이를 기준으로 기존 레코드를 먼저 찾아
+    중복 적재를 막는다.
+    """
+    existing = (
+        db.query(Education)
+        .filter(
+            Education.company_id == company_id,
+            Education.video_url == video_url,
+            Education.is_deleted == False,
+        )
+        .first()
+    )
+    if existing:
+        return existing
 
     new_edu = Education(
         company_id=company_id,
-        title=title,
-        video_url="/static/videos/ai_safety_sample.mp4",
-        category=work_type,
-        type="필수",
+        title=title or "Veo AI 현장 안전 교육",
+        video_url=video_url,
+        category=category or "공통",
+        type=type or "필수",
         is_deleted=False,
     )
     db.add(new_edu)
     db.commit()
     db.refresh(new_edu)
-
-    return {
-        "education_id": new_edu.education_id,
-        "company_id": new_edu.company_id,
-        "title": title,
-        "summary": summary,
-        "safety_guideline": guidelines,
-        "generated_video_url": new_edu.video_url
-    }
+    return new_edu
 
 
 # 5. 관리자용 카테고리별 이수 현황 통계 조회
