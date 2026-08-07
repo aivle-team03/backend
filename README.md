@@ -60,7 +60,10 @@
 ### 🎓 10. 안전 교육 관리 & AI 영상 제작 파이프라인 (`/api/education`, `/api/admin/education`)
 - **유저 수강 관리**: 개인별 마감/진행/완료 교육 요약, 교육 목록 조회, 필수/정기 교육 이수율(%) 연산 및 80% 이상 수강 시 완료 처리 (`/api/education/{id}/complete`)
 - **관리자 대시보드 및 수강 대상자 목록**: 관리자 교육 대시보드 요약 (`/api/admin/education/dashboard`), 카테고리별 이수 통계 (`/api/admin/education/category-stats`), 교육별 수강 대상자 목록 조회 (`/api/admin/education/{id}/attendees`)
-- **AI 교육 콘텐츠 및 영상 생성**: 작업 유형, 사용 장비, 위험 요인 기반 AI 교육 자료 자동 생성 및 문서(PDF/PPTX/TXT)/텍스트 입력을 기반으로 한 비동기 AI 교육 영상 자동 제작 파이프라인 (`BackgroundTasks` 연동)
+- **AI 교육 콘텐츠 생성**: 작업 유형, 사용 장비, 위험 요인 기반 AI 교육 자료 자동 생성
+- **AI 교육 영상 제작 파이프라인 (Celery 비동기 워커)**: 문서(PDF/PPTX/TXT) 또는 텍스트 입력을 받아 영상을 자동 제작합니다. 요청 즉시 `task_id`를 반환하고(`202 Accepted`), 작업은 **Celery 워커**가 처리하며 진행 상태는 **Redis**에 저장되어 `status` API로 폴링합니다.
+  - **Track 1 — 이미지 합성 방식** (`/api/education/ai-generate`): 장면별 이미지 생성 + TTS 음성 합성 후 FFmpeg 병합
+  - **Track 2 — Google Veo 방식** (`/api/education/veo-generate`): 문서 분석 ➡️ 학습 목표 추출 ➡️ 스토리보드 생성 ➡️ **Vertex AI Veo 8초 클립 병렬 생성**(최대 4개 동시) ➡️ FFmpeg 병합 ➡️ **AI 품질 검수**(대본-음성 일치도 및 화면 텍스트 검사) ➡️ Cloudinary 업로드 및 `Education` 테이블 영속화
 
 ### 📌 11. 공지사항 & 안전 게시판 (`/api/boards`)
 - 사내 공지 및 안전 제보/커뮤니티 게시판 CRUD
@@ -79,8 +82,8 @@
 
 ### ⚙️ 14. 글로벌 예외 처리 & 파일 로깅 & CORS
 - 서버 전역 예외(`HTTPException`, `RequestValidationError`, `Exception`)를 통일된 JSON 구조로 가공하여 전달
-- `RotatingFileHandler` 기반 `logs/app.log` 로그 자동 적재 및 관리 (5MB 백업 파일 회전)
-- 프론트엔드 연동을 위한 전역 **CORS 미들웨어** 탑재 및 정적 파일 서빙 (`/static/uploads`)
+- `RotatingFileHandler` 기반 `logs/app.log` 로그 자동 적재 및 관리 (5MB, 백업 파일 최대 5개 회전)
+- 프론트엔드 연동을 위한 전역 **CORS 미들웨어** 탑재 및 정적 파일 서빙 (`/static`)
 
 ---
 
@@ -88,14 +91,19 @@
 
 | 구분 | 기술 / 라이브러리 |
 | :--- | :--- |
-| **Language** | Python 3.10+ |
+| **Language** | Python 3.14 (개발 환경 기준) |
 | **Framework** | FastAPI |
 | **Database & ORM** | MySQL, SQLAlchemy, PyMySQL |
-| **Auth & Security** | PyJWT / python-jose, Passlib (Bcrypt), Python-Multipart |
+| **Auth & Security** | python-jose (JWT), Passlib (Bcrypt), Python-Multipart |
 | **Validation & Serialization** | Pydantic v2 |
-| **Scheduler & Tasks** | APScheduler (BackgroundScheduler), FastAPI BackgroundTasks |
+| **Async Task Queue** | Celery (워커), Redis (메시지 브로커 겸 작업 상태 저장소, TTL 24시간) |
+| **Scheduler** | APScheduler (BackgroundScheduler) |
+| **AI / LLM** | Google Gemini (문서 분석, 스토리보드 생성, 오디오/시각 품질 검수), Google Vertex AI **Veo** (동영상 생성) |
+| **Media & Storage** | FFmpeg (클립 병합/인코딩), Cloudinary (동영상 호스팅), boto3 (AWS S3) |
+| **Resilience** | Tenacity (중복 과금 방지 재시도 제어) |
 | **Server Engine** | Uvicorn, WatchFiles |
-| **File Processing & PDF** | Python Standard File I/O, ReportLab (PDF Generation) |
+| **File Processing & PDF** | ReportLab (PDF Generation) |
+| **Container** | Docker, Docker Compose |
 
 ---
 
@@ -107,16 +115,36 @@ backend/
 │   ├── api/
 │   │   ├── endpoints/        # API 라우터 컨트롤러 (auth, user, cctv, monitoring, checklist, inspection, action_history, risk, report, dashboard, education, board, chatbot, ai_detect)
 │   │   └── routers.py        # 통합 API 라우터 매핑
-│   ├── core/                 # 암호화(crypt), 전역 예외/로깅(exceptions)
+│   ├── core/                 # 암호화(crypt), 전역 예외/로깅(exceptions), Celery 앱 설정(celery_app)
 │   ├── crud/                 # DB 비즈니스 로직 / CRUD 모듈 (inspection, action_history, education 등)
+│   │   └── video_task.py     # Redis 기반 영상 생성 작업 상태 저장/조회
 │   ├── db/                   # DB 연결 세션 및 Base 선언 (db.py)
 │   ├── models/               # SQLAlchemy ORM 모델 (User, CCTV, Event, Checklist, Inspection, ActionHistory, Report, Board, Education 등)
 │   ├── schemas/              # Pydantic DTO 데이터 스키마
-│   ├── services/             # 비동기 AI 영상 생성 서비스 파이프라인 (video_service.py 등)
+│   ├── services/
+│   │   ├── ai/
+│   │   │   ├── veo/          # Veo 전용 모듈 (client: API 호출·재시도, pipelines: 클립 병렬 렌더링,
+│   │   │   │                 #   prompt_builder: 스토리보드 프롬프트, video_editor: FFmpeg 병합, constants)
+│   │   │   ├── education_video_pipeline.py  # 문서 분석 → 학습목표 → 스토리보드 → AI 품질 검수
+│   │   │   ├── parser.py                    # PDF/PPTX/TXT 원문 추출
+│   │   │   ├── script_generator.py          # 장면 대본 생성 (Track 1)
+│   │   │   ├── image_generator.py           # 장면 이미지 생성 (Track 1)
+│   │   │   ├── tts_generator.py             # 음성 합성 (Track 1)
+│   │   │   └── video_composer.py            # 이미지+음성 영상 합성 (Track 1)
+│   │   ├── veo_service.py    # Track 2 Veo 파이프라인 Celery 태스크
+│   │   ├── video_service.py  # Track 1 이미지 합성 파이프라인 Celery 태스크
+│   ├── utils/                # Cloudinary, S3, 날짜(KST), 인증 유틸
 │   └── main.py               # FastAPI 애플리케이션 엔트리포인트 (APScheduler 탑재)
 ├── logs/                     # 서버 런타임 회전 파일 로그 (app.log)
-├── static/uploads/           # 현장 조치 및 게시판 업로드 이미지/파일 서빙 디렉토리
+├── static/
+│   ├── uploads/              # 현장 조치 및 게시판 업로드 이미지 서빙 디렉토리
+│   ├── videos/               # 생성 완료 영상 (Cloudinary 업로드 실패 시 폴백 서빙)
+│   └── temp/                 # 영상 제작 중간 산출물 (작업 완료 시 자동 삭제)
+├── tests/                    # 테스트 코드
 ├── seed.py                   # DB 자동 시딩 스크립트 (더미 데이터 일괄 적재)
+├── Dockerfile                # 애플리케이션 컨테이너 이미지
+├── docker-compose.yml        # web + celery_worker + redis 통합 기동
+├── CLAUDE.md                 # AI 코딩 어시스턴트 작업 가이드라인
 ├── .env                      # 환경 변수 설정
 ├── requirements.txt          # 파이썬 의존성 패키지
 └── README.md
@@ -147,11 +175,40 @@ pip install -r requirements.txt
 프로젝트 루트에 `.env` 파일을 생성하고 데이터베이스 및 보안 정보를 설정합니다.
 
 ```env
+# --- 필수: DB & 인증 ---
 DATABASE_URL="mysql+pymysql://<DB_USER>:<DB_PASSWORD>@<DB_HOST>:3306/<DB_NAME>"
 SECRET_KEY="your-secret-key"
 ALGORITHM="HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES=30
+REFRESH_TOKEN_EXPIRE_DAYS=7
+
+# --- 필수: 비동기 작업 (Celery / Redis) ---
+REDIS_URL="redis://localhost:6379/0"     # Docker 사용 시 redis://redis:6379/0
+
+# --- AI 영상 생성 ---
+GEMINI_API_KEY=""                        # 또는 GOOGLE_API_KEY
+GCP_PROJECT_ID=""                        # Vertex AI Veo 프로젝트
+GCP_LOCATION="us-central1"
+GOOGLE_APPLICATION_CREDENTIALS="./service-account.json"
+VEO_MODEL_NAME="veo-3.1-lite-generate-001"
+
+# --- 미디어 스토리지 ---
+CLOUDINARY_URL="cloudinary://<API_KEY>:<API_SECRET>@<CLOUD_NAME>"
+# 개별 지정도 가능 (CLOUDINARY_URL 미설정 시)
+CLOUDINARY_CLOUD_NAME=""
+CLOUDINARY_API_KEY=""
+CLOUDINARY_API_SECRET=""
+
+# --- 선택 ---
+ENV="development"                        # "production" 이면 DATABASE_URL / SECRET_KEY 미설정 시 기동 거부
+AWS_ACCESS_KEY_ID=""
+AWS_SECRET_ACCESS_KEY=""
+AWS_REGION=""
+POLLINATIONS_API_KEY=""
+BACKEND_URL=""
 ```
+
+> `ENV`를 `production`으로 설정하면 `DATABASE_URL`과 `SECRET_KEY`가 없을 때 예외를 던지며 기동을 거부합니다. 미설정 시에는 각각 로컬 SQLite와 개발용 기본 키로 폴백하므로, **운영 배포 시 `ENV=production` 지정을 권장합니다.**
 
 ### 3. 데이터베이스 초기 시딩 (Optional)
 
@@ -163,13 +220,52 @@ python seed.py
 
 ### 4. 서버 기동
 
+AI 영상 생성은 Celery 워커가 처리하므로 **Redis, API 서버, Celery 워커 3개가 모두 떠 있어야** 합니다.
+
+#### 방법 A. Docker Compose (권장)
+
+3개 서비스를 한 번에 기동합니다.
+
+```bash
+docker compose up --build
+```
+
+#### 방법 B. 로컬 직접 기동
+
+Redis를 먼저 띄운 뒤, **터미널 2개**에서 API 서버와 워커를 각각 실행합니다.
+
+```bash
+docker run -d -p 6379:6379 redis:7-alpine
+```
+
 ```bash
 uvicorn app.main:app --reload
 ```
 
+```bash
+celery -A app.core.celery_app worker --loglevel=info --pool=solo
+```
+
+> Windows에서는 기본 prefork 풀이 동작하지 않으므로 `--pool=solo`가 필요합니다.
+> 워커를 띄우지 않으면 영상 생성 요청은 `202 Accepted`를 반환하지만 상태가 `PENDING`에서 진행되지 않습니다.
+
 - **API 서버 주소**: `http://127.0.0.1:8000`
 - **Swagger API 문서**: `http://127.0.0.1:8000/docs`
 - **ReDoc API 문서**: `http://127.0.0.1:8000/redoc`
+
+### 5. AI 영상 생성 사용 흐름
+
+```bash
+# 1) 생성 요청 → task_id 수신 (202 Accepted)
+POST /api/education/veo-generate   (multipart: file 또는 text_content)
+
+# 2) 진행 상태 폴링 (progress_percent 0 → 100)
+GET  /api/education/veo-generate/{task_id}/status
+
+# 3) 완료 시 video_url + education_id 반환, Education 테이블에 자동 적재
+```
+
+작업 상태는 Redis에 **24시간(TTL)** 보관되며, 이후에는 조회할 수 없습니다. 생성된 영상은 Cloudinary에 업로드되고 원본 업로드 문서는 작업 종료 시 삭제됩니다.
 
 ---
 
@@ -249,8 +345,10 @@ uvicorn app.main:app --reload
 | | `GET` | `/api/admin/education/{id}/attendees` | 특정 교육 수강 대상자 목록 조회 |
 | | `GET` | `/api/admin/education/{uid}` | 관리자 특정 유저 교육 상세 조회 |
 | | `POST` | `/api/admin/education/ai-generate` | 관리자 AI 교육 자료 자동 생성 |
-| | `POST` | `/api/education/ai-generate` | 문서/텍스트 기반 AI 교육 영상 생성 비동기 요청 |
-| | `GET` | `/api/education/ai-generate/{task_id}/status` | AI 교육 영상 생성 작업 진행 상태 조회 |
+| | `POST` | `/api/education/ai-generate` | [Track 1] 이미지 합성 방식 AI 영상 생성 비동기 요청 |
+| | `GET` | `/api/education/ai-generate/{task_id}/status` | [Track 1] 영상 생성 작업 진행 상태 조회 |
+| | `POST` | `/api/education/veo-generate` | [Track 2] Google Veo 방식 AI 영상 생성 비동기 요청 |
+| | `GET` | `/api/education/veo-generate/{task_id}/status` | [Track 2] Veo 영상 생성 진행 상태 및 품질 검수 결과 조회 |
 | **Board** | `POST` | `/api/boards` | 게시글 등록 (사진 파일 첨부) |
 | | `GET` | `/api/boards` | 게시글 목록 조회 (검색/필터ing) |
 | | `GET` | `/api/boards/{id}` | 게시글 상세 조회 |
