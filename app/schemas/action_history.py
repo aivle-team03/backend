@@ -119,6 +119,9 @@ class ActionHistoryListItem(BaseModel):
     approver_uid: Optional[int] = None
     approver_name: Optional[str] = None
     approval_date: Optional[datetime] = None
+    ai_verified: Optional[int] = None
+    ai_confidence: Optional[float] = None
+    ai_summary: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -136,6 +139,9 @@ class ActionHistoryDetailResponse(ActionHistoryListItem):
     inspection_history_id: Optional[int] = None
     content: str
     rejection_reason: Optional[str] = None
+    ai_verified: Optional[int] = None
+    ai_confidence: Optional[float] = None
+    ai_summary: Optional[str] = None
 
 
 class ActionHistorySummary(BaseModel):
@@ -173,3 +179,12 @@ class HandlerListResponse(BaseModel):
     size: int
     total_items: int
     total_pages: int
+
+class VerifyActionResponse(BaseModel):
+    is_resolved: bool
+    result_text: str
+    confidence: float
+    analysis_summary: str
+
+    class Config:
+        from_attributes = True

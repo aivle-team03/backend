@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, Form, HTTPException, status, UploadFile, File
 from typing import List
 from sqlalchemy.orm import Session
+from typing import Optional
 
 from app.db.db import get_db
 
@@ -21,6 +22,8 @@ from app.crud.ai_detect import (
 
 router = APIRouter()
 
+AI_SERVER_URL = "http://127.0.0.1:8001"
+
 @router.post("/detect/facilities", response_model=FacilityDetectionResponse)
 def post_detect_facilities(image: UploadFile = File(...)):
     """소방시설 탐지 API - 명세서 URL /api/ai/detect/facilities (요구사항 ADM-39-81-38)"""
@@ -35,11 +38,6 @@ def post_detect_hazards(image: UploadFile = File(...)):
 def post_detect_fire(image: UploadFile = File(...)):
     """화재 징후 탐지 API - 명세서 URL /api/ai/detect/fire (요구사항 ADM-39-83-40)"""
     return detect_fire_sim(image.filename)
-
-@router.post("/verify-action", response_model=VerifyActionResponse)
-def post_verify_action(before_img: UploadFile = File(...), after_img: UploadFile = File(...)):
-    """조치결과 재확인 API - 명세서 URL /api/ai/verify-action (요구사항 APP-18-56-54)"""
-    return verify_action_sim(before_img.filename, after_img.filename)
 
 @router.post("/events", status_code=status.HTTP_201_CREATED)
 def post_ai_event(
@@ -65,3 +63,18 @@ def post_ai_event(
         "cctv_id": event.cctv_id,
         "category_id": event.category_id,
     }
+    
+@router.post("/verify-action")
+async def post_verify_action(
+    after_img: UploadFile = File(...),
+    category_name: Optional[str] = Form("안전 위험 요인"),
+    action_history_id: Optional[int] = Form(None),
+    db: Session = Depends(get_db)
+):
+    result = await verify_action_sim(
+        after_img=after_img,
+        category_name=category_name,
+        action_history_id=action_history_id,
+        db=db
+    )
+    return result

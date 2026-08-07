@@ -143,6 +143,9 @@ def _serialize_action(
         "approver_uid": action.approver_uid,
         "approver_name": action.approver.name if action.approver else None,
         "approval_date": action.approval_date,
+        "ai_verified": getattr(action, "ai_verified", None),
+        "ai_confidence": getattr(action, "ai_confidence", None),
+        "ai_summary": getattr(action, "ai_summary", None),
     }
 
     if include_detail:
