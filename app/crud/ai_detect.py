@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import text
@@ -5,6 +6,10 @@ from sqlalchemy.orm import Session
 from app.models.action_history import ActionHistory
 from app.schemas.action_history import ActionStatus, SourceType
 from app.utils.datetime_utils import get_kst_now
+import httpx
+from fastapi import UploadFile
+
+AI_SERVER_URL = "http://127.0.0.1:8001"
 
 def detect_facilities_sim(filename: str):
     return {
@@ -159,3 +164,59 @@ def create_ai_event(
         "message": "이벤트 저장 완료",
         "event_id": event_id,
     }
+    
+
+async def verify_action_sim(
+    after_img: UploadFile, 
+    category_name: str = "안전 위험 요인",
+    action_history_id: int | None = None,
+    db: Session | None = None
+) -> dict:
+    try:
+        after_bytes = await after_img.read()
+        mime_type = after_img.content_type or "image/jpeg"
+
+        async with httpx.AsyncClient() as client:
+            files = {
+                "after_img": (after_img.filename, after_bytes, mime_type)
+            }
+            data = {
+                "category_name": category_name
+            }
+
+            response = await client.post(
+                f"{AI_SERVER_URL}/api/ai/verify-action",
+                data=data,
+                files=files,
+                timeout=20.0,
+            )
+
+            if response.status_code == 200:
+                result = response.json()
+            else:
+                result = {
+                    "is_resolved": False,
+                    "result_text": "AI 서버 오류",
+                    "confidence": 0.0,
+                    "analysis_summary": f"AI 서버 응답 에러 (Status: {response.status_code})",
+                }
+
+    except Exception as e:
+        result = {
+            "is_resolved": False,
+            "result_text": "통신 장애",
+            "confidence": 0.0,
+            "analysis_summary": f"AI 서버 연결 중 오류 발생: {str(e)}",
+        }
+
+    # DB에 AI 판정 결과 업데이트
+    if db and action_history_id:
+        action = db.query(ActionHistory).filter(ActionHistory.action_history_id == action_history_id).first()
+        if action:
+            action.ai_verified = result.get("is_resolved")
+            action.ai_confidence = result.get("confidence")
+            action.ai_summary = result.get("analysis_summary")
+            action.ai_verified_at = datetime.now()
+            db.commit()
+
+    return result

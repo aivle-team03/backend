@@ -202,6 +202,10 @@ class ActionHistory(Base):
     approval_date = Column(DateTime, nullable=True)
     rejection_reason = Column(Text, nullable=True)
     is_deleted = Column(Boolean, nullable=False, default=False)
+    ai_verified = Column(Boolean, nullable=True)                  # AI 판단 (True: 해소, False: 미해소)
+    ai_confidence = Column(BigInteger, nullable=True)             # AI 신뢰도 (예: 98 -> 98.4% 등)
+    ai_summary = Column(Text, nullable=True)                      # AI 판단 근거 문장
+    ai_verified_at = Column(DateTime, nullable=True)              # AI 검증 수행 시각
 
     company = relationship("Company")
     board = relationship("Board")
