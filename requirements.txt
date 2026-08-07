@@ -10,4 +10,4 @@ cloudinary
 tenacity
 redis
 celery
-boto3
+boto3httpx

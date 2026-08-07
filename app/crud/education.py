@@ -364,6 +364,46 @@ def update_education_progress(
     return status_row
 
 
+def save_generated_education(
+    db: Session,
+    company_id: int,
+    video_url: str,
+    title: Optional[str] = None,
+    category: Optional[str] = None,
+    type: Optional[str] = None,
+) -> Education:
+    """영상 생성 서비스가 완료한 결과를 Education 테이블에 적재한다.
+
+    프론트가 상태를 5초마다 폴링하므로 완료 후에도 같은 요청이 여러 번 들어온다.
+    video_url은 task_id 기반이라 작업당 유일하므로, 이를 기준으로 기존 레코드를 먼저 찾아
+    중복 적재를 막는다.
+    """
+    existing = (
+        db.query(Education)
+        .filter(
+            Education.company_id == company_id,
+            Education.video_url == video_url,
+            Education.is_deleted == False,
+        )
+        .first()
+    )
+    if existing:
+        return existing
+
+    new_edu = Education(
+        company_id=company_id,
+        title=title or "Veo AI 현장 안전 교육",
+        video_url=video_url,
+        category=category or "공통",
+        type=type or "필수",
+        is_deleted=False,
+    )
+    db.add(new_edu)
+    db.commit()
+    db.refresh(new_edu)
+    return new_edu
+
+
 # 5. 관리자용 카테고리별 이수 현황 통계 조회
 def get_category_completion_stats(db: Session, company_id: int) -> Dict:
     educations = (
