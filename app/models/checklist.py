@@ -39,3 +39,22 @@ class Checklist(Base):
     cctv = relationship("CCTV", back_populates="checklists")
     report_maps = relationship("ReportChecklistMap", back_populates="checklist")
     company = relationship("Company")
+
+    @property
+    def assignee_name(self):
+        """담당자 배정 화면용 실제 사용자 이름."""
+        return self.user.name if self.user else None
+
+    @property
+    def event_category_name(self):
+        """이벤트 원본 카테고리(예: 소방안전)를 우선한다."""
+        if not self.event or not self.event.category:
+            return None
+        return self.event.category.category or self.event.category.category_name
+
+    @property
+    def event_location(self):
+        """체크리스트의 임시 camera_id가 아니라 원본 이벤트 CCTV 위치를 사용한다."""
+        if not self.event or not self.event.cctv:
+            return None
+        return self.event.cctv.location
