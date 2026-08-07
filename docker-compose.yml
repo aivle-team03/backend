@@ -1,5 +1,7 @@
 services:
-  # 1. FastAPI 웹 서버
+  # FastAPI 웹 서버
+  # 영상 생성은 별도 서비스(aivle-team03/AI 의 videoagent)가 담당한다.
+  # VIDEO_AGENT_URL 로 그 서비스를 가리켜야 한다.
   web:
     build: .
     container_name: boss_fastapi
@@ -7,37 +9,6 @@ services:
       - "8000:8000"
     env_file:
       - .env
-    environment:
-      - REDIS_URL=redis://redis:6379/0
-    depends_on:
-      - redis
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     volumes:
-      - ./static:/app/static # 정적 파일 볼륨 마운트 (영상 저장용)
-
-  # 2. Celery 비동기 워커
-  celery_worker:
-    build: .
-    container_name: boss_celery_worker
-    env_file:
-      - .env
-    environment:
-      - REDIS_URL=redis://redis:6379/0
-    depends_on:
-      - redis
-    command: celery -A app.core.celery_app worker --loglevel=info
-    volumes:
-      - ./static:/app/static # 영상 생성을 위해 web과 동일한 볼륨 공유
-
-  # 3. Redis 서버 (메시지 브로커 & 상태 저장소)
-  redis:
-    image: redis:7-alpine
-    container_name: boss_redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    command: redis-server --appendonly yes # 디스크 영속성 보장
-
-volumes:
-  redis_data:
+      - ./static:/app/static # 게시판·체크리스트·조치이력 업로드 이미지 서빙
