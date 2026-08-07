@@ -1,69 +1,73 @@
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func, or_
-from datetime import datetime
-from app.utils.datetime_utils import get_kst_now
-from app.models.event import Event
-from app.models.checklist import Checklist
 
-def get_monitoring_events(db: Session, company_id: int, cctv_id: int = None, status: str = None, skip: int = 0, limit: int = 100):
-    # 1. 각 event_id 별 최신 checklist_id를 찾기 위한 서브쿼리 정의
-    subq = (
+from app.models.action_history import ActionHistory
+from app.models.event import Event
+from app.models.user import User
+from app.schemas.action_history import ActionStatus, SourceType
+
+
+def _latest_event_actions(db: Session, company_id: int):
+    """One latest action_history row per CCTV event."""
+    return (
         db.query(
-            Checklist.event_id,
-            func.max(Checklist.checklist_id).label("max_checklist_id")
+            ActionHistory.event_id.label("event_id"),
+            func.max(ActionHistory.action_history_id).label("action_history_id"),
         )
-        .filter(Checklist.company_id == company_id,)
-        .group_by(Checklist.event_id)
+        .filter(
+            ActionHistory.company_id == company_id,
+            ActionHistory.type == SourceType.EVENT.value,
+            ActionHistory.is_deleted == False,
+            ActionHistory.event_id.isnot(None),
+        )
+        .group_by(ActionHistory.event_id)
         .subquery()
     )
 
-    # 2. 메인 쿼리 (관계 테이블 선제 로딩)
+
+def get_monitoring_events(
+    db: Session,
+    company_id: int,
+    cctv_id: int = None,
+    status: str = None,
+    skip: int = 0,
+    limit: int = 100,
+):
+    latest_actions = _latest_event_actions(db, company_id)
     query = (
-        db.query(Event)
-        .options(
-            joinedload(Event.category),
-            joinedload(Event.cctv),
-            joinedload(Event.checklists)
-        )
-        .filter(Event.company_id == company_id, Event.is_deleted == False,)
+        db.query(Event, ActionHistory)
+        .join(latest_actions, Event.event_id == latest_actions.c.event_id)
+        .join(ActionHistory, ActionHistory.action_history_id == latest_actions.c.action_history_id)
+        .options(joinedload(Event.category), joinedload(Event.cctv))
+        .filter(Event.company_id == company_id, Event.is_deleted == False)
     )
 
     if cctv_id is not None:
-        query = query.filter(Event.camera_id == cctv_id)
-
-    # 3. 조치 상태(status) 필터 처리
+        query = query.filter(Event.cctv_id == cctv_id)
     if status is not None:
-        if status == "미조치":
-            # Checklist가 아예 없거나, 최신 Checklist의 status가 "미조치"인 경우
-            query = query.outerjoin(subq, Event.event_id == subq.c.event_id)\
-                         .outerjoin(Checklist, Checklist.checklist_id == subq.c.max_checklist_id)\
-                         .filter(or_(Checklist.status == "미조치", Checklist.checklist_id == None))
-        else:
-            # 해당 조치 상태인 경우 (예: "조치 완료", "조치 중" 등)
-            query = query.join(subq, Event.event_id == subq.c.event_id)\
-                         .join(Checklist, Checklist.checklist_id == subq.c.max_checklist_id)\
-                         .filter(Checklist.status == status)
+        query = query.filter(ActionHistory.action_status == status)
 
-    events = query.order_by(Event.date.desc()).offset(skip).limit(limit).all()
-
-    # 4. 각 이벤트 객체에 current_status 동적 바인딩
-    for event in events:
-        if event.checklists:
-            latest_chk = max(event.checklists, key=lambda c: c.checklist_id)
-            event.current_status = latest_chk.status
-        else:
-            event.current_status = "미조치"
-
+    # 화면에 노출하는 시각과 같은 action_history.created_at(KST)을 기준으로
+    # 정렬해야 UTC로 저장된 과거 event.date 때문에 순서가 섞이지 않는다.
+    rows = query.order_by(ActionHistory.created_at.desc()).offset(skip).limit(limit).all()
+    events = []
+    for event, action in rows:
+        # event.date는 과거 seed 및 DB NOW()로 UTC인 행이 존재한다. CCTV 감지
+        # 목록의 기준 시각은 실제 조치 생성 시각(action_history.created_at, KST)이다.
+        event.date = action.created_at
+        event.current_status = action.action_status
+        event.action_history_id = action.action_history_id
+        events.append(event)
     return events
 
+
 def get_monitoring_event_by_id(db: Session, event_id: int, company_id: int):
-    event = (
-        db.query(Event)
-        .options(
-            joinedload(Event.category),
-            joinedload(Event.cctv),
-            joinedload(Event.checklists)
-        )
+    latest_actions = _latest_event_actions(db, company_id)
+    row = (
+        db.query(Event, ActionHistory)
+        .join(latest_actions, Event.event_id == latest_actions.c.event_id)
+        .join(ActionHistory, ActionHistory.action_history_id == latest_actions.c.action_history_id)
+        .options(joinedload(Event.category), joinedload(Event.cctv))
         .filter(
             Event.event_id == event_id,
             Event.company_id == company_id,
@@ -71,19 +75,20 @@ def get_monitoring_event_by_id(db: Session, event_id: int, company_id: int):
         )
         .first()
     )
-
-    if event:
-        if event.checklists:
-            latest_chk = max(event.checklists, key=lambda c: c.checklist_id)
-            event.current_status = latest_chk.status
-        else:
-            event.current_status = "미조치"
+    if not row:
+        return None
+    event, action = row
+    event.date = action.created_at
+    event.current_status = action.action_status
+    event.action_history_id = action.action_history_id
     return event
 
+
 def create_action_request(db: Session, event_id: int, target_uid: int, message: str, company_id: int):
-    # 1. 대상 이벤트 조회하여 정보 확보
+    """Create a manual event action without using the legacy checklist table."""
     event = (
         db.query(Event)
+        .options(joinedload(Event.category), joinedload(Event.cctv))
         .filter(
             Event.event_id == event_id,
             Event.company_id == company_id,
@@ -91,22 +96,27 @@ def create_action_request(db: Session, event_id: int, target_uid: int, message: 
         )
         .first()
     )
-    if not event:
+    if not event or not event.category or not event.cctv:
         return None
-        
-    # 2. Checklist 테이블에 조치 요청 내역 생성
-    db_checklist = Checklist(
+
+    handler = (
+        db.query(User)
+        .filter(User.uid == target_uid, User.company_id == company_id)
+        .first()
+    )
+    action = ActionHistory(
         company_id=company_id,
         event_id=event_id,
-        date=get_kst_now(),
-        status="조치 대기",
-        uid=target_uid,
-        camera_id=event.camera_id,
+        category_id=event.category_id,
+        handler_uid=target_uid,
+        handler_name=handler.name if handler else None,
+        action_name=f"{event.category.category_name} action",
+        type=SourceType.EVENT.value,
+        location=event.cctv.location,
         content=message,
-        image_url=None,
-        is_deleted=False,
+        action_status=ActionStatus.WAITING.value,
     )
-    db.add(db_checklist)
+    db.add(action)
     db.commit()
-    db.refresh(db_checklist)
-    return db_checklist
+    db.refresh(action)
+    return action

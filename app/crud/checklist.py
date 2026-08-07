@@ -15,7 +15,9 @@ def get_checklists_by_role(
 ) -> List[Checklist]:
     query = db.query(Checklist).filter(Checklist.company_id == user.company_id)
 
-    if user.role != "안전 관리자":
+    # 프로젝트 전역 역할 값은 '안전관리자'다. 공백이 들어간 비교 때문에
+    # 안전관리자도 본인 uid의 항목만 보던 문제를 막는다.
+    if user.role != "안전관리자":
         query = query.filter(Checklist.uid == user.uid)
     if checklist_type:
         if checklist_type in ["점검", "regular", "ROUTINE"]:
@@ -65,10 +67,11 @@ def search_managers(db: Session, keyword: str, company_id: int):
     ).all()
 
 def assign_manager(db: Session, checklist_id: int, user_id: str, company_id: int):
-    user = db.query(User).filter(
-        User.user_id == user_id,
-        User.company_id == company_id
-    ).first()
+    user_query = db.query(User).filter(User.company_id == company_id)
+    if str(user_id).isdigit():
+        user = user_query.filter(User.uid == int(user_id)).first()
+    else:
+        user = user_query.filter(User.user_id == user_id).first()
     if not user:
         return None
         
