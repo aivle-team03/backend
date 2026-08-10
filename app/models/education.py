@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, Column, String, ForeignKey, Boolean
+from sqlalchemy import BigInteger, Column, String, ForeignKey, Boolean, Date
 from sqlalchemy.orm import relationship
 
 from app.db.db import Base
@@ -17,6 +17,7 @@ class Education(Base):
     video_url = Column(String(500), nullable=False)
     category = Column(String(100), nullable=False)      # 카테고리(공통, 지게차, 화재)
     type = Column(String(50), nullable=False)           # 구분 (예: 필수, 정기)
+    due_date = Column(Date, nullable=True)
     is_deleted = Column(Boolean, nullable=False, default=False)
 
 
