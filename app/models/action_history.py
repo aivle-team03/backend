@@ -197,6 +197,7 @@ class ActionHistory(Base):
         server_default="조치 대기",
     )
     image_url = Column(String(255), nullable=True)
+    before_image_url = Column(String(255), nullable=True)
     content = Column(Text, nullable=False)
     approval_status = Column(String(50), nullable=True)
     approval_date = Column(DateTime, nullable=True)

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from typing import Optional
 
 from app.db.db import get_db
+from app.models import ActionHistory
 
 from app.schemas.ai_detect import (
     AIEventCreate,
@@ -72,11 +73,20 @@ async def post_verify_action(
     action_content: Optional[str] = Form(""),
     db: Session = Depends(get_db)
 ):
+    before_image_path = None
+    if action_history_id and db:
+        action = db.query(ActionHistory).filter(
+            ActionHistory.action_history_id == action_history_id
+        ).first()
+        if action:
+            before_image_path = action.before_image_url
+    
     result = await verify_action_sim(
         after_img=after_img,
         category_name=category_name,
         action_history_id=action_history_id,
         action_content=action_content,
+        before_image_path=before_image_path,
         db=db
     )
     return result

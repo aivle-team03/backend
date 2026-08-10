@@ -115,6 +115,7 @@ class ActionHistoryListItem(BaseModel):
     handler_name: Optional[str] = None
     action_status: ActionStatus
     image_url: Optional[str] = None
+    before_image_url: Optional[str] = None
     approval_status: Optional[ApprovalStatus] = None
     approver_uid: Optional[int] = None
     approver_name: Optional[str] = None

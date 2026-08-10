@@ -153,7 +153,8 @@ def create_ai_event(
         type=SourceType.EVENT.value,
         location=location,
         content="",
-        image_url=image_url,
+        before_image_url=image_url,
+        image_url=None,
         action_status=ActionStatus.WAITING.value,
         approval_status=None,
         created_at=get_kst_now(),
@@ -171,6 +172,7 @@ async def verify_action_sim(
     category_name: str = "안전 위험 요인",
     action_content: str = "",
     action_history_id: int | None = None,
+    before_image_path: str | None = None,
     db: Session | None = None
 ) -> dict:
     try:
@@ -185,6 +187,35 @@ async def verify_action_sim(
                 "category_name": category_name,
                 "action_content": action_content
             }
+            
+            before_file_opened = None
+            if before_image_path:
+                try:
+                    if not before_image_path.startswith("http"):
+                        clean_path = before_image_path.lstrip("/")
+                        if clean_path.startswith("http"):
+                            clean_path = clean_path.split("/static/")[-1]
+                            clean_path = f"static/{clean_path}"
+
+                        local_file = Path(clean_path)
+                        if local_file.exists():
+                            before_file_opened = open(local_file, "rb")
+                            files["before_img"] = (
+                                local_file.name,
+                                before_file_opened.read(),
+                                "image/jpeg"
+                            )
+
+                    else:
+                        img_res = await client.get(before_image_path, timeout=5.0)
+                        if img_res.status_code == 200:
+                            files["before_img"] = (
+                                "before_image.jpg",
+                                img_res.content,
+                                "image/jpeg"
+                            )
+                except Exception as img_err:
+                    print(f"⚠️ [before_image_path 읽기 실패]: {img_err}", flush=True)
 
             response = await client.post(
                 f"{AI_SERVER_URL}/api/ai/verify-action",
