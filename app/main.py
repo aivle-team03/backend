@@ -69,18 +69,3 @@ scheduler.add_job(
     run_daily_inspection_job, 'cron', hour=0, minute=0, id='daily_inspection_job'
 )
 scheduler.start()
-
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    print("\n" + "🔥"*40)
-    print(f"🚨 [진짜 범인 찾았다!] 요청 경로: {request.url.path}")
-    print(f"❌ 에러 이름: {type(exc).__name__}")
-    print(f"💬 에러 상세 내용: {str(exc)}")
-    print("📜 상세 위치 (Traceback):")
-    traceback.print_exc()
-    print("🔥"*40 + "\n")
-
-    return JSONResponse(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"error_name": type(exc).__name__, "detail": str(exc)},
-    )
