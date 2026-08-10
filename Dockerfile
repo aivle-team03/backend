@@ -1,12 +1,5 @@
 FROM python:3.14-slim
 
-# 시스템 의존성 설치 (ffmpeg 등 영상 처리를 위해 필요할 수 있음)
-RUN apt-get update && apt-get install -y \
-    ffmpeg \
-    libsm6 \
-    libxext6 \
-    && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /app
 
 # 파이썬 의존성 설치

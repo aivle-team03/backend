@@ -6,8 +6,6 @@ python-dotenv
 passlib[bcrypt]
 python-jose[cryptography]
 python-multipart
-cloudinary
-tenacity
-redis
-celery
+apscheduler
+httpx
 boto3
