@@ -1,3 +1,4 @@
+from datetime import date
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status, UploadFile, File, Form
@@ -39,7 +40,7 @@ from app.schemas.education import (
     AdminCategoryCompletionResponse, # 관리자용 교육 이수 현황 그래프 통계 응답모델
     AdminEducationDashboardResponse,
 )
-from app.schemas.ai_video import VideoGenerateResponse, VideoStatusResponse
+from app.schemas.ai_video import VideoGenerateResponse, VideoPublishResponse, VideoStatusResponse
 
 education_router = APIRouter()
 admin_education_router = APIRouter()
@@ -338,7 +339,6 @@ async def post_generate_veo_video(
 async def read_veo_video_status(
     task_id: str,
     current_admin: User = Depends(get_current_admin),
-    db: Session = Depends(get_db),
 ):
     """
     Google Veo 동영상 제작 작업 처리 상태 조회 API
@@ -374,14 +374,52 @@ async def read_veo_video_status(
             detail="해당 Veo 작업(task_id)을 찾을 수 없습니다."
         )
 
-    if status_info.get("status") == "COMPLETED" and status_info.get("video_url"):
-        education = save_generated_education(
-            db,
-            company_id=current_admin.company_id,
-            video_url=status_info["video_url"],
-            title=status_info.get("title"),
-            category=status_info.get("category"),
-            type=status_info.get("type"),
-        )
-        status_info["education_id"] = education.education_id
     return status_info
+
+
+@education_router.post(
+    "/veo-generate/{task_id}/publish",
+    response_model=VideoPublishResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def publish_generated_veo_video(
+    task_id: str,
+    due_date: date = Form(...),
+    title: Optional[str] = Form(None),
+    category: Optional[str] = Form(None),
+    type: Optional[str] = Form(None),
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """검토가 완료된 VideoAgent 결과만 교육 목록에 최종 등록한다."""
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.get(f"{VIDEO_AGENT_URL}/video/generate/{task_id}/status")
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"영상 생성 서비스에 연결할 수 없습니다: {e}",
+        )
+
+    if resp.status_code == status.HTTP_404_NOT_FOUND:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="해당 Veo 작업을 찾을 수 없습니다.")
+    if resp.status_code != status.HTTP_200_OK:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="영상 생성 결과를 조회하지 못했습니다.")
+
+    status_info = resp.json()
+    owner_company_id = status_info.get("company_id")
+    if owner_company_id is not None and int(owner_company_id) != current_admin.company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="해당 Veo 작업을 찾을 수 없습니다.")
+    if status_info.get("status") != "COMPLETED" or not status_info.get("video_url"):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="완료된 영상만 교육 목록에 등록할 수 있습니다.")
+
+    education = save_generated_education(
+        db,
+        company_id=current_admin.company_id,
+        video_url=status_info["video_url"],
+        title=title or status_info.get("title"),
+        category=category or status_info.get("category"),
+        type=type or status_info.get("type"),
+        due_date=due_date,
+    )
+    return {"education_id": education.education_id, "message": "교육 영상이 목록에 등록되었습니다."}

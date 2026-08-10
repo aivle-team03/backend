@@ -25,6 +25,7 @@ class EducationResponse(BaseModel):
     video_url: str
     category: str
     type: str
+    due_date: Optional[date] = None
 
 
 class EducationStatusResponse(EducationResponse):
@@ -67,8 +68,10 @@ class EducationStatusSummaryResponse(BaseModel):
     education_id: int
     company_id: Optional[int] = None
     title: str
+    video_url: str
     category: str
     type: str
+    due_date: Optional[date] = None
     target_count: int
     status_counts: List[EducationStatusCount]
     completion_rate: float

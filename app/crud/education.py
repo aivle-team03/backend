@@ -53,7 +53,7 @@ def get_my_education_list(
     )
     if category:
         query = query.filter(Education.category == category)
-    return query.order_by(Education.education_id.asc()).all()
+    return query.order_by(Education.education_id.desc()).all()
 
 
 def _apply_completion_filter(query, completion_status: Optional[str]):
@@ -77,6 +77,7 @@ def _status_response(education: Education, status_row: Optional[EducationStatus]
         "video_url": education.video_url,
         "category": education.category,
         "type": education.type,
+        "due_date": education.due_date,
         "status": progress_status,
         "completed_date": status_row.completed_date if status_row else None, # 이수 완료일
         "last_position_seconds": status_row.last_position_seconds if status_row else 0,
@@ -113,7 +114,7 @@ def get_user_education_statuses(
         query = query.filter(Education.category == category)
     query = _apply_completion_filter(query, completion_status)
 
-    rows = query.order_by(Education.education_id.asc()).all()
+    rows = query.order_by(Education.education_id.desc()).all()
     return [
         _status_response(education, status_row)
         for education, status_row in rows
@@ -371,6 +372,7 @@ def save_generated_education(
     title: Optional[str] = None,
     category: Optional[str] = None,
     type: Optional[str] = None,
+    due_date: Optional[date] = None,
 ) -> Education:
     """영상 생성 서비스가 완료한 결과를 Education 테이블에 적재한다.
 
@@ -388,6 +390,12 @@ def save_generated_education(
         .first()
     )
     if existing:
+        existing.title = title or existing.title
+        existing.category = category or existing.category
+        existing.type = type or existing.type
+        existing.due_date = due_date
+        db.commit()
+        db.refresh(existing)
         return existing
 
     new_edu = Education(
@@ -396,6 +404,7 @@ def save_generated_education(
         video_url=video_url,
         category=category or "공통",
         type=type or "필수",
+        due_date=due_date,
         is_deleted=False,
     )
     db.add(new_edu)
@@ -544,8 +553,10 @@ def get_admin_education_dashboard(db: Session, company_id: int) -> Dict:
             "education_id": education.education_id,
             "company_id": education.company_id,
             "title": education.title,
+            "video_url": education.video_url,
             "category": education.category,
             "type": education.type,
+            "due_date": education.due_date,
             "target_count": target_count,
             "status_counts": [{"status": key, "count": value} for key, value in counts.items()],
             "completion_rate": round(completed_count / target_count * 100, 1) if target_count else 0.0,
