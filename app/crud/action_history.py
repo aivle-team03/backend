@@ -139,10 +139,14 @@ def _serialize_action(
         "handler_name": action.handler.name if action.handler else None,
         "action_status": action.action_status,
         "image_url": action.image_url,
+        "before_image_url": getattr(action, "before_image_url", None),
         "approval_status": action.approval_status,
         "approver_uid": action.approver_uid,
         "approver_name": action.approver.name if action.approver else None,
         "approval_date": action.approval_date,
+        "ai_verified": getattr(action, "ai_verified", None),
+        "ai_confidence": getattr(action, "ai_confidence", None),
+        "ai_summary": getattr(action, "ai_summary", None),
     }
 
     if include_detail:
@@ -231,6 +235,7 @@ def create_action_history(
     action_name = request.action_name
     location = request.location
     inspection_history = None
+    before_image_url = None
 
     if request.source_type == SourceType.BOARD:
         if creator.role != "안전관리자":
@@ -252,6 +257,7 @@ def create_action_history(
         category_id = board.event_category_id or category_id
         action_name = action_name or board.title
         location = board.location or location
+        before_image_url = getattr(board, "image_url", None)
 
     elif request.source_type == SourceType.EVENT:
         if creator.role not in ("안전관리자", "관제사"):
@@ -274,6 +280,7 @@ def create_action_history(
         category_id = event.category_id
         action_name = action_name or event.category.category_name
         location = event.cctv.location
+        before_image_url = getattr(event, "image_url", None)
 
     elif request.source_type == SourceType.INSPECTION_HISTORY:
         inspection_history = (
@@ -330,6 +337,7 @@ def create_action_history(
         type=source_type,
         location=location,
         content=request.content,
+        before_image_url=before_image_url,
         action_status=ActionStatus.WAITING.value,
         approval_status=None,
         is_deleted=False,
