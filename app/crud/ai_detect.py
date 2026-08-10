@@ -1,4 +1,5 @@
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
 from sqlalchemy import text
@@ -42,13 +43,6 @@ def detect_fire_sim(filename: str):
         "smoke_detected": True,
         "confidence": 0.98,
         "message": "CCTV 화면 내에서 고온의 불꽃 징후 및 농연(Smoke) 감지. 즉시 화재 수신기 점검 및 대피령 전파 권장."
-    }
-
-def verify_action_sim(before_filename: str, after_filename: str):
-    return {
-        "similarity_score": 0.94,
-        "status": "해결됨",
-        "description": "조치 전 이미지에 감지되었던 가연성 박스 적치물이 조치 후 이미지에서는 완전히 소거된 것이 검증되었습니다. 조치 결과 승인을 승인 권장합니다."
     }
 
 def create_ai_event(
