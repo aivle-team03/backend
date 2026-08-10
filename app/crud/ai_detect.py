@@ -169,6 +169,7 @@ def create_ai_event(
 async def verify_action_sim(
     after_img: UploadFile, 
     category_name: str = "안전 위험 요인",
+    action_content: str = "",
     action_history_id: int | None = None,
     db: Session | None = None
 ) -> dict:
@@ -181,7 +182,8 @@ async def verify_action_sim(
                 "after_img": (after_img.filename, after_bytes, mime_type)
             }
             data = {
-                "category_name": category_name
+                "category_name": category_name,
+                "action_content": action_content
             }
 
             response = await client.post(

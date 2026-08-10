@@ -69,12 +69,14 @@ async def post_verify_action(
     after_img: UploadFile = File(...),
     category_name: Optional[str] = Form("안전 위험 요인"),
     action_history_id: Optional[int] = Form(None),
+    action_content: Optional[str] = Form(""),
     db: Session = Depends(get_db)
 ):
     result = await verify_action_sim(
         after_img=after_img,
         category_name=category_name,
         action_history_id=action_history_id,
+        action_content=action_content,
         db=db
     )
     return result
