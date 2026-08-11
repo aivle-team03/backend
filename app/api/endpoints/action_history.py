@@ -254,7 +254,7 @@ def complete_action_history(
         action_history_id=action_history_id,
         company_id=current_user.company_id,
     )
-    image_url = save_image(image, f"action_history_{action_history_id}")
+    image_url = save_image(image, "action-history")
     try:
         completed = action_history_crud.complete_action_history(
             db,

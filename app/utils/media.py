@@ -58,7 +58,7 @@ def public_url(value: Optional[str]) -> Optional[str]:
     return value
 
 
-def save_image(image: UploadFile, prefix: str) -> str:
+def save_image(image: UploadFile, folder: str) -> str:
     """이미지를 저장하고 DB에 넣을 경로를 반환한다."""
     extension = IMAGE_EXTENSIONS.get(image.content_type or "")
     if not extension:
@@ -67,9 +67,9 @@ def save_image(image: UploadFile, prefix: str) -> str:
             detail="jpg, png, webp, gif 형식의 이미지만 업로드할 수 있습니다.",
         )
 
-    # 초 단위 타임스탬프만 쓰면 동시 업로드 시 같은 버킷에서 덮어쓰기가 발생한다.
-    timestamp = datetime.now().strftime("%Y%m%d%H%M%S%f")
-    filename = f"{prefix}_{timestamp}_{uuid4().hex[:8]}{extension}"
+    # 날짜로 나눠 한 접두사에 객체가 몰리지 않게 하고, 수명주기 정책을 걸기 쉽게 한다.
+    # 파일명은 uuid 라 동시 업로드에도 덮어쓰기가 없다.
+    relative_path = f"{folder}/{datetime.now():%Y/%m/%d}/{uuid4().hex}{extension}"
 
     bucket = _media_bucket()
     if not bucket:
@@ -77,13 +77,13 @@ def save_image(image: UploadFile, prefix: str) -> str:
             "[Media] WARNING: AWS_S3_MEDIA_BUCKET 미설정. 로컬 디스크에 저장하며 "
             "재배포 시 이미지가 사라집니다."
         )
-        return _save_local(image, filename)
+        return _save_local(image, relative_path)
 
     image.file.seek(0)
     uploaded = upload_fileobj_to_s3(
         image.file,
         bucket,
-        f"{MEDIA_S3_PREFIX}{filename}",
+        f"{MEDIA_S3_PREFIX}{relative_path}",
         image.content_type,
     )
     if not uploaded:
@@ -91,7 +91,7 @@ def save_image(image: UploadFile, prefix: str) -> str:
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="이미지 업로드에 실패했습니다.",
         )
-    return f"{MEDIA_URL_PREFIX}{filename}"
+    return f"{MEDIA_URL_PREFIX}{relative_path}"
 
 
 def delete_image(image_url: Optional[str]) -> None:
@@ -118,9 +118,9 @@ def delete_image(image_url: Optional[str]) -> None:
     file_path.unlink(missing_ok=True)
 
 
-def _save_local(image: UploadFile, filename: str) -> str:
-    LOCAL_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    file_path = LOCAL_UPLOAD_DIR / filename
+def _save_local(image: UploadFile, relative_path: str) -> str:
+    file_path = LOCAL_UPLOAD_DIR / relative_path
+    file_path.parent.mkdir(parents=True, exist_ok=True)
 
     image.file.seek(0)
     try:
@@ -137,4 +137,4 @@ def _save_local(image: UploadFile, filename: str) -> str:
             detail="빈 이미지 파일은 업로드할 수 없습니다.",
         )
 
-    return f"{LOCAL_URL_PREFIX}{filename}"
+    return f"{LOCAL_URL_PREFIX}{relative_path}"

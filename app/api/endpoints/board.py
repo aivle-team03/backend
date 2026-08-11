@@ -35,7 +35,7 @@ def post_board(
 
     image_url = None
     if image and image.filename:
-        image_url = save_image(image, "board")
+        image_url = save_image(image, "boards")
 
     return create_board(
         db=db,
@@ -98,7 +98,7 @@ def patch_board(
 
     image_url = None
     if image:
-        image_url = save_image(image, f"board_{board_id}")
+        image_url = save_image(image, "boards")
 
     return update_board(
         db=db, board=board, title=title, board_contents=board_contents,
