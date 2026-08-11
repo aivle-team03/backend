@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import or_, func
 from typing import Optional, List
 from datetime import datetime
@@ -115,7 +115,7 @@ def get_reports(
     keyword: Optional[str] = None
 ):
     query = (
-        db.query(Report, User.name.label("writer_name"))
+        db.query(Report)
         .outerjoin(User, Report.uid == User.uid)
         .filter(Report.company_id == company_id, Report.is_deleted == False,)
     )
@@ -146,8 +146,7 @@ def get_reports(
     rows = query.order_by(Report.created_at.desc()).offset((page - 1) * size).limit(size).all()
 
     items = []
-    for report, writer_name in rows:
-        writer_display = report.writer or writer_name or "알 수 없음"
+    for report in rows:
         item_dict = {
             "report_id": report.report_id,
             "company_id": report.company_id,
@@ -155,8 +154,7 @@ def get_reports(
             "path": report.path,
             "title": report.title,
             "created_at": report.created_at,
-            "writer": writer_display,
-            "action_history_ids": report.action_history_ids,
+            "writer": report.writer or "알 수 없음",
         }
         items.append(item_dict)
 
