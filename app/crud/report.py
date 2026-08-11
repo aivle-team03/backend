@@ -4,6 +4,7 @@ from typing import Optional, List
 from datetime import datetime
 from app.utils.datetime_utils import get_kst_now
 from app.models.report import Report
+from app.models.sub_report import SubReport
 from app.models.report_event_map import ReportEventMap
 from app.models.report_checklist_map import ReportChecklistMap
 from app.models.report_inspection_map import ReportInspectionMap
@@ -241,6 +242,33 @@ def create_report_path(
     db.refresh(report)
     return report
 
+def create_sub_report_path(
+        db: Session, 
+        company_id: int, 
+        path: str, 
+        date: datetime) -> SubReport:
+    """일자별 자동 생성 리포트 부속 파일(S3 경로)을 SubReport 테이블에 저장한다."""
+    sub_report = SubReport(
+        company_id=company_id,
+        date=date,
+        path=path,
+    )
+    db.add(sub_report)
+    db.commit()
+    db.refresh(sub_report)
+    return sub_report
+
+def create_sub_report(db: Session, start_date: str, end_date: str) -> List[SubReport]:
+    """start_date ~ end_date 기간의 SubReport 목록을 조회한다."""
+    query = db.query(SubReport)
+    if start_date:
+        s_dt = datetime.strptime(start_date, "%Y-%m-%d")
+        query = query.filter(SubReport.date >= s_dt)
+    if end_date:
+        e_dt = datetime.strptime(end_date + " 23:59:59", "%Y-%m-%d %H:%M:%S")
+        query = query.filter(SubReport.date <= e_dt)
+    return query.order_by(SubReport.date).all()
+
 def build_history_column(db: Session, uid: int) -> dict:
     """report_agent(/api/report/risk-assessment/form/generate)에 넘길 DB 데이터를 조합한다."""
     category_by_id = {
@@ -460,3 +488,6 @@ def build_board_column(db: Session, uid: int) -> dict:
     ))
 
     return {"worker_feedback_rows": rows}
+
+
+

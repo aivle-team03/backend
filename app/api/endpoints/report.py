@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Path, Response
@@ -17,7 +18,7 @@ from app.schemas.report import (
 )
 from app.crud.report import (
     create_report, get_reports, get_report_by_id, update_report, delete_report, build_history_column,
-    create_report_path, build_board_column
+    create_report_path,create_sub_report_path, build_board_column,create_sub_report
 )
 
 router = APIRouter()
@@ -169,7 +170,7 @@ async def post_generate_risk_assessment_form(
     """위험성평가표 자동 생성 API - report_agent에 생성을 요청하고 결과를 Report 테이블에 저장한다."""
     history_column = build_history_column(db, current_user.uid)
     try:
-        async with httpx.AsyncClient(timeout=1200.0) as client:
+        async with httpx.AsyncClient(timeout=300.0) as client:
             resp = await client.post(f"{REPORT_AGENT_URL}/api/report/risk-assessment/form/generate", json=history_column)
     except httpx.RequestError as e:
         raise HTTPException(
@@ -207,13 +208,11 @@ async def post_generate_risk_assessment_form(
 
         daily_json_path = daily_upload.get("s3_json_output_path")
         if daily_json_path:
-            json_filename = daily_json_path.rsplit("/", 1)[-1]
-            create_report_path(
+            create_sub_report_path(
                 db,
-                uid=current_user.uid,
                 company_id=current_user.company_id,
-                s3_output_path=daily_json_path,
-                summary=f"{json_filename}",
+                path=daily_json_path,
+                date=datetime.strptime(daily_upload["date"], "%Y-%m-%d"),
             )
 
     return result
@@ -228,7 +227,7 @@ async def post_generate_worker_feedback_report(
     """근로자 피드백 개선 보고서 자동 생성 API - report_agent에 생성을 요청하고 결과를 Report 테이블에 저장한다."""
     board_column = build_board_column(db, current_user.uid)
     try:
-        async with httpx.AsyncClient(timeout=1200.0) as client:
+        async with httpx.AsyncClient(timeout=300.0) as client:
             resp = await client.post(f"{REPORT_AGENT_URL}/api/report/worker-feedback/generate", json=board_column)
     except httpx.RequestError as e:
         raise HTTPException(
@@ -254,3 +253,134 @@ async def post_generate_worker_feedback_report(
         )
 
     return result
+
+#경영책임자 지시 보고서
+@router.post("/management-review-order/generate")
+async def post_generate_management_review_order(
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """경영책임자 검토 지시서 자동 생성 API - report_agent에 생성을 요청한다."""
+    sub_reports = create_sub_report(db, start_date, end_date)
+
+    final_history_rows = []
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        for sub_report in sub_reports:
+            if sub_report.path.startswith("s3://"):
+                s3_key = sub_report.path[len("s3://"):].split("/", 1)[1]
+            else:
+                s3_key = sub_report.path
+
+            file_url = generate_presigned_url(s3_key)
+            if not file_url:
+                continue
+
+            file_resp = await client.get(file_url)
+            if file_resp.status_code != status.HTTP_200_OK:
+                continue
+
+            daily_payload = file_resp.json()
+            final_history_rows.extend(daily_payload.get("final_history_rows") or [])
+
+    try:
+        async with httpx.AsyncClient(timeout=300.0) as client:
+            resp = await client.post(
+                f"{REPORT_AGENT_URL}/api/report/management-review-order/generate",
+                json={
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "final_history_rows": final_history_rows,
+                },
+            )
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"경영책임자 검토 지시서 생성 서비스에 연결할 수 없습니다: {e}"
+        )
+
+    if resp.status_code != status.HTTP_200_OK:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"경영책임자 검토 지시서 생성 서비스가 요청을 거부했습니다 (status={resp.status_code})."
+        )
+    result = resp.json()
+    s3_output_path = result.get("s3_output_path")
+    if s3_output_path:
+        filename = s3_output_path.rsplit("/", 1)[-1]
+        create_report_path(
+            db,
+            uid=current_user.uid,
+            company_id=current_user.company_id,
+            s3_output_path=s3_output_path,
+            summary=f"{filename}",
+        )
+    return result
+
+
+#위험성평가 보고서
+@router.post("/risk-assessment/report/generate")
+async def post_generate_risk_assessment_report(
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """위험성평가 보고서 자동 생성 API - report_agent에 생성을 요청한다."""
+    sub_reports = create_sub_report(db, start_date, end_date)
+
+    final_history_rows = []
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        for sub_report in sub_reports:
+            if sub_report.path.startswith("s3://"):
+                s3_key = sub_report.path[len("s3://"):].split("/", 1)[1]
+            else:
+                s3_key = sub_report.path
+
+            file_url = generate_presigned_url(s3_key)
+            if not file_url:
+                continue
+
+            file_resp = await client.get(file_url)
+            if file_resp.status_code != status.HTTP_200_OK:
+                continue
+
+            daily_payload = file_resp.json()
+            final_history_rows.extend(daily_payload.get("final_history_rows") or [])
+
+    try:
+        async with httpx.AsyncClient(timeout=300.0) as client:
+            resp = await client.post(
+                f"{REPORT_AGENT_URL}/api/report/risk-assessment/report/generate",
+                json={
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "final_history_rows": final_history_rows,
+                },
+            )
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"위험성평가 보고서 생성 서비스에 연결할 수 없습니다: {e}"
+        )
+
+    if resp.status_code != status.HTTP_200_OK:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"위험성평가 보고서 생성 서비스가 요청을 거부했습니다 (status={resp.status_code})."
+        )
+
+    result = resp.json()
+    s3_output_path = result.get("s3_output_path")
+    if s3_output_path:
+            filename = s3_output_path.rsplit("/", 1)[-1]
+            create_report_path(
+                db,
+                uid=current_user.uid,
+                company_id=current_user.company_id,
+                s3_output_path=s3_output_path,
+                summary=f"{filename}",
+            )
+    return result
+
