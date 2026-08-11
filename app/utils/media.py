@@ -69,7 +69,7 @@ def save_image(image: UploadFile, folder: str) -> str:
 
     # 날짜로 나눠 한 접두사에 객체가 몰리지 않게 하고, 수명주기 정책을 걸기 쉽게 한다.
     # 파일명은 uuid 라 동시 업로드에도 덮어쓰기가 없다.
-    relative_path = f"{folder}/{datetime.now():%Y/%m/%d}/{uuid4().hex}{extension}"
+    relative_path = f"{folder}/{datetime.now():%Y_%m_%d}/{uuid4().hex}{extension}"
 
     bucket = _media_bucket()
     if not bucket:
