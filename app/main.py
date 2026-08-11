@@ -10,6 +10,9 @@ from app.api.routers import api_router
 from app.core.exceptions import setup_logging, setup_exception_handlers
 from app.crud.inspection import generate_scheduled_inspection_histories
 from apscheduler.schedulers.background import BackgroundScheduler
+import traceback
+from fastapi import Request, status
+from fastapi.responses import JSONResponse
 
 logger = logging.getLogger("app.scheduler")
 

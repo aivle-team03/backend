@@ -25,6 +25,7 @@ class EducationResponse(BaseModel):
     video_url: str
     category: str
     type: str
+    due_date: Optional[date] = None
 
 
 class EducationStatusResponse(EducationResponse):
@@ -67,8 +68,10 @@ class EducationStatusSummaryResponse(BaseModel):
     education_id: int
     company_id: Optional[int] = None
     title: str
+    video_url: str
     category: str
     type: str
+    due_date: Optional[date] = None
     target_count: int
     status_counts: List[EducationStatusCount]
     completion_rate: float
@@ -134,19 +137,3 @@ class EducationAttendeeListResponse(BaseModel):
     completed_count: int
     completion_rate: float
     attendees: List[EducationAttendeeResponse]
-
-
-# AI 교육 자료 생성 요청/응답
-class AIEducationGenerateRequest(BaseModel):
-    work_type: str        # 작업 유형 (예: 용접/절단)
-    equipment: str        # 사용 장비 (예: 지게차)
-    risk_factor: str      # 위험 요인 (예: 충돌, 지침, 낙하)
-
-
-class AIEducationGenerateResponse(BaseModel):
-    education_id: Optional[int] = None
-    company_id: Optional[int] = None
-    title: str
-    summary: str
-    safety_guideline: List[str]
-    generated_video_url: Optional[str] = None

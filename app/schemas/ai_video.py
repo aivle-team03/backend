@@ -21,3 +21,8 @@ class VideoStatusResponse(BaseModel):
     learning_objectives: Optional[List[str]] = None
     storyboard: Optional[List[Dict[str, Any]]] = None
     quality_report: Optional[Dict[str, Any]] = None
+
+
+class VideoPublishResponse(BaseModel):
+    education_id: int
+    message: str
