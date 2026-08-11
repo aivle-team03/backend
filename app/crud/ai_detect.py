@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -11,7 +12,7 @@ from app.utils.media import public_url
 import httpx
 from fastapi import UploadFile
 
-AI_SERVER_URL = "http://127.0.0.1:8001"
+AI_SERVER_URL = os.getenv("AI_SERVER_URL", "http://127.0.0.1:8001").rstrip("/")
 
 def detect_facilities_sim(filename: str):
     return {

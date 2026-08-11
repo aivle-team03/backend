@@ -124,11 +124,7 @@ def create_inspection(
     db: Session, inspection_in: InspectionCreate, company_id: int
 ) -> dict:
     """새로운 점검 항목 생성"""
-    data = (
-        inspection_in.model_dump()
-        if hasattr(inspection_in, "model_dump")
-        else inspection_in.dict()
-    )
+    data = inspection_in.model_dump()
 
     db_obj = Inspection(**data, company_id=company_id)
     db.add(db_obj)
@@ -169,11 +165,7 @@ def update_inspection(
     if not db_obj:
         return None
 
-    update_data = (
-        inspection_in.model_dump(exclude_unset=True)
-        if hasattr(inspection_in, "model_dump")
-        else inspection_in.dict(exclude_unset=True)
-    )
+    update_data = inspection_in.model_dump(exclude_unset=True)
 
     for field, value in update_data.items():
         setattr(db_obj, field, value)
@@ -351,11 +343,7 @@ def create_inspection_history(
     if not inspection:
         raise ValueError("유효하지 않거나 접근 권한이 없는 점검 항목입니다.")
 
-    data = (
-        history_in.model_dump()
-        if hasattr(history_in, "model_dump")
-        else history_in.dict()
-    )
+    data = history_in.model_dump()
     
     if data.get("uid") and not data.get("user_name"):
         user = db.query(User).filter(User.uid == data["uid"]).first()
@@ -399,15 +387,19 @@ def update_inspection_history(
     if not db_obj:
         return None
 
-    update_data = (
-        history_in.model_dump(exclude_unset=True)
-        if hasattr(history_in, "model_dump")
-        else history_in.dict(exclude_unset=True)
-    )
+    update_data = history_in.model_dump(exclude_unset=True)
     
     if "uid" in update_data:
         if update_data["uid"]:
-            user = db.query(User).filter(User.uid == update_data["uid"]).first()
+            # 회사 범위를 걸지 않으면 타 회사 uid 로 그 회사 직원 이름을 조회할 수 있다.
+            user = (
+                db.query(User)
+                .filter(
+                    User.uid == update_data["uid"],
+                    User.company_id == company_id,
+                )
+                .first()
+            )
             update_data["user_name"] = user.name if user else None
         else:
             update_data["user_name"] = None
