@@ -1,5 +1,5 @@
 # app/schemas/board.py
-from pydantic import BaseModel, field_validator
+from pydantic import ConfigDict, BaseModel, field_validator
 from typing import Optional, List
 from datetime import datetime
 
@@ -25,8 +25,7 @@ class BoardResponse(BaseModel):
     def make_full_image_url(cls, value):
         return public_url(value)
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 # 목록 조회 시 페이징 응답 스키마
 class BoardListResponse(BaseModel):

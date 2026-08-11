@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import ConfigDict, BaseModel, Field, field_validator
 from typing import Optional, List
 from datetime import datetime
 
@@ -33,8 +33,7 @@ class ReportDetailResponse(BaseModel):
     action_history_ids: List[int] = Field(default_factory=list)
     writer: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class ReportListResponse(BaseModel):
     total: int
