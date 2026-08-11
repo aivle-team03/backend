@@ -85,7 +85,7 @@ def get_monitoring_event_by_id(db: Session, event_id: int, company_id: int):
 
 
 def create_action_request(db: Session, event_id: int, target_uid: int, message: str, company_id: int):
-    """Create a manual event action without using the legacy checklist table."""
+    """Create a manual event action as an ActionHistory row."""
     event = (
         db.query(Event)
         .options(joinedload(Event.category), joinedload(Event.cctv))

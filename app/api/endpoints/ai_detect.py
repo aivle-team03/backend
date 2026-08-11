@@ -23,8 +23,6 @@ from app.crud.ai_detect import (
 
 router = APIRouter()
 
-AI_SERVER_URL = "http://127.0.0.1:8001"
-
 @router.post("/detect/facilities", response_model=FacilityDetectionResponse)
 def post_detect_facilities(image: UploadFile = File(...)):
     """소방시설 탐지 API - 명세서 URL /api/ai/detect/facilities (요구사항 ADM-39-81-38)"""

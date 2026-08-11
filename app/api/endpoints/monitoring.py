@@ -35,16 +35,16 @@ def read_monitoring_event(event_id: int, current_user: User = Depends(get_curren
 @router.post("/events/{event_id}/request", response_model=ActionRequestResponse)
 def post_action_request(event_id: int, action_req: ActionRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """현장 조치 요청 발송 API - 명세서 URL /api/monitoring/events/{event_id}/request (요구사항 ADM-39-80-37)"""
-    db_checklist = create_action_request(
+    db_action = create_action_request(
         db,
         event_id=event_id,
         target_uid=action_req.target_uid,
         message=action_req.message,
         company_id=current_user.company_id
     )
-    if db_checklist is None:
+    if db_action is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="해당 이벤트를 찾을 수 없거나 조치 요청 생성에 실패했습니다."
         )
-    return db_checklist
+    return db_action

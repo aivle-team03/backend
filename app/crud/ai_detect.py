@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -7,10 +8,11 @@ from sqlalchemy.orm import Session
 from app.models.action_history import ActionHistory
 from app.schemas.action_history import ActionStatus, SourceType
 from app.utils.datetime_utils import get_kst_now
+from app.utils.media import public_url
 import httpx
 from fastapi import UploadFile
 
-AI_SERVER_URL = "http://127.0.0.1:8001"
+AI_SERVER_URL = os.getenv("AI_SERVER_URL", "http://127.0.0.1:8001").rstrip("/")
 
 def detect_facilities_sim(filename: str):
     return {
@@ -184,6 +186,9 @@ async def verify_action_sim(
             
             before_file_opened = None
             if before_image_path:
+                # S3에 올라간 이미지는 /media/ 경로로 저장되어 로컬에 파일이 없다.
+                # public_url()로 절대주소를 만들어 아래 HTTP 분기로 넘긴다.
+                before_image_path = public_url(before_image_path) or before_image_path
                 try:
                     if not before_image_path.startswith("http"):
                         clean_path = before_image_path.lstrip("/")
@@ -198,6 +203,12 @@ async def verify_action_sim(
                                 local_file.name,
                                 before_file_opened.read(),
                                 "image/jpeg"
+                            )
+                        else:
+                            print(
+                                f"[AIVerify] WARNING: before 이미지를 찾을 수 없어 "
+                                f"없이 검증합니다: {before_image_path}",
+                                flush=True,
                             )
 
                     else:

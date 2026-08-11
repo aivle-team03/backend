@@ -5,7 +5,6 @@ from datetime import datetime
 from app.utils.datetime_utils import get_kst_now
 from app.models.report import Report
 from app.models.report_event_map import ReportEventMap
-from app.models.report_checklist_map import ReportChecklistMap
 from app.models.report_inspection_map import ReportInspectionMap
 from app.models.report_action_map import ReportActionMap
 from app.models.action_history import ActionHistory
@@ -17,7 +16,6 @@ def create_report(
     uid: int,
     content: str,
     event_ids: Optional[List[int]] = None,
-    checklist_ids: Optional[List[int]] = None,
     inspection_history_ids: Optional[List[int]] = None,
     action_history_ids: Optional[List[int]] = None,
     writer: Optional[str] = None,
@@ -57,9 +55,6 @@ def create_report(
     if event_ids:
         db.add_all([ReportEventMap(report_id=report.report_id, event_id=eid) for eid in event_ids])
             
-    if checklist_ids:
-        db.add_all([ReportChecklistMap(report_id=report.report_id, checklist_id=cid) for cid in checklist_ids])
-        
     if inspection_history_ids:
         db.add_all(
             [

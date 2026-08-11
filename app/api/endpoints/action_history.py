@@ -1,8 +1,5 @@
-import shutil
 from datetime import date, datetime, time
-from pathlib import Path
 from typing import List, Literal, Optional
-from uuid import uuid4
 
 from fastapi import (
     APIRouter,
@@ -32,16 +29,10 @@ from app.schemas.action_history import (
     HandlerListResponse,
     SourceType,
 )
+from app.utils.media import delete_image, save_image
 
 
 router = APIRouter()
-UPLOAD_DIR = Path("static/uploads")
-IMAGE_EXTENSIONS = {
-    "image/jpeg": ".jpg",
-    "image/png": ".png",
-    "image/webp": ".webp",
-    "image/gif": ".gif",
-}
 
 
 def _raise_http_error(error: Exception):
@@ -66,55 +57,6 @@ def _raise_http_error(error: Exception):
             detail=str(error),
         ) from error
     raise error
-
-
-def _save_image(action_history_id: int, image: UploadFile):
-    extension = IMAGE_EXTENSIONS.get(image.content_type or "")
-    if not extension:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="jpg, png, webp, gif 형식의 이미지만 업로드할 수 있습니다.",
-        )
-
-    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d%H%M%S%f")
-    filename = (
-        f"action_history_{action_history_id}_{timestamp}_{uuid4().hex[:8]}"
-        f"{extension}"
-    )
-    file_path = UPLOAD_DIR / filename
-
-    try:
-        with file_path.open("wb") as buffer:
-            shutil.copyfileobj(image.file, buffer)
-    except Exception:
-        file_path.unlink(missing_ok=True)
-        raise
-
-    if file_path.stat().st_size == 0:
-        file_path.unlink(missing_ok=True)
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="빈 이미지 파일은 업로드할 수 없습니다.",
-        )
-
-    return f"/static/uploads/{filename}", file_path
-
-
-def _delete_local_image(image_url: Optional[str]):
-    if not image_url or not image_url.startswith("/static/uploads/"):
-        return
-
-    upload_root = UPLOAD_DIR.resolve()
-    file_path = Path(image_url.lstrip("/")).resolve()
-    try:
-        file_path.relative_to(upload_root)
-    except ValueError:
-        return
-    try:
-        file_path.unlink(missing_ok=True)
-    except OSError:
-        pass
 
 
 @router.get("", response_model=ActionHistoryListResponse)
@@ -312,7 +254,7 @@ def complete_action_history(
         action_history_id=action_history_id,
         company_id=current_user.company_id,
     )
-    image_url, new_file_path = _save_image(action_history_id, image)
+    image_url = save_image(image, "action-history")
     try:
         completed = action_history_crud.complete_action_history(
             db,
@@ -323,11 +265,11 @@ def complete_action_history(
             image_url=image_url,
         )
     except Exception as error:
-        new_file_path.unlink(missing_ok=True)
+        delete_image(image_url)
         _raise_http_error(error)
 
     if previous and previous["image_url"] != image_url:
-        _delete_local_image(previous["image_url"])
+        delete_image(previous["image_url"])
     return completed
 
 
