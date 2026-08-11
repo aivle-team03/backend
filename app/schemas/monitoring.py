@@ -8,22 +8,18 @@ class EventCategoryInfo(BaseModel):
     category: str
     category_name: str
 
-    class Config:
-        from_attribute = True
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 class CCTVInfo(BaseModel):
-    cctv_id: int = Field(None, validation_alias="camera_id")
+    cctv_id: int
     company_id: int
-    cctv_name: str = Field(None, validation_alias="camera_name")
+    cctv_name: str
     location: str
 
-    class Config:
-        orm_mode = True
-        allow_population_by_field_name = True
+    model_config = ConfigDict(from_attributes=True)
 
 class EventDetailResponse(BaseModel):
-    event_id: int = Field(None, validation_alias="camera_id")
+    event_id: int
     company_id: int
     category_id: Optional[int] = None
     cctv_id: Optional[int] = None
@@ -33,10 +29,7 @@ class EventDetailResponse(BaseModel):
     cctv: Optional[CCTVInfo] = None
     current_status: str = "미조치"
 
-    class Config:
-        from_attribute = True
-        orm_mode = True
-        allow_population_by_field_name = True
+    model_config = ConfigDict(from_attributes=True)
 
 class ActionRequest(BaseModel):
     target_uid: int
