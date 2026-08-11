@@ -10,8 +10,8 @@ class Report(Base):
 
     uid = Column(BigInteger, ForeignKey("user.uid", ondelete='SET NULL'), nullable=True)
     writer = Column(String(100), nullable=True)
-    content = Column(Text, nullable=False)
-    summary = Column(String(100), nullable=False)
+    title = Column(String(100), nullable=False)
+    path = Column(Text, nullable=False)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
     company_id = Column(BigInteger, ForeignKey("company.company_id", ondelete="CASCADE"), nullable=False)  #회사 아이디
 
@@ -31,10 +31,6 @@ class Report(Base):
     def event_ids(self) -> List[int]:
         return [m.event_id for m in self.event_maps]
 
-    @property
-    def checklist_ids(self) -> List[int]:
-        return [m.checklist_id for m in self.checklist_maps]
-    
     @property
     def inspection_history_ids(self) -> List[int]:
         return [m.inspection_history_id for m in self.inspection_maps]

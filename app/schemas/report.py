@@ -5,7 +5,6 @@ from datetime import datetime
 class ReportCreateRequest(BaseModel):
     content: str = Field(..., min_length=1, max_length=5000, description="보고서 본문 내용")
     event_ids: Optional[List[int]] = Field(default=[], description="연결된 이벤트 ID 목록")
-    checklist_ids: Optional[List[int]] = Field(default=[], description="연결된 체크리스트 ID 목록")
     action_history_ids: List[int] = Field(
         default_factory=list,
         description="연결된 조치 이력 ID 목록",
@@ -21,17 +20,16 @@ class ReportCreateRequest(BaseModel):
         return values
 
 class ReportUpdateRequest(BaseModel):
-    content: str = Field(..., min_length=1, max_length=5000, description="수정할 보고서 본문 내용")
+    title: str = Field(..., min_length=1, max_length=100, description="수정할 보고서 제목")
 
 class ReportDetailResponse(BaseModel):
     report_id: int
     company_id: int
     uid: Optional[int] = None
-    content: str
-    summary: Optional[str] = None
+    path: str
+    title: str
     created_at: datetime
     event_ids: List[int] = []
-    checklist_ids: List[int] = []
     action_history_ids: List[int] = Field(default_factory=list)
     writer: Optional[str] = None
 

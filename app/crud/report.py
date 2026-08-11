@@ -35,7 +35,6 @@ def create_report(
     uid: int,
     content: str,
     event_ids: Optional[List[int]] = None,
-    checklist_ids: Optional[List[int]] = None,
     inspection_history_ids: Optional[List[int]] = None,
     action_history_ids: Optional[List[int]] = None,
     writer: Optional[str] = None,
@@ -59,13 +58,13 @@ def create_report(
         if user:
             writer = user.name
 
-    summary = content[:50] + "..." if len(content) > 50 else content
+    title = content[:50] + "..." if len(content) > 50 else content
     report = Report(
         company_id=company_id,
         uid=uid,
         writer=writer,
-        content=content,
-        summary=summary,
+        path=content,
+        title=title,
         created_at=get_kst_now(),
         is_deleted=False,
     )
@@ -74,9 +73,6 @@ def create_report(
 
     if event_ids:
         db.add_all([ReportEventMap(report_id=report.report_id, event_id=eid) for eid in event_ids])
-
-    if checklist_ids:
-        db.add_all([ReportChecklistMap(report_id=report.report_id, checklist_id=cid) for cid in checklist_ids])
 
     if inspection_history_ids:
         db.add_all(
@@ -141,8 +137,8 @@ def get_reports(
     if keyword:
         query = query.filter(
             or_(
-                Report.content.like(f"%{keyword}%"),
-                Report.summary.like(f"%{keyword}%")
+                Report.path.like(f"%{keyword}%"),
+                Report.title.like(f"%{keyword}%")
             )
         )
 
@@ -156,8 +152,8 @@ def get_reports(
             "report_id": report.report_id,
             "company_id": report.company_id,
             "uid": report.uid,
-            "content": report.content,
-            "summary": report.summary,
+            "path": report.path,
+            "title": report.title,
             "created_at": report.created_at,
             "writer": writer_display,
             "action_history_ids": report.action_history_ids,
@@ -177,7 +173,8 @@ def get_report_by_id(db: Session, report_id: int, company_id: int) -> Optional[R
         .first()
     )
 
-def update_report(db: Session, report_id: int, uid: int, company_id: int, content: str) -> Optional[Report]:
+def update_report(db: Session, report_id: int, uid: int, company_id: int, title: str) -> Optional[Report]:
+    """리포트 제목(title)을 수정한다. path(S3 경로)는 재생성을 통해서만 바뀐다."""
     report = (
         db.query(Report)
         .filter(
@@ -190,9 +187,8 @@ def update_report(db: Session, report_id: int, uid: int, company_id: int, conten
     )
     if not report:
         return None
-        
-    report.content = content
-    report.summary = content[:50] + "..." if len(content) > 50 else content
+
+    report.title = title
     db.commit()
     db.refresh(report)
     return report
@@ -232,8 +228,8 @@ def create_report_path(
         company_id=company_id,
         uid=uid,
         writer=writer,
-        content=s3_output_path,
-        summary=summary,
+        path=s3_output_path,
+        title=summary,
         created_at=get_kst_now(),
         is_deleted=False,
     )

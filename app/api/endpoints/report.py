@@ -24,6 +24,7 @@ from app.crud.report import (
 router = APIRouter()
 REPORT_AGENT_URL  = "http://127.0.0.1:8001"
 
+
 @router.post("", response_model=ReportDetailResponse, status_code=status.HTTP_201_CREATED)
 def post_create_report(
     req: ReportCreateRequest,
@@ -39,7 +40,6 @@ def post_create_report(
             writer=current_user.name,
             content=req.content,
             event_ids=req.event_ids,
-            checklist_ids=req.checklist_ids,
             inspection_history_ids=getattr(req, "inspection_history_ids", None),
             action_history_ids=req.action_history_ids,
         )
@@ -87,13 +87,13 @@ def put_update_report(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """보고서 내용 수정 API"""
+    """보고서 제목 수정 API"""
     r = update_report(
-        db, 
-        report_id=report_id, 
-        uid=current_user.uid, 
+        db,
+        report_id=report_id,
+        uid=current_user.uid,
         company_id=current_user.company_id,
-        content=req.content
+        title=req.title
     )
     if not r:
         raise HTTPException(status_code=403, detail="보고서가 존재하지 않거나 수정 권한이 없습니다.")
@@ -125,7 +125,7 @@ def download_report_pdf(
 
     pdf_content = (
         f"%PDF-1.4\n1 0 obj\n<< /Title (Safety Report {r.report_id}) /Author (AIVLE Team 03) >>\nendobj\n"
-        f"Content:\n{r.content}\nSummary:\n{r.summary}\nCreated At:\n{r.created_at.strftime('%Y-%m-%d %H:%M:%S')}\n"
+        f"Title:\n{r.title}\nPath:\n{r.path}\nCreated At:\n{r.created_at.strftime('%Y-%m-%d %H:%M:%S')}\n"
     ).encode("utf-8")
 
     return Response(
@@ -147,10 +147,10 @@ def read_report_file_url(
     if not r:
         raise HTTPException(status_code=404, detail="보고서를 찾을 수 없습니다.")
 
-    if r.content.startswith("s3://"):
-        s3_key = r.content[len("s3://"):].split("/", 1)[1]
+    if r.path.startswith("s3://"):
+        s3_key = r.path[len("s3://"):].split("/", 1)[1]
     else:
-        s3_key = r.content
+        s3_key = r.path
 
     file_url = generate_presigned_url(s3_key)
     if not file_url:
