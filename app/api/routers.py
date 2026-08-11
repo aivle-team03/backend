@@ -3,7 +3,6 @@ from app.api.endpoints import user
 from app.api.endpoints import auth
 from app.api.endpoints import cctv
 from app.api.endpoints import monitoring
-from app.api.endpoints import checklist
 from app.api.endpoints import dashboard
 from app.api.endpoints import chatbot
 from app.api.endpoints import ai_detect
@@ -24,7 +23,6 @@ api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(cctv.router, prefix="/cctvs", tags=["cctvs"])
 api_router.include_router(monitoring.router, prefix="/monitoring", tags=["monitoring"])
 
-api_router.include_router(checklist.router, prefix="/checklists", tags=["checklists"])
 api_router.include_router(inspection.router, prefix="/inspection", tags=["inspection"])
 api_router.include_router(
     action_history.router,

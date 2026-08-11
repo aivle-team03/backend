@@ -1,13 +1,57 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, select
 from datetime import datetime, timedelta
 from app.utils.datetime_utils import get_kst_now
 from typing import List
 from app.models.cctv import CCTV
 from app.models.event import Event
 from app.models.event_category import EventCategory
-from app.models.checklist import Checklist
+from app.models.action_history import ActionHistory
 from app.models.report import Report
+from app.schemas.action_history import ActionStatus, ApprovalStatus
+
+
+# 이벤트 조치 진행 상태. 조치가 없는 이벤트는 UNASSIGNED 로 본다.
+UNASSIGNED = "미조치"
+IN_PROGRESS = "조치 진행"
+REVIEW_PENDING = "승인 대기"
+DONE = "완료"
+
+
+def _resolve_status(action_status: str, approval_status: str) -> str:
+    """action_status 와 approval_status 두 컬럼을 하나의 진행 상태로 합친다."""
+    if approval_status == ApprovalStatus.APPROVED.value:
+        return DONE
+    if action_status == ActionStatus.COMPLETED.value:
+        return REVIEW_PENDING
+    # 반려되면 action_status 가 다시 "조치 대기"로 돌아오므로 여기에 포함된다.
+    return IN_PROGRESS
+
+
+def _latest_status_by_event(db: Session, company_id: int) -> dict:
+    """이벤트별 최신 조치의 진행 상태를 {event_id: 상태} 로 돌려준다."""
+    latest_ids = (
+        select(func.max(ActionHistory.action_history_id))
+        .where(
+            ActionHistory.company_id == company_id,
+            ActionHistory.is_deleted == False,
+            ActionHistory.event_id.isnot(None),
+        )
+        .group_by(ActionHistory.event_id)
+    )
+    rows = (
+        db.query(
+            ActionHistory.event_id,
+            ActionHistory.action_status,
+            ActionHistory.approval_status,
+        )
+        .filter(ActionHistory.action_history_id.in_(latest_ids))
+        .all()
+    )
+    return {
+        event_id: _resolve_status(action_status, approval_status)
+        for event_id, action_status, approval_status in rows
+    }
 
 
 def get_dashboard_summary(db: Session, company_id: int) -> dict:
@@ -25,27 +69,26 @@ def get_dashboard_summary(db: Session, company_id: int) -> dict:
         .count()
     )
 
-    pending_action_count = (
-        db.query(Checklist)
-        .filter(
-            Checklist.company_id == company_id,
-            Checklist.status.in_(["미조치", "조치 대기", "조치 중"])
-        )
-        .count()
-    )
-    
     completed_action_count = (
-        db.query(Checklist)
+        db.query(ActionHistory)
         .filter(
-            Checklist.company_id == company_id,
-            Checklist.status.in_(["승인 완료", "완료"])
+            ActionHistory.company_id == company_id,
+            ActionHistory.is_deleted == False,
+            ActionHistory.approval_status == ApprovalStatus.APPROVED.value,
         )
         .count()
     )
-        
-    pending_action_count = db.query(Checklist).filter(Checklist.status.in_(["미조치", "조치 대기", "조치 중"])).count()
-    completed_action_count = db.query(Checklist).filter(Checklist.status.in_(["승인 완료", "완료"])).count()
-    
+
+    pending_action_count = (
+        db.query(ActionHistory)
+        .filter(
+            ActionHistory.company_id == company_id,
+            ActionHistory.is_deleted == False,
+            func.coalesce(ActionHistory.approval_status, "") != ApprovalStatus.APPROVED.value,
+        )
+        .count()
+    )
+
     return {
         "detected_count": detected_count,
         "violation_count": violation_count,
@@ -57,7 +100,7 @@ def get_dashboard_summary(db: Session, company_id: int) -> dict:
 def get_recent_events(db: Session, company_id: int, limit: int = 10) -> List[dict]:
     results = db.query(Event, EventCategory, CCTV)\
         .join(EventCategory, Event.category_id == EventCategory.category_id)\
-        .join(CCTV, Event.camera_id == CCTV.cctv_id)\
+        .join(CCTV, Event.cctv_id == CCTV.cctv_id)\
         .filter(Event.company_id == company_id, Event.is_deleted == False, EventCategory.is_deleted == False,)\
         .order_by(Event.date.desc())\
         .limit(limit).all()
@@ -84,7 +127,8 @@ def get_zone_statistics(db: Session, company_id: int):
         .all()
     )
     results = []
-    
+    status_by_event = _latest_status_by_event(db, company_id)
+
     for (loc,) in locations:
         if not loc:
             continue
@@ -108,7 +152,7 @@ def get_zone_statistics(db: Session, company_id: int):
                 db.query(Event)
                 .filter(
                     Event.company_id == company_id,
-                    Event.camera_id.in_(cctv_ids),
+                    Event.cctv_id.in_(cctv_ids),
                     Event.is_deleted == False,
                 )
                 .count()
@@ -117,24 +161,15 @@ def get_zone_statistics(db: Session, company_id: int):
                 db.query(Event)
                 .filter(
                     Event.company_id == company_id,
-                    Event.camera_id.in_(cctv_ids),
+                    Event.cctv_id.in_(cctv_ids),
                     Event.is_deleted == False,
                 )
                 .all()
             )
             unresolved_count = 0
             for ev in events:
-                latest_chk = (
-                    db.query(Checklist)
-                    .filter(
-                        Checklist.company_id == company_id,
-                        Checklist.event_id == ev.event_id,
-                    )
-                    .order_by(Checklist.checklist_id.desc())
-                    .first()
-                )
-                status = latest_chk.status if latest_chk else "미조치"
-                if status in ["미조치", "조치 대기", "조치 중"]:
+                status = status_by_event.get(ev.event_id, UNASSIGNED)
+                if status in (UNASSIGNED, IN_PROGRESS):
                     unresolved_count += 1
                 
         risk_index = min(100.0, float(unresolved_count / (cctv_count + 1) * 20.0))
@@ -165,28 +200,21 @@ def calculate_safety_grade(db: Session, company_id: int):
     unassigned_count = 0
     progress_count = 0
     pending_count = 0
-    
+
+    status_by_event = _latest_status_by_event(db, company_id)
+
     for ev in events:
-        latest_chk = (
-            db.query(Checklist)
-            .filter(
-                Checklist.company_id == company_id,
-                Checklist.event_id == ev.event_id
-            )
-            .order_by(Checklist.checklist_id.desc())
-            .first()
-        )
-        status = latest_chk.status if latest_chk else "미조치"
-        
-        if status == "미조치":
+        status = status_by_event.get(ev.event_id, UNASSIGNED)
+
+        if status == UNASSIGNED:
             score -= 5
             unassigned_count += 1
             unresolved_count += 1
-        elif status in ["조치 대기", "조치 중"]:
+        elif status == IN_PROGRESS:
             score -= 2
             progress_count += 1
             unresolved_count += 1
-        elif status == "승인 대기":
+        elif status == REVIEW_PENDING:
             score -= 1
             pending_count += 1
             unresolved_count += 1

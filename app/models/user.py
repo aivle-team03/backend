@@ -18,7 +18,6 @@ class User(Base):
 
     company = relationship("Company", back_populates="users")
     reports = relationship("Report", back_populates="user")
-    checklists = relationship("Checklist", back_populates="user")
     inspections = relationship("Inspection", back_populates="user")
     inspection_histories = relationship("InspectionHistory", back_populates="user")
     education_statuses = relationship(

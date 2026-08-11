@@ -17,7 +17,6 @@ class Report(Base):
 
     user = relationship("User", back_populates="reports")
     event_maps = relationship("ReportEventMap", back_populates="report", cascade="all, delete-orphan")
-    checklist_maps = relationship("ReportChecklistMap", back_populates="report", cascade="all, delete-orphan")
     company = relationship("Company")
     inspection_maps = relationship("ReportInspectionMap", back_populates="report", cascade="all, delete-orphan")
     action_maps = relationship(
@@ -31,10 +30,6 @@ class Report(Base):
     def event_ids(self) -> List[int]:
         return [m.event_id for m in self.event_maps]
 
-    @property
-    def checklist_ids(self) -> List[int]:
-        return [m.checklist_id for m in self.checklist_maps]
-    
     @property
     def inspection_history_ids(self) -> List[int]:
         return [m.inspection_history_id for m in self.inspection_maps]

@@ -1,7 +1,9 @@
 # app/schemas/board.py
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional, List
 from datetime import datetime
+
+from app.utils.media import public_url
 
 # 게시글 응답 기본 스키마
 class BoardResponse(BaseModel):
@@ -17,6 +19,11 @@ class BoardResponse(BaseModel):
     image_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("image_url", mode="before")
+    @classmethod
+    def make_full_image_url(cls, value):
+        return public_url(value)
 
     class Config:
         from_attributes = True

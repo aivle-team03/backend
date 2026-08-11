@@ -85,6 +85,38 @@ async def upload_video_to_s3(
     return None
 
 
+def upload_fileobj_to_s3(
+    fileobj,
+    bucket: str,
+    key: str,
+    content_type: str,
+    region_name: Optional[str] = None
+) -> bool:
+    """열려 있는 파일 객체를 S3에 업로드한다. 성공 여부를 반환한다."""
+    try:
+        s3_client = _create_s3_client(region_name)
+        s3_client.upload_fileobj(
+            fileobj, bucket, key, ExtraArgs={"ContentType": content_type}
+        )
+        print(f"[S3Upload] SUCCESS: s3://{bucket}/{key}")
+        return True
+    except Exception as e:
+        print(f"[S3Upload] WARNING: 업로드 예외 발생 ({key}): {e}")
+        return False
+
+
+def delete_object_from_s3(
+    bucket: str,
+    key: str,
+    region_name: Optional[str] = None
+) -> None:
+    """S3 오브젝트를 삭제한다. 실패해도 호출부를 막지 않는다."""
+    try:
+        _create_s3_client(region_name).delete_object(Bucket=bucket, Key=key)
+    except Exception as e:
+        print(f"[S3Delete] WARNING: 삭제 예외 발생 ({key}): {e}")
+
+
 def generate_presigned_url(
     object_name: str,
     expires_in: int = DEFAULT_EXPIRES_IN,

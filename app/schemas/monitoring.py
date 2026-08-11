@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
 from typing import Optional
 
@@ -43,16 +43,14 @@ class ActionRequest(BaseModel):
     message: str
 
 class ActionRequestResponse(BaseModel):
-    checklist_id: int
+    action_history_id: int
     company_id: int
     event_id: Optional[int] = None
-    date: datetime
-    status: str
-    uid: Optional[int] = None
-    camera_id: Optional[int] = None
+    created_at: datetime
+    action_status: str
+    handler_uid: Optional[int] = None
+    location: str
     content: str
     image_url: Optional[str] = None
 
-    class Config:
-        from_attribute = True
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
