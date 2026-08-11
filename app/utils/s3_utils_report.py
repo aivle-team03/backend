@@ -26,9 +26,9 @@ def _create_s3_client(region_name: Optional[str] = None):
     """Environment variable-based boto3 S3 client initialization"""
     return boto3.client(
         "s3",
-        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-        region_name=region_name or os.getenv("AWS_REGION", DEFAULT_REGION),
+        aws_access_key_id=os.getenv("AWS_REPORT_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("AWS_REPORT_SECRET_ACCESS_KEY"),
+        region_name=region_name or os.getenv("AWS_REPORT_REGION", DEFAULT_REGION),
         config=_S3_CONFIG
     )
 
@@ -55,16 +55,16 @@ async def upload_video_to_s3(
     DB에는 이 키를 저장하고, 조회 시점에 generate_presigned_url()로 URL을 만든다.
 
     환경 변수 지원:
-    - AWS_ACCESS_KEY_ID
-    - AWS_SECRET_ACCESS_KEY
-    - AWS_REGION (기본값: ap-northeast-2)
-    - AWS_S3_BUCKET_NAME
+    - AWS_REPORT_ACCESS_KEY_ID
+    - AWS_REPORT_SECRET_ACCESS_KEY
+    - AWS_REPORT_REGION (기본값: ap-northeast-2)
+    - AWS_REPORT_S3_BUCKET_NAME
     """
     if not file_path or not os.path.exists(file_path):
         print(f"[S3Upload] 업로드 대상 파일이 존재하지 않습니다: {file_path}")
         return None
 
-    bucket = bucket_name or os.getenv("AWS_S3_BUCKET_NAME")
+    bucket = bucket_name or os.getenv("AWS_REPORT_S3_BUCKET_NAME")
 
     if not bucket:
         print("[S3Upload] WARNING: AWS_S3_BUCKET_NAME 설정이 미비하여 업로드를 생략합니다.")
@@ -105,7 +105,7 @@ def generate_presigned_url(
         print("[S3Presign] 대상 오브젝트 키가 비어 있습니다.")
         return None
 
-    bucket = bucket_name or os.getenv("AWS_S3_BUCKET_NAME")
+    bucket = bucket_name or os.getenv("AWS_REPORT_S3_BUCKET_NAME")
 
     if not bucket:
         print("[S3Presign] WARNING: AWS_S3_BUCKET_NAME 설정이 미비하여 URL 생성을 생략합니다.")
