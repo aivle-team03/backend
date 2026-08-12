@@ -22,7 +22,7 @@ from app.crud.report import (
 )
 
 router = APIRouter()
-REPORT_AGENT_URL  = "http://127.0.0.1:8001"
+REPORT_AGENT_URL = os.getenv("REPORT_AGENT_URL", "http://127.0.0.1:8004").rstrip("/")
 
 
 @router.post("", response_model=ReportDetailResponse, status_code=status.HTTP_201_CREATED)
