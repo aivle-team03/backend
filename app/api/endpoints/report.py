@@ -31,7 +31,7 @@ def post_create_report(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """선택한 이벤트, 체크리스트, 조치 이력을 기반으로 보고서 생성 API"""
+    """선택한 이벤트, 점검 이력, 조치 이력을 기반으로 보고서 생성 API"""
     try:
         report = create_report(
             db=db,

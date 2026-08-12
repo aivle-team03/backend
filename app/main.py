@@ -9,6 +9,7 @@ import app.models
 from app.api.routers import api_router
 from app.core.exceptions import setup_logging, setup_exception_handlers
 from app.crud.inspection import generate_scheduled_inspection_histories
+from app.utils.media import storage_mode
 from apscheduler.schedulers.background import BackgroundScheduler
 import traceback
 from fastapi import Request, status
@@ -38,6 +39,16 @@ app.add_middleware(
 
 # 전역 예외 핸들러 적용
 setup_exception_handlers(app)
+
+# 이미지 저장 위치를 기동 시점에 알린다. 운영에서 버킷 설정을 빠뜨리면
+# 업로드가 조용히 로컬 디스크로 빠져 재배포 때 전부 사라지므로 여기서 드러내야 한다.
+if storage_mode() == "local":
+    logger.warning(
+        "이미지 저장소가 로컬 디스크입니다. AWS_S3_MEDIA_BUCKET 이 설정되지 않았으며, "
+        "재배포 시 업로드된 이미지가 모두 사라집니다."
+    )
+else:
+    logger.info("이미지 저장소: S3 (%s)", os.getenv("AWS_S3_MEDIA_BUCKET"))
 
 # static 디렉토리 생성 및 정적 파일 마운트
 os.makedirs("static/uploads", exist_ok=True)

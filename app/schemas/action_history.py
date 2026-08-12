@@ -1,12 +1,10 @@
-import os
 from datetime import datetime
 from enum import Enum
 from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-
-BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
+from app.utils.media import public_url
 
 
 class SourceType(str, Enum):
@@ -126,12 +124,10 @@ class ActionHistoryListItem(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    @field_validator("image_url", mode="before")
+    @field_validator("image_url", "before_image_url", mode="before")
     @classmethod
     def make_full_image_url(cls, value):
-        if value and isinstance(value, str) and value.startswith("/static/"):
-            return f"{BACKEND_URL}{value}"
-        return value
+        return public_url(value)
 
 
 class ActionHistoryDetailResponse(ActionHistoryListItem):
@@ -187,5 +183,4 @@ class VerifyActionResponse(BaseModel):
     confidence: float
     analysis_summary: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

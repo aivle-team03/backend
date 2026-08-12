@@ -6,7 +6,6 @@ from app.utils.datetime_utils import get_kst_now
 from app.models.report import Report
 from app.models.sub_report import SubReport
 from app.models.report_event_map import ReportEventMap
-from app.models.report_checklist_map import ReportChecklistMap
 from app.models.report_inspection_map import ReportInspectionMap
 from app.models.report_action_map import ReportActionMap
 from app.models.action_history import ActionHistory

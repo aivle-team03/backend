@@ -25,12 +25,12 @@ def get_cctvs(db: Session, company_id: int, skip: int = 0, limit: int = 100):
     )
 
 
-def get_cctv_by_name(db: Session, camera_name: str, company_id: int) -> CCTV | None:
+def get_cctv_by_name(db: Session, cctv_name: str, company_id: int) -> CCTV | None:
     """카메라 이름 중복 검사용 조회"""
     return (
         db.query(CCTV)
         .filter(
-            CCTV.camera_name == camera_name,
+            CCTV.cctv_name == cctv_name,
             CCTV.company_id == company_id,
             CCTV.is_deleted == False,
         )
@@ -41,7 +41,7 @@ def create_cctv(db: Session, cctv_in: CCTVCreate, company_id: int) -> CCTV:
     """CCTV 신규 등록"""
     db_cctv = CCTV(
         company_id=company_id,
-        camera_name=cctv_in.camera_name,
+        cctv_name=cctv_in.cctv_name,
         location=cctv_in.location,
         stream_url=cctv_in.stream_url,
         status=cctv_in.status or "running",

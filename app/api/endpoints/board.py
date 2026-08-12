@@ -1,7 +1,4 @@
 # app/api/endpoints/board.py
-import os
-import shutil
-import time
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
 from sqlalchemy.orm import Session
@@ -19,9 +16,9 @@ from app.crud.board import (
     update_board_status,
     delete_board
 )
+from app.utils.media import save_image
 
 router = APIRouter()
-UPLOAD_DIR = "static/uploads"
 
 # 1. 게시글 등록 (POST /api/boards)
 @router.post("", response_model=BoardResponse, status_code=status.HTTP_201_CREATED)
@@ -38,15 +35,7 @@ def post_board(
 
     image_url = None
     if image and image.filename:
-        os.makedirs(UPLOAD_DIR, exist_ok=True)
-        ext = os.path.splitext(image.filename)[1]
-        filename = f"board_{int(time.time())}{ext}"
-        file_path = os.path.join(UPLOAD_DIR, filename)
-        
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(image.file, buffer)
-            
-        image_url = f"/static/uploads/{filename}"
+        image_url = save_image(image, "boards")
 
     return create_board(
         db=db,
@@ -109,13 +98,7 @@ def patch_board(
 
     image_url = None
     if image:
-        os.makedirs(UPLOAD_DIR, exist_ok=True)
-        ext = os.path.splitext(image.filename)[1]
-        filename = f"board_{board_id}_{int(time.time())}{ext}"
-        file_path = os.path.join(UPLOAD_DIR, filename)
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(image.file, buffer)
-        image_url = f"/static/uploads/{filename}"
+        image_url = save_image(image, "boards")
 
     return update_board(
         db=db, board=board, title=title, board_contents=board_contents,

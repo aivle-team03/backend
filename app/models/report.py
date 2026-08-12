@@ -17,7 +17,6 @@ class Report(Base):
 
     user = relationship("User", back_populates="reports")
     event_maps = relationship("ReportEventMap", back_populates="report", cascade="all, delete-orphan")
-    checklist_maps = relationship("ReportChecklistMap", back_populates="report", cascade="all, delete-orphan")
     company = relationship("Company")
     inspection_maps = relationship("ReportInspectionMap", back_populates="report", cascade="all, delete-orphan")
     action_maps = relationship(
