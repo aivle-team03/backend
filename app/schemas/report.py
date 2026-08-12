@@ -20,14 +20,14 @@ class ReportCreateRequest(BaseModel):
         return values
 
 class ReportUpdateRequest(BaseModel):
-    content: str = Field(..., min_length=1, max_length=5000, description="수정할 보고서 본문 내용")
+    title: str = Field(..., min_length=1, max_length=100, description="수정할 보고서 제목")
 
 class ReportDetailResponse(BaseModel):
     report_id: int
     company_id: int
     uid: Optional[int] = None
-    content: str
-    summary: Optional[str] = None
+    path: str
+    title: str
     created_at: datetime
     event_ids: List[int] = []
     action_history_ids: List[int] = Field(default_factory=list)

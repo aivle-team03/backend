@@ -178,6 +178,15 @@ AWS_REGION=""
 BACKEND_URL=""
 ```
 
+# REPORT AWS 설정
+'''
+AWS_REPORT_ACCESS_KEY_ID=""
+AWS_REPORT_SECRET_ACCESS_KEY=""
+AWS_REPORT_REGION=us-east-1
+AWS_REPORT_S3_BUCKET_NAME=aivle-team3-boss-bucket
+
+'''
+
 > `ENV`를 `production`으로 설정하면 `DATABASE_URL`과 `SECRET_KEY`가 없을 때 예외를 던지며 기동을 거부합니다. 미설정 시에는 각각 로컬 SQLite와 개발용 기본 키로 폴백하므로, **운영 배포 시 `ENV=production` 지정을 권장합니다.**
 
 ### 3. 데이터베이스 초기 시딩 (Optional)
@@ -288,6 +297,11 @@ GET  /api/education/veo-generate/{task_id}/status
 | | `PUT` | `/api/report/{id}` | 보고서 내용 수정 |
 | | `DELETE`| `/api/report/{id}` | 보고서 삭제 |
 | | `GET` | `/api/report/{id}/download` | 보고서 PDF 파일 동적 다운로드 |
+| | `GET` | `/{report_id}/file-url` | S3 저장소 저장 파일 임시 URL 발급 |
+| | `POST` | `/risk-assessment/form/generate` | 위험성평가표 생성 |
+| | `POST` | `/worker-feedback/generate` | 종사자에 의한 유해 위험요인 보고서 생성 |
+| | `POST` | `/management-review-order/generate` |경영책임지 검토지시서 생성 |
+| | `POST` | `/risk-assessment/report/generate` | 위험성평가보고서 생성 |
 | **Dashboard**| `GET` | `/api/dashboard/zones/stats` | 구역별 위험도 집계 통계 |
 | | `GET` | `/api/dashboard/safetygrade` | 최근 30일 기반 종합 안전 등급 (A~F) |
 | | `GET` | `/api/dashboard/reports` | 기간별 통계 보고서 조회 |
