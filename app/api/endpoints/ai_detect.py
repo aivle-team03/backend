@@ -23,23 +23,6 @@ from app.crud.ai_detect import (
 
 router = APIRouter()
 
-AI_SERVER_URL = "http://127.0.0.1:8001"
-
-@router.post("/detect/facilities", response_model=FacilityDetectionResponse)
-def post_detect_facilities(image: UploadFile = File(...)):
-    """소방시설 탐지 API - 명세서 URL /api/ai/detect/facilities (요구사항 ADM-39-81-38)"""
-    return detect_facilities_sim(image.filename)
-
-@router.post("/detect/hazards", response_model=HazardDetectionResponse)
-def post_detect_hazards(image: UploadFile = File(...)):
-    """위험요소 탐지 API - 명세서 URL /api/ai/detect/hazards (요구사항 ADM-39-82-39)"""
-    return detect_hazards_sim(image.filename)
-
-@router.post("/detect/fire", response_model=FireDetectionResponse)
-def post_detect_fire(image: UploadFile = File(...)):
-    """화재 징후 탐지 API - 명세서 URL /api/ai/detect/fire (요구사항 ADM-39-83-40)"""
-    return detect_fire_sim(image.filename)
-
 @router.post("/events", status_code=status.HTTP_201_CREATED)
 def post_ai_event(
     event: AIEventCreate,

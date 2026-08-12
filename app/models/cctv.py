@@ -17,5 +17,4 @@ class CCTV(Base):
 
 
     events = relationship("Event", back_populates="cctv")
-    checklists = relationship("Checklist", back_populates="cctv")
     company = relationship("Company")

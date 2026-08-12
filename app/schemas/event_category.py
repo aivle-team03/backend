@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import ConfigDict, BaseModel
 from typing import List
 
 
@@ -21,8 +21,7 @@ class RiskFactorResponse(BaseModel):
     level: int              # 강도
     frequency: int          # 빈도 (해당 카테고리의 Event 수)
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CategoryGraphData(BaseModel):

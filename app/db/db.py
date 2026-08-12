@@ -30,7 +30,9 @@ engine = create_engine(
     max_overflow=2,
     pool_recycle=1800,
     connect_args=connect_args,
-    echo=True
+    # 모든 SQL 이 로그로 남아 디스크를 채우고 파라미터 값까지 노출되므로 기본은 끈다.
+    # 로컬에서 쿼리를 보려면 .env 에 SQL_ECHO=true 를 넣는다.
+    echo=os.getenv("SQL_ECHO", "false").lower() == "true"
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

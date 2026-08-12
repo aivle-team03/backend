@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import ConfigDict, BaseModel
 from datetime import datetime
 from typing import Optional, List
 
@@ -18,8 +18,7 @@ class SignupCodeResponse(BaseModel):
     used_by_uid: Optional[int] = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CategoryListResponse(BaseModel):

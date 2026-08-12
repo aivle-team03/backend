@@ -16,16 +16,19 @@ DEFAULT_EXPIRES_IN = 3600
 # addressing_style을 명시하지 않으면 presigned URL이 리전 없는 글로벌 엔드포인트
 # (bucket.s3.amazonaws.com)로 서명되어, 서울 리전 버킷에서 리다이렉트나
 # AuthorizationHeaderMalformed를 유발한다.
-_S3_CONFIG = Config(s3={"addressing_style": "virtual"})
+_S3_CONFIG = Config(
+    signature_version="s3v4",
+    s3={"addressing_style": "virtual", "us_east_1_regional_endpoint": "regional"},
+)
 
 
 def _create_s3_client(region_name: Optional[str] = None):
     """Environment variable-based boto3 S3 client initialization"""
     return boto3.client(
         "s3",
-        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-        region_name=region_name or os.getenv("AWS_REGION", DEFAULT_REGION),
+        aws_access_key_id=os.getenv("AWS_REPORT_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.getenv("AWS_REPORT_SECRET_ACCESS_KEY"),
+        region_name=region_name or os.getenv("AWS_REPORT_REGION", DEFAULT_REGION),
         config=_S3_CONFIG
     )
 
@@ -52,16 +55,16 @@ async def upload_video_to_s3(
     DB에는 이 키를 저장하고, 조회 시점에 generate_presigned_url()로 URL을 만든다.
 
     환경 변수 지원:
-    - AWS_ACCESS_KEY_ID
-    - AWS_SECRET_ACCESS_KEY
-    - AWS_REGION (기본값: ap-northeast-2)
-    - AWS_S3_BUCKET_NAME
+    - AWS_REPORT_ACCESS_KEY_ID
+    - AWS_REPORT_SECRET_ACCESS_KEY
+    - AWS_REPORT_REGION (기본값: ap-northeast-2)
+    - AWS_REPORT_S3_BUCKET_NAME
     """
     if not file_path or not os.path.exists(file_path):
         print(f"[S3Upload] 업로드 대상 파일이 존재하지 않습니다: {file_path}")
         return None
 
-    bucket = bucket_name or os.getenv("AWS_S3_BUCKET_NAME")
+    bucket = bucket_name or os.getenv("AWS_REPORT_S3_BUCKET_NAME")
 
     if not bucket:
         print("[S3Upload] WARNING: AWS_S3_BUCKET_NAME 설정이 미비하여 업로드를 생략합니다.")
@@ -85,38 +88,6 @@ async def upload_video_to_s3(
     return None
 
 
-def upload_fileobj_to_s3(
-    fileobj,
-    bucket: str,
-    key: str,
-    content_type: str,
-    region_name: Optional[str] = None
-) -> bool:
-    """열려 있는 파일 객체를 S3에 업로드한다. 성공 여부를 반환한다."""
-    try:
-        s3_client = _create_s3_client(region_name)
-        s3_client.upload_fileobj(
-            fileobj, bucket, key, ExtraArgs={"ContentType": content_type}
-        )
-        print(f"[S3Upload] SUCCESS: s3://{bucket}/{key}")
-        return True
-    except Exception as e:
-        print(f"[S3Upload] WARNING: 업로드 예외 발생 ({key}): {e}")
-        return False
-
-
-def delete_object_from_s3(
-    bucket: str,
-    key: str,
-    region_name: Optional[str] = None
-) -> None:
-    """S3 오브젝트를 삭제한다. 실패해도 호출부를 막지 않는다."""
-    try:
-        _create_s3_client(region_name).delete_object(Bucket=bucket, Key=key)
-    except Exception as e:
-        print(f"[S3Delete] WARNING: 삭제 예외 발생 ({key}): {e}")
-
-
 def generate_presigned_url(
     object_name: str,
     expires_in: int = DEFAULT_EXPIRES_IN,
@@ -134,7 +105,7 @@ def generate_presigned_url(
         print("[S3Presign] 대상 오브젝트 키가 비어 있습니다.")
         return None
 
-    bucket = bucket_name or os.getenv("AWS_S3_BUCKET_NAME")
+    bucket = bucket_name or os.getenv("AWS_REPORT_S3_BUCKET_NAME")
 
     if not bucket:
         print("[S3Presign] WARNING: AWS_S3_BUCKET_NAME 설정이 미비하여 URL 생성을 생략합니다.")

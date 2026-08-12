@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
 
 class ChatbotQueryRequest(BaseModel):
@@ -19,5 +19,4 @@ class ManualSearchResponse(BaseModel):
     content: str
     source: str
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
