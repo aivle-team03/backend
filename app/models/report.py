@@ -10,8 +10,8 @@ class Report(Base):
 
     uid = Column(BigInteger, ForeignKey("user.uid", ondelete='SET NULL'), nullable=True)
     writer = Column(String(100), nullable=True)
-    content = Column(Text, nullable=False)
-    summary = Column(String(100), nullable=False)
+    title = Column(String(100), nullable=False)
+    path = Column(Text, nullable=False)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
     company_id = Column(BigInteger, ForeignKey("company.company_id", ondelete="CASCADE"), nullable=False)  #회사 아이디
 
