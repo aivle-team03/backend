@@ -17,6 +17,21 @@ PROGRESS_STATUSES = (INCOMPLETE, IN_PROGRESS, COMPLETED)
 ALL_EMPLOYEE_CATEGORIES = {"공통"}
 
 
+def _allowed_education_categories(user: User) -> List[str]:
+    """이 사용자에게 보여야 할 education.category 값 목록.
+
+    education.category 에는 두 축의 값이 들어온다.
+      - 업무 단위: 지게차, 화물트럭 ...  → user.category 와 매칭
+      - 직책 단위: 안전관리자, 관제사 ... → user.role 과 매칭
+    프론트의 '이수 대상'이 직책 목록이라 role 도 함께 봐야 교육이 노출된다.
+    """
+    allowed = list(ALL_EMPLOYEE_CATEGORIES)
+    for value in (user.category, user.role):
+        if value and value not in allowed:
+            allowed.append(value)
+    return allowed
+
+
 def get_user_by_uid(db: Session, uid: int, company_id: int) -> Optional[User]:
     return db.query(User).filter(User.uid == uid, User.company_id == company_id).first()
 
@@ -42,9 +57,7 @@ def get_my_education_list(
     user: User,
     category: Optional[str] = None,
 ):
-    allowed_categories = list(ALL_EMPLOYEE_CATEGORIES)
-    if user.category and user.category not in allowed_categories:
-        allowed_categories.append(user.category)
+    allowed_categories = _allowed_education_categories(user)
 
     query = db.query(Education).filter(
         Education.company_id == user.company_id,
@@ -91,9 +104,7 @@ def get_user_education_statuses(
     category: Optional[str] = None,
     completion_status: Optional[str] = None,
 ):
-    allowed_categories = list(ALL_EMPLOYEE_CATEGORIES)
-    if user.category and user.category not in allowed_categories:
-        allowed_categories.append(user.category)
+    allowed_categories = _allowed_education_categories(user)
 
     query = (
         db.query(Education, EducationStatus)
@@ -258,6 +269,16 @@ def get_education_status_summaries(
 
 
 def get_education_attendees(db: Session, company_id: int, education_id: int) -> Dict:
+    education = (
+        db.query(Education)
+        .filter(
+            Education.education_id == education_id,
+            Education.company_id == company_id,
+            Education.is_deleted == False,
+        )
+        .first()
+    )
+
     rows = (
         db.query(User, EducationStatus)
         .filter(User.company_id == company_id)
@@ -268,6 +289,16 @@ def get_education_attendees(db: Session, company_id: int, education_id: int) -> 
         .order_by(User.name.asc())
         .all()
     )
+
+    # 이 교육이 실제로 노출되는 사람만 대상자로 센다. 전원을 분모로 쓰면
+    # 업무별 교육의 이수율이 실제보다 낮게 나온다.
+    if education:
+        rows = [
+            (user, status_row)
+            for user, status_row in rows
+            if education.category in _allowed_education_categories(user)
+        ]
+
     attendees = [
         {
             "uid": user.uid,
