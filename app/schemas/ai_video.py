@@ -32,3 +32,5 @@ class VideoStatusResponse(BaseModel):
 class VideoPublishResponse(BaseModel):
     education_id: int
     message: str
+    # 직접 등록(/education/add)에서 프론트가 바로 재생할 수 있도록 저장된 주소를 함께 준다.
+    video_url: Optional[str] = None

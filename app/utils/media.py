@@ -30,6 +30,12 @@ IMAGE_EXTENSIONS = {
     "image/gif": ".gif",
 }
 
+VIDEO_EXTENSIONS = {
+    "video/mp4": ".mp4",
+    "video/webm": ".webm",
+    "video/quicktime": ".mov",
+}
+
 
 def _media_bucket() -> Optional[str]:
     return os.getenv("AWS_S3_MEDIA_BUCKET")
@@ -60,11 +66,23 @@ def public_url(value: Optional[str]) -> Optional[str]:
 
 def save_image(image: UploadFile, folder: str) -> str:
     """이미지를 저장하고 DB에 넣을 경로를 반환한다."""
-    extension = IMAGE_EXTENSIONS.get(image.content_type or "")
+    return _save_upload(image, folder, IMAGE_EXTENSIONS, "jpg, png, webp, gif 형식의 이미지")
+
+
+def save_video(video: UploadFile, folder: str = "videos") -> str:
+    """영상을 저장하고 DB에 넣을 경로를 반환한다.
+
+    videoagent 가 생성한 영상과 같은 media/videos/ 접두사를 쓴다.
+    """
+    return _save_upload(video, folder, VIDEO_EXTENSIONS, "mp4, webm, mov 형식의 영상")
+
+
+def _save_upload(upload: UploadFile, folder: str, extensions: dict, label: str) -> str:
+    extension = extensions.get(upload.content_type or "")
     if not extension:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="jpg, png, webp, gif 형식의 이미지만 업로드할 수 있습니다.",
+            detail=f"{label}만 업로드할 수 있습니다.",
         )
 
     # 날짜로 나눠 한 접두사에 객체가 몰리지 않게 하고, 수명주기 정책을 걸기 쉽게 한다.
@@ -75,21 +93,21 @@ def save_image(image: UploadFile, folder: str) -> str:
     if not bucket:
         print(
             "[Media] WARNING: AWS_S3_MEDIA_BUCKET 미설정. 로컬 디스크에 저장하며 "
-            "재배포 시 이미지가 사라집니다."
+            "재배포 시 파일이 사라집니다."
         )
-        return _save_local(image, relative_path)
+        return _save_local(upload, relative_path)
 
-    image.file.seek(0)
+    upload.file.seek(0)
     uploaded = upload_fileobj_to_s3(
-        image.file,
+        upload.file,
         bucket,
         f"{MEDIA_S3_PREFIX}{relative_path}",
-        image.content_type,
+        upload.content_type,
     )
     if not uploaded:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="이미지 업로드에 실패했습니다.",
+            detail="업로드에 실패했습니다.",
         )
     return f"{MEDIA_URL_PREFIX}{relative_path}"
 
