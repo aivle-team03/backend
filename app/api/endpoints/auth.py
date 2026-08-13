@@ -68,11 +68,14 @@ def login(user_login: UserLogin, db: Session = Depends(get_db)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="아이디 또는 비밀번호가 잘못되었습니다."
         )
-    
-    # JWT Access Token & Refresh Token 생성
-    token_data = {"sub": str(user.uid), "company_id": user.company_id}
+        
+    token_data = {
+        "sub": str(user.uid), 
+        "company_id": user.company_id,
+        "role": user.role
+    }
     access_token = create_access_token(data=token_data)
-    refresh_token = create_refresh_token(data=token_data)
+    refresh_token = create_refresh_token(data={"sub": str(user.uid)})
 
     # DB에 SHA-256 해시화된 Refresh Token 저장 (보안 강화)
     user.refresh_token = hash_token(refresh_token)
@@ -81,7 +84,8 @@ def login(user_login: UserLogin, db: Session = Depends(get_db)):
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
-        "token_type": "bearer"
+        "token_type": "bearer",
+        "role": user.role
     }
 
 

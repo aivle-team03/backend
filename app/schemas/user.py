@@ -46,7 +46,7 @@ class UserCreate(UserBase):
             types_count += 1
         if re.search(r'\d', v):              # 숫자
             types_count += 1
-        if re.search(r'[^A-Za-z0-9]', v):    # 특수문자
+        if re.search(r'[^A-Za-z0-9()<>"\'\;]', v):
             types_count += 1
 
         # 3. 3종류 이상 조합 검증
