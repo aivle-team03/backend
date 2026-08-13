@@ -169,6 +169,8 @@ REFRESH_TOKEN_EXPIRE_DAYS=7
 
 # --- 필수: 영상 생성 서비스 ---
 VIDEO_AGENT_URL="http://127.0.0.1:8100"
+# Redis는 VideoAgent 완료 확인과 자동 DB 등록을 수행하는 Celery 워커가 사용한다.
+REDIS_URL="redis://127.0.0.1:6379/0"
 
 # --- 선택 ---
 ENV="development"                        # "production" 이면 DATABASE_URL / SECRET_KEY 미설정 시 기동 거부
@@ -199,11 +201,13 @@ python seed.py
 
 ### 4. 서버 기동
 
-영상 생성 서비스(`videoagent`)가 별도로 떠 있어야 AI 영상 생성 기능이 동작합니다.
-백엔드 자체는 단독으로 기동됩니다.
+영상 생성 서비스(`videoagent`)와 Redis가 별도로 떠 있어야 AI 영상 생성 기능이 동작합니다.
+API 서버와 Celery 워커를 각각 기동하세요.
 
 ```bash
 uvicorn app.main:app --reload
+# 별도 터미널
+celery -A app.celery_app.celery_app worker --pool=solo --concurrency=1 --loglevel=INFO --queues=video_generation
 ```
 
 또는 Docker로:
@@ -223,12 +227,21 @@ docker compose up --build
 
 ```bash
 # 1) 생성 요청 → task_id 수신 (202 Accepted)
-POST /api/education/veo-generate   (multipart: file 또는 text_content)
+#    due_date, title/category/type은 백엔드 작업 레코드에 저장된다.
+POST /api/education/veo-generate   (multipart: file 또는 text_content, due_date)
 
 # 2) 진행 상태 폴링 (progress_percent 0 → 100)
 GET  /api/education/veo-generate/{task_id}/status
 
-# 3) 완료 시 video_url + education_id 반환, Education 테이블에 자동 적재
+# 3) Celery 워커가 완료를 확인한 뒤 Education 테이블에 자동 적재
+#    quality_report.hitl_required=true 이면 자동 게시하지 않고 검토 대기로 남긴다.
+```
+
+영상 생성은 API 서버와 별도로 Celery 워커가 필요합니다. Redis와 VideoAgent가 실행 중인
+환경에서 다음 명령으로 워커를 실행하세요.
+
+```bash
+celery -A app.celery_app.celery_app worker --pool=solo --concurrency=1 --loglevel=INFO --queues=video_generation
 ```
 
 작업 상태는 영상 생성 서비스가 **24시간** 보관합니다. 완료 시 백엔드가 `Education` 테이블에 적재하며, 이후에는 일반 교육 목록 API로 조회합니다.
