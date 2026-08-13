@@ -23,7 +23,7 @@ router = APIRouter()
 # ==========================================
 
 
-@router.get("/", response_model=List[InspectionResponse])
+@router.get("", response_model=List[InspectionResponse])
 def read_inspections(
     skip: int = 0,
     limit: int = 100,
@@ -54,7 +54,7 @@ def read_inspection_detail(
     return inspection
 
 
-@router.post("/", response_model=InspectionResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=InspectionResponse, status_code=status.HTTP_201_CREATED)
 def create_inspection(
     payload: InspectionCreate,
     current_user: User = Depends(get_current_user),
