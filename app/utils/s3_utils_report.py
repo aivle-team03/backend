@@ -10,7 +10,7 @@ import boto3
 from botocore.config import Config
 
 
-DEFAULT_REGION = "ap-northeast-2"
+DEFAULT_REGION = "us-east-1"
 DEFAULT_EXPIRES_IN = 3600
 
 # addressing_style을 명시하지 않으면 presigned URL이 리전 없는 글로벌 엔드포인트
@@ -57,7 +57,7 @@ async def upload_video_to_s3(
     환경 변수 지원:
     - AWS_REPORT_ACCESS_KEY_ID
     - AWS_REPORT_SECRET_ACCESS_KEY
-    - AWS_REPORT_REGION (기본값: ap-northeast-2)
+    - AWS_REPORT_REGION (기본값: us-east-1)
     - AWS_REPORT_S3_BUCKET_NAME
     """
     if not file_path or not os.path.exists(file_path):
