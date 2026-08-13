@@ -27,6 +27,7 @@ from app.crud.education import (
     save_generated_education, # 영상 생성 서비스 결과의 Education 영속화
 )
 from app.db.db import get_db
+from app.utils.media import public_url, save_video
 from app.models.video_generation_job import VideoGenerationJob
 from app.tasks.video_generation import finalize_video_generation
 from app.models import User
@@ -272,6 +273,53 @@ def read_user_education(
             completion_filter.value if completion_filter else None
         ),
     )
+
+
+@education_router.post(
+    "/add",
+    response_model=VideoPublishResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def post_add_education_video(
+    title: str = Form(...),
+    due_date: date = Form(...),
+    category: Optional[str] = Form("공통"),
+    type: Optional[str] = Form("필수"),
+    video: Optional[UploadFile] = File(None),
+    video_url: Optional[str] = Form(None),
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """직접 올린 영상이나 외부 영상 URL 을 교육 목록에 등록한다.
+
+    AI 생성 영상은 /veo-generate/{task_id}/publish 를 쓴다. 이쪽은 생성 과정 없이
+    관리자가 가진 영상을 바로 등록하는 경로다.
+    """
+    if not video and not (video_url or "").strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="영상 파일(video) 또는 영상 주소(video_url) 중 하나는 필수입니다.",
+        )
+
+    if video and video.filename:
+        stored_url = save_video(video)
+    else:
+        stored_url = video_url.strip()
+
+    education = save_generated_education(
+        db,
+        company_id=current_admin.company_id,
+        video_url=stored_url,
+        title=title.strip(),
+        category=category,
+        type=type,
+        due_date=due_date,
+    )
+    return {
+        "education_id": education.education_id,
+        "message": "교육 영상이 목록에 등록되었습니다.",
+        "video_url": public_url(education.video_url),
+    }
 
 
 # ==========================================
