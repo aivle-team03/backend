@@ -8,16 +8,10 @@ from app.models import ActionHistory
 
 from app.schemas.ai_detect import (
     AIEventCreate,
-    FacilityDetectionResponse,
-    HazardDetectionResponse,
-    FireDetectionResponse,
     VerifyActionResponse
 )
 from app.crud.ai_detect import (
     create_ai_event,
-    detect_facilities_sim,
-    detect_hazards_sim,
-    detect_fire_sim,
     verify_action_sim
 )
 

@@ -1,4 +1,5 @@
 from datetime import date
+import json
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status, UploadFile, File, Form
@@ -26,6 +27,9 @@ from app.crud.education import (
     save_generated_education, # 영상 생성 서비스 결과의 Education 영속화
 )
 from app.db.db import get_db
+from app.utils.media import public_url, save_video
+from app.models.video_generation_job import VideoGenerationJob
+from app.tasks.video_generation import finalize_video_generation
 from app.models import User
 from app.schemas.education import (
     EducationCompletionFilter,
@@ -271,6 +275,53 @@ def read_user_education(
     )
 
 
+@education_router.post(
+    "/add",
+    response_model=VideoPublishResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def post_add_education_video(
+    title: str = Form(...),
+    due_date: date = Form(...),
+    category: Optional[str] = Form("공통"),
+    type: Optional[str] = Form("필수"),
+    video: Optional[UploadFile] = File(None),
+    video_url: Optional[str] = Form(None),
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """직접 올린 영상이나 외부 영상 URL 을 교육 목록에 등록한다.
+
+    AI 생성 영상은 /veo-generate/{task_id}/publish 를 쓴다. 이쪽은 생성 과정 없이
+    관리자가 가진 영상을 바로 등록하는 경로다.
+    """
+    if not video and not (video_url or "").strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="영상 파일(video) 또는 영상 주소(video_url) 중 하나는 필수입니다.",
+        )
+
+    if video and video.filename:
+        stored_url = save_video(video)
+    else:
+        stored_url = video_url.strip()
+
+    education = save_generated_education(
+        db,
+        company_id=current_admin.company_id,
+        video_url=stored_url,
+        title=title.strip(),
+        category=category,
+        type=type,
+        due_date=due_date,
+    )
+    return {
+        "education_id": education.education_id,
+        "message": "교육 영상이 목록에 등록되었습니다.",
+        "video_url": public_url(education.video_url),
+    }
+
+
 # ==========================================
 # 3. Google Veo AI 동영상 전용 API (Track 2)
 # ==========================================
@@ -287,8 +338,10 @@ async def post_generate_veo_video(
     title: Optional[str] = Form(None),
     category: Optional[str] = Form("공통"),
     type: Optional[str] = Form("필수"),
+    due_date: Optional[date] = Form(None),
     request: Optional[str] = Form(None),
-    current_admin: User = Depends(get_current_admin)
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
 ):
     """
     [Track 2] Google Veo AI 동영상 생성 비동기 요청 API
@@ -332,18 +385,81 @@ async def post_generate_veo_video(
             detail=f"영상 생성 서비스가 요청을 거부했습니다 (status={resp.status_code})."
         )
 
-    return resp.json()
+    result = resp.json()
+    task_id = result.get("task_id")
+    if not task_id:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="영상 생성 서비스가 task_id를 반환하지 않았습니다.")
+
+    job = VideoGenerationJob(
+        task_id=task_id,
+        company_id=current_admin.company_id,
+        requested_by_uid=current_admin.uid,
+        title=title,
+        category=category,
+        education_type=type,
+        due_date=due_date,
+        agent_status=result.get("status") or "PENDING",
+        publication_status="QUEUED",
+    )
+    db.add(job)
+    db.commit()
+    finalize_video_generation.delay(task_id)
+    return result
+
+
+def _video_job_status(job: VideoGenerationJob):
+    quality_report = json.loads(job.quality_report_json) if job.quality_report_json else None
+    return {
+        "task_id": job.task_id,
+        "status": job.agent_status,
+        "progress_percent": job.progress_percent,
+        "video_url": job.video_url,
+        "error_message": job.error_message,
+        "quality_report": quality_report,
+        "education_id": job.education_id,
+        "publication_status": job.publication_status,
+        "title": job.title,
+        "category": job.category,
+        "type": job.education_type,
+        "due_date": job.due_date,
+    }
+
+
+@education_router.get("/veo-generate/pending", response_model=List[VideoStatusResponse])
+async def read_pending_veo_video_jobs(
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Return this company's unfinished and human-review video jobs for page re-entry."""
+    jobs = (
+        db.query(VideoGenerationJob)
+        .filter(
+            VideoGenerationJob.company_id == current_admin.company_id,
+            VideoGenerationJob.publication_status.in_(("QUEUED", "REVIEW_REQUIRED")),
+        )
+        .order_by(VideoGenerationJob.updated_at.desc())
+        .all()
+    )
+    return [_video_job_status(job) for job in jobs]
 
 
 @education_router.get("/veo-generate/{task_id}/status", response_model=VideoStatusResponse)
 async def read_veo_video_status(
     task_id: str,
     current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
 ):
     """
     Google Veo 동영상 제작 작업 처리 상태 조회 API
-    - 완료된 작업은 이 시점에 Education 테이블로 영속화된다(최초 1회).
+    - Celery 워커가 DB에 기록한 작업 상태를 조회한다.
     """
+    job = db.get(VideoGenerationJob, task_id)
+    if not job or job.company_id != current_admin.company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="해당 Veo 작업(task_id)을 찾을 수 없습니다.")
+
+    if job.publication_status in {"PUBLISHED", "REVIEW_REQUIRED", "FAILED", "TIMED_OUT"}:
+        return _video_job_status(job)
+
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.get(f"{VIDEO_AGENT_URL}/video/generate/{task_id}/status")
@@ -374,6 +490,7 @@ async def read_veo_video_status(
             detail="해당 Veo 작업(task_id)을 찾을 수 없습니다."
         )
 
+    status_info["publication_status"] = job.publication_status
     return status_info
 
 
@@ -422,4 +539,9 @@ async def publish_generated_veo_video(
         type=type or status_info.get("type"),
         due_date=due_date,
     )
+    job = db.get(VideoGenerationJob, task_id)
+    if job and job.company_id == current_admin.company_id:
+        job.education_id = education.education_id
+        job.publication_status = "PUBLISHED"
+        db.commit()
     return {"education_id": education.education_id, "message": "교육 영상이 목록에 등록되었습니다."}

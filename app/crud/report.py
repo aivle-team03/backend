@@ -16,6 +16,9 @@ from app.models.board import Board
 from app.models.event import Event
 from app.models.user import User
 from app.crud.risk import calculate_risk_level
+# report_agent 는 상대경로를 자기 BACKEND_BASE_URL 에 붙이는데, 백엔드는 /media/ 를
+# 서빙하지 않는다(nginx 가 S3 로 보낸다). 절대 URL 로 넘겨야 이미지를 받아 문서에 넣는다.
+from app.utils.media import public_url
 
 INSPECTION_DONE = "점검 완료"
 APPROVED = "승인 완료"
@@ -370,10 +373,10 @@ def build_history_column(db: Session, uid: int) -> dict:
             return None
         if action.type == TYPE_BOARD and action.board_id is not None:
             board = board_by_id.get(action.board_id)
-            return board.image_url if board else None
+            return public_url(board.image_url) if board else None
         if action.type == TYPE_EVENT and action.event_id is not None:
             event = event_by_id.get(action.event_id)
-            return event.image_url if event else None
+            return public_url(event.image_url) if event else None
         return None
 
     rows: List[dict] = []
@@ -386,7 +389,7 @@ def build_history_column(db: Session, uid: int) -> dict:
         rows.append({
             **category_part(category_id),
             **inspection_part(history),
-            "image_url": action.image_url if action else None,
+            "image_url": public_url(action.image_url) if action else None,
             "inspection_image_url": None,
             **action_part(action),
         })
@@ -400,7 +403,7 @@ def build_history_column(db: Session, uid: int) -> dict:
         rows.append({
             **category_part(action.category_id),
             **inspection_part(None),
-            "image_url": action.image_url,
+            "image_url": public_url(action.image_url),
             "inspection_image_url": inspection_image_url_for_action(action),
             **action_part(action),
         })
@@ -461,14 +464,14 @@ def build_board_column(db: Session, uid: int) -> dict:
             "board_created_at": _iso(board.created_at) if board else None,
             "board_contents": board.board_contents if board else None,
             "status": board.status if board else None,
-            "board_image_url": board.image_url if board else None,
+            "board_image_url": public_url(board.image_url) if board else None,
             "action_name": action.action_name,
             "location": action.location,
             "completed_at": _iso(action.completed_at),
             "action_status": action.action_status,
             "handler_name": action.handler_name,
             "content": action.content,
-            "image_url": action.image_url,
+            "image_url": public_url(action.image_url),
             "approver_name": action.approver_name,
             "source_type": action.type,
         })
