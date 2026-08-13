@@ -192,7 +192,7 @@ def update_board_status(
                 location=board.location or "\uC704\uCE58 \uBBF8\uC9C0\uC815",
                 content=board.board_contents,
                 action_status=ActionStatus.WAITING.value,
-                image_url=board.image_url,
+                before_image_url=board.image_url,
                 is_deleted=False,
             ))
 
