@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.crud import action_history as action_history_crud
 from app.crud.auth import get_current_admin, get_current_user
+from app.crud.notification import create_notification
 from app.db.db import get_db
 from app.models import User
 from app.schemas.action_history import (
@@ -171,12 +172,39 @@ def assign_action_handlers(
     db: Session = Depends(get_db),
 ):
     try:
-        return action_history_crud.assign_action_handlers(
+        assigned_items = action_history_crud.assign_action_handlers(
             db,
             action_history_ids=request.action_history_ids,
             handler_uid=request.handler_uid,
             company_id=current_admin.company_id,
         )
+
+        if assigned_items and request.handler_uid:
+            count = len(assigned_items)
+            
+            if count == 1:
+                first_item = assigned_items[0]
+                item_title = (
+                    getattr(first_item, "action_name", None)
+                    or (first_item.get("action_name") if isinstance(first_item, dict) else None)
+                    or "안전 조치"
+                )
+                message = f"'{item_title}' 조치 담당자로 배정되었습니다."
+            else:
+                message = f"총 {count}건의 안전 조치 항목 담당자로 배정되었습니다."
+
+            create_notification(
+                db=db,
+                company_id=current_admin.company_id,
+                category="schedule",
+                title="조치 담당 배정",
+                message=message,
+                path="/checklists",
+                user_id=request.handler_uid
+            )
+
+        return assigned_items
+
     except Exception as error:
         _raise_http_error(error)
 
@@ -264,6 +292,26 @@ def complete_action_history(
             content=content,
             image_url=image_url,
         )
+        
+        worker_name = current_user.name or current_user.user_id
+        
+        item_title = (
+            previous.get("action_name")
+            or "안전 점검 항목"
+            if isinstance(previous, dict)
+            else getattr(previous, "action_name", "안전 점검 항목")
+        )
+        
+        create_notification(
+            db=db,
+            company_id=current_user.company_id,
+            category="complete",  # 초록색 체크 아이콘
+            title="조치 완료",
+            message=f"{worker_name}님이 '{item_title}' 조치를 완료했습니다.",
+            path="/actions",  # 클릭 시 점검/조치 이력 관리 화면으로 이동
+            user_id=None,  # 안전관리자 전체 공통 수신
+        )
+        
     except Exception as error:
         delete_image(image_url)
         _raise_http_error(error)

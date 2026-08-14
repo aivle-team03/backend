@@ -12,6 +12,7 @@ from app.api.endpoints import report
 from app.api.endpoints import risk
 from app.api.endpoints import inspection
 from app.api.endpoints import action_history
+from app.api.endpoints import notification
 
 api_router = APIRouter()
 
@@ -38,3 +39,4 @@ api_router.include_router(education.education_router, prefix="/education", tags=
 api_router.include_router(education.admin_education_router, prefix="/admin/education", tags=["admin-education"])
 api_router.include_router(report.router, prefix="/report", tags=["report"])
 api_router.include_router(risk.router, prefix="/risk", tags=["risk"])
+api_router.include_router(notification.router, prefix="/notifications", tags=["notifications"])

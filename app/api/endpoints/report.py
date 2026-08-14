@@ -20,6 +20,7 @@ from app.crud.report import (
     create_report, get_reports, get_report_by_id, update_report, delete_report, build_history_column,
     create_report_path,create_sub_report_path, build_board_column,create_sub_report
 )
+from app.crud.notification import create_notification
 
 router = APIRouter()
 REPORT_AGENT_URL = os.getenv("REPORT_AGENT_URL", "http://127.0.0.1:8004").rstrip("/")
@@ -42,6 +43,16 @@ def post_create_report(
             event_ids=req.event_ids,
             inspection_history_ids=getattr(req, "inspection_history_ids", None),
             action_history_ids=req.action_history_ids,
+        )
+        
+        create_notification(
+            db=db,
+            company_id=current_user.company_id,
+            category="complete",
+            title="보고서 생성 완료",
+            message=f"'{getattr(report, 'title', '안전 보고서')}' 생성이 완료되었습니다.",
+            path="/report",
+            user_id=current_user.uid,
         )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
@@ -214,6 +225,16 @@ async def post_generate_risk_assessment_form(
                 path=daily_json_path,
                 date=datetime.strptime(daily_upload["date"], "%Y-%m-%d"),
             )
+    
+    create_notification(
+        db=db,
+        company_id=current_user.company_id,
+        category="complete",
+        title="위험성평가표 생성 완료",
+        message="요청하신 위험성평가표 생성이 완료되었습니다.",
+        path="/report",
+        user_id=current_user.uid,
+    )
 
     return result
 
@@ -251,6 +272,16 @@ async def post_generate_worker_feedback_report(
             s3_output_path=s3_path,
             summary=f"{filename}",
         )
+        
+    create_notification(
+        db=db,
+        company_id=current_user.company_id,
+        category="complete",
+        title="근로자 피드백 보고서 생성 완료",
+        message="근로자 피드백 개선 보고서 생성이 완료되었습니다.",
+        path="/report",
+        user_id=current_user.uid,
+    )
 
     return result
 
@@ -316,6 +347,17 @@ async def post_generate_management_review_order(
             s3_output_path=s3_output_path,
             summary=f"{filename}",
         )
+        
+    create_notification(
+        db=db,
+        company_id=current_user.company_id,
+        category="complete",
+        title="검토 지시서 생성 완료",
+        message="경영책임자 검토 지시서 생성이 완료되었습니다.",
+        path="/report",
+        user_id=current_user.uid,
+    )
+    
     return result
 
 
@@ -382,5 +424,16 @@ async def post_generate_risk_assessment_report(
                 s3_output_path=s3_output_path,
                 summary=f"{filename}",
             )
+            
+    create_notification(
+        db=db,
+        company_id=current_user.company_id,
+        category="complete",
+        title="위험성평가 보고서 생성 완료",
+        message="위험성평가 보고서 생성이 완료되었습니다.",
+        path="/report",
+        user_id=current_user.uid,
+    )        
+    
     return result
 

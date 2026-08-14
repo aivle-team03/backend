@@ -9,6 +9,7 @@ from app.celery_app import celery_app
 from app.crud.education import save_generated_education
 from app.db.db import SessionLocal
 from app.models.video_generation_job import VideoGenerationJob
+from app.crud.notification import create_notification
 
 
 logger = logging.getLogger(__name__)
@@ -82,6 +83,17 @@ def finalize_video_generation(self, task_id: str):
             job.education_id = education.education_id
             job.publication_status = "PUBLISHED"
             db.commit()
+
+            video_title = job.title or status_info.get("title") or "안전 교육"
+            create_notification(
+                db=db,
+                company_id=job.company_id,
+                category="complete",
+                title="교육 영상 생성 완료",
+                message=f"요청하신 '{video_title}' 교육 영상 생성이 완료되었습니다.",
+                path="/education-management",
+                user_id=job.requested_by_uid
+            )
             return
 
         if self.request.retries >= MAX_POLLS:
