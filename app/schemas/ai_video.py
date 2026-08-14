@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from datetime import date
 from typing import Optional, List, Dict, Any
 
 
@@ -21,8 +22,15 @@ class VideoStatusResponse(BaseModel):
     learning_objectives: Optional[List[str]] = None
     storyboard: Optional[List[Dict[str, Any]]] = None
     quality_report: Optional[Dict[str, Any]] = None
+    publication_status: Optional[str] = None
+    title: Optional[str] = None
+    category: Optional[str] = None
+    type: Optional[str] = None
+    due_date: Optional[date] = None
 
 
 class VideoPublishResponse(BaseModel):
     education_id: int
     message: str
+    # 직접 등록(/education/add)에서 프론트가 바로 재생할 수 있도록 저장된 주소를 함께 준다.
+    video_url: Optional[str] = None

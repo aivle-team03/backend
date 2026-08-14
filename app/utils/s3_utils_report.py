@@ -1,21 +1,23 @@
-"""AWS S3 media upload service helper module.
+"""보고서 파일용 S3 헬퍼.
 
-미리 준비된 S3 전용 업로드 유틸리티 모듈로, 추후 AWS S3 도입 시 즉시 사용할 수 있습니다.
+report_agent 가 생성해 올린 문서를 다운로드할 수 있도록 presigned URL 을 만든다.
+미디어(이미지·영상)와는 버킷도 리전도 자격증명도 달라 별도 모듈로 둔다.
+
+  미디어   AWS_S3_MEDIA_BUCKET        ap-northeast-2   공개 읽기
+  보고서   AWS_REPORT_S3_BUCKET_NAME  us-east-1        비공개 + presigned
 """
 import os
-import asyncio
 from typing import Optional
 
 import boto3
 from botocore.config import Config
 
 
-DEFAULT_REGION = "ap-northeast-2"
+DEFAULT_REGION = "us-east-1"
 DEFAULT_EXPIRES_IN = 3600
 
 # addressing_style을 명시하지 않으면 presigned URL이 리전 없는 글로벌 엔드포인트
-# (bucket.s3.amazonaws.com)로 서명되어, 서울 리전 버킷에서 리다이렉트나
-# AuthorizationHeaderMalformed를 유발한다.
+# (bucket.s3.amazonaws.com)로 서명되어 리다이렉트나 AuthorizationHeaderMalformed를 유발한다.
 _S3_CONFIG = Config(
     signature_version="s3v4",
     s3={"addressing_style": "virtual", "us_east_1_regional_endpoint": "regional"},
@@ -33,61 +35,6 @@ def _create_s3_client(region_name: Optional[str] = None):
     )
 
 
-def _build_object_name(file_path: str, folder: str, public_id: Optional[str]) -> str:
-    """Cloudinary의 folder/public_id 규칙을 S3 오브젝트 키로 변환한다."""
-    extension = os.path.splitext(file_path)[1] or ".mp4"
-    basename = f"{public_id}{extension}" if public_id else os.path.basename(file_path)
-    return f"{folder}/{basename}"
-
-
-async def upload_video_to_s3(
-    file_path: str,
-    folder: str = "safety_education_videos",
-    public_id: Optional[str] = None,
-    bucket_name: Optional[str] = None,
-    region_name: Optional[str] = None
-) -> Optional[str]:
-    """
-    로컬 MP4 동영상 파일을 AWS S3 버킷에 업로드하고 S3 오브젝트 키를 반환한다.
-    S3 설정 미비 또는 업로드 실패 시 None을 반환한다.
-
-    URL이 아닌 키를 반환하는 이유는 presigned URL이 만료되기 때문이다.
-    DB에는 이 키를 저장하고, 조회 시점에 generate_presigned_url()로 URL을 만든다.
-
-    환경 변수 지원:
-    - AWS_REPORT_ACCESS_KEY_ID
-    - AWS_REPORT_SECRET_ACCESS_KEY
-    - AWS_REPORT_REGION (기본값: ap-northeast-2)
-    - AWS_REPORT_S3_BUCKET_NAME
-    """
-    if not file_path or not os.path.exists(file_path):
-        print(f"[S3Upload] 업로드 대상 파일이 존재하지 않습니다: {file_path}")
-        return None
-
-    bucket = bucket_name or os.getenv("AWS_REPORT_S3_BUCKET_NAME")
-
-    if not bucket:
-        print("[S3Upload] WARNING: AWS_S3_BUCKET_NAME 설정이 미비하여 업로드를 생략합니다.")
-        return None
-
-    object_name = _build_object_name(file_path, folder, public_id)
-
-    try:
-        def _sync_upload() -> str:
-            s3_client = _create_s3_client(region_name)
-            extra_args = {"ContentType": "video/mp4"}
-            s3_client.upload_file(file_path, bucket, object_name, ExtraArgs=extra_args)
-            return object_name
-
-        uploaded_key = await asyncio.to_thread(_sync_upload)
-        print(f"[S3Upload] SUCCESS: 동영상 S3 업로드 완료 -> s3://{bucket}/{uploaded_key}")
-        return uploaded_key
-    except Exception as e:
-        print(f"[S3Upload] WARNING: AWS S3 동영상 업로드 예외 발생: {e}")
-
-    return None
-
-
 def generate_presigned_url(
     object_name: str,
     expires_in: int = DEFAULT_EXPIRES_IN,
@@ -96,7 +43,7 @@ def generate_presigned_url(
 ) -> Optional[str]:
     """
     S3 오브젝트 키에 대해 기한부 HTTPS 다운로드 URL을 생성한다.
-    버킷을 퍼블릭으로 열지 않고도 영상을 재생할 수 있다.
+    버킷을 퍼블릭으로 열지 않고도 파일을 내려받을 수 있다.
     S3 설정 미비 또는 생성 실패 시 None을 반환한다.
 
     서명은 네트워크 호출 없이 로컬에서 계산되므로 동기 함수로 둔다.
@@ -108,7 +55,7 @@ def generate_presigned_url(
     bucket = bucket_name or os.getenv("AWS_REPORT_S3_BUCKET_NAME")
 
     if not bucket:
-        print("[S3Presign] WARNING: AWS_S3_BUCKET_NAME 설정이 미비하여 URL 생성을 생략합니다.")
+        print("[S3Presign] WARNING: AWS_REPORT_S3_BUCKET_NAME 설정이 미비하여 URL 생성을 생략합니다.")
         return None
 
     try:
