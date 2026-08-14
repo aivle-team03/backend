@@ -1,0 +1,37 @@
+name: Deploy backend
+
+on:
+  push:
+    branches: [dongjun]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # secrets 는 스텝 레벨 if 에서 참조할 수 없다. 잡 레벨 env 로 올려서 쓴다.
+    env:
+      EC2_HOST: ${{ secrets.EC2_HOST }}
+
+    steps:
+      - name: EC2 에 배포
+        if: ${{ env.EC2_HOST != '' }}
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          command_timeout: 5m
+          script: |
+            set -e
+            cd ~/BOSS/backend
+            git pull origin dongjun
+            source .venv/bin/activate 2>/dev/null || true
+            pip install -q -r requirements.txt
+
+            # video-generation-worker 는 백엔드 코드(app/tasks/video_generation.py)를
+            # 실행한다. 함께 재시작하지 않으면 워커만 옛 코드로 남는다.
+            sudo systemctl restart boss-backend
+            sudo systemctl restart boss-video-generation-worker
+
+            sleep 3
+            systemctl is-active boss-backend boss-video-generation-worker
