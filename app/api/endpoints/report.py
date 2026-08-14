@@ -8,7 +8,7 @@ from typing import Optional
 
 from app.db.db import get_db
 from app.crud.auth import get_current_user
-from app.models import User
+from app.models import User, Report
 from app.utils.s3_utils_report import generate_presigned_url
 from app.schemas.report import (
     ReportCreateRequest,
@@ -243,14 +243,21 @@ async def post_generate_worker_feedback_report(
 
     result = resp.json()
     for s3_path in result.get("s3_output_paths") or []:
-        filename = s3_path.rsplit("/", 1)[-1]
-        create_report_path(
-            db,
-            uid=current_user.uid,
-            company_id=current_user.company_id,
-            s3_output_path=s3_path,
-            summary=f"{filename}",
-        )
+        already_file_name = db.query(Report).filter(
+            Report.path == s3_path,
+            Report.is_deleted == False,
+        ).first()
+        
+        if not already_file_name:
+            filename = s3_path.rsplit("/", 1)[-1]
+            create_report_path(
+                db,
+                uid=current_user.uid,
+                company_id=current_user.company_id,
+                s3_output_path=s3_path,
+                summary=f"{filename}",
+            )
+
 
     return result
 
