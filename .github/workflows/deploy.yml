@@ -2,7 +2,7 @@ name: Deploy backend
 
 on:
   push:
-    branches: [dongjun]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -24,7 +24,7 @@ jobs:
           script: |
             set -e
             cd ~/BOSS/backend
-            git pull origin dongjun
+            git pull
             source .venv/bin/activate 2>/dev/null || true
             pip install -q -r requirements.txt
 
