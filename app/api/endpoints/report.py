@@ -179,79 +179,88 @@ async def post_generate_risk_assessment_form(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """위험성평가표 자동 생성 API - 정밀 디버깅 로깅 포함"""
-    print("\n" + "=" * 60)
-    print(f"🚀 [위험성평가표 생성 시작] User UID: {current_user.uid}")
+    """위험성평가표 자동 생성 API - 브라우저 콘솔 및 Network 탭 전용 상세 에러 반환"""
 
     # 1. 히스토리 데이터 빌드
     try:
         history_column = build_history_column(db, current_user.uid)
-        row_count = len(history_column.get("final_history_rows", []))
-        print(f"👉 [1] history_column 생성 완료: 총 {row_count}건 데이터")
     except Exception as e:
-        print(f"❌ [1-ERROR] history_column 빌드 실패: {e}")
-        traceback.print_exc()
+        # 브라우저 콘솔로 빌드 실패 상세 에러 전송
         raise HTTPException(
-            status_code=500, detail=f"히스토리 데이터 추출 중 오류: {e}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error_stage": "1_BUILD_HISTORY_DATA",
+                "message": f"히스토리 데이터 추출 실패: {str(e)}",
+                "traceback": traceback.format_exc(),
+            },
         )
 
-    # 2. 에이전트 요청
+    # 2. report_agent 요청
     target_url = f"{REPORT_AGENT_URL}/api/report/risk-assessment/form/generate"
-    print(f"👉 [2] 에이전트 요청 URL: {target_url}")
 
-    resp = None
     try:
         async with httpx.AsyncClient(timeout=300.0) as client:
             resp = await client.post(target_url, json=history_column)
-            print(f"👉 [3] 에이전트 응답 코드: {resp.status_code}")
     except httpx.ConnectError as e:
-        print(
-            f"❌ [2-ERROR] 에이전트 연결 실패 (서버 꺼짐 또는 포트 막힘): {e}"
-        )
+        # 브라우저 콘솔로 8004 포트 연결 실패 전송
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Report Agent({REPORT_AGENT_URL})에 연결할 수 없습니다. 에이전트 프로세스가 켜져 있는지 확인하세요. Error: {e}",
+            detail={
+                "error_stage": "2_AGENT_CONNECTION_REFUSED",
+                "target_url": target_url,
+                "message": f"Report Agent(8004 포트)에 연결할 수 없습니다. 프로세스가 켜져 있는지 확인하세요.",
+                "error": str(e),
+            },
         )
     except httpx.TimeoutException as e:
-        print(f"❌ [2-ERROR] 에이전트 응답 시간 초과 (Timeout 300s): {e}")
+        # 브라우저 콘솔로 타임아웃 전송
         raise HTTPException(
             status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-            detail=f"Report Agent 처리 시간이 300초를 초과했습니다. Error: {e}",
+            detail={
+                "error_stage": "2_AGENT_TIMEOUT",
+                "message": "Report Agent 처리 시간 300초를 초과했습니다.",
+                "error": str(e),
+            },
         )
     except Exception as e:
-        print(f"❌ [2-ERROR] 에이전트 요청 중 기타 HTTP 예외: {e}")
-        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"위험성평가표 생성 서비스 통신 에러: {e}",
+            detail={
+                "error_stage": "2_HTTP_REQUEST_FAILED",
+                "message": f"에이전트 요청 중 예외 발생: {str(e)}",
+                "traceback": traceback.format_exc(),
+            },
         )
 
-    # 에이전트가 200이 아닌 코드를 반환한 경우 (예: 500 내부 에러)
+    # 에이전트가 500 에러를 뱉은 경우 (가장 핵심: 에이전트 에러 원문을 브라우저에 그대로 던짐)
     if resp.status_code != status.HTTP_200_OK:
-        print(f"❌ [3-ERROR] 에이전트 비정상 응답 본문:\n{resp.text}")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"위험성평가표 생성 서비스 오류 (status={resp.status_code}): {resp.text[:300]}",
+            detail={
+                "error_stage": "3_REPORT_AGENT_INTERNAL_ERROR",
+                "agent_status_code": resp.status_code,
+                "agent_error_response": resp.text,  # 🔥 에이전트에서 터진 실제 에러 내용
+                "target_url": target_url,
+            },
         )
 
-    # 3. 응답 파싱
+    # 3. JSON 파싱
     try:
         result = resp.json()
-        print(
-            f"👉 [4] 에이전트 응답 파싱 성공 (status={result.get('status', 'N/A')})"
-        )
     except Exception as e:
-        print(f"❌ [4-ERROR] JSON 파싱 실패: {resp.text}")
         raise HTTPException(
-            status_code=502, detail="에이전트 응답이 유효한 JSON이 아닙니다."
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={
+                "error_stage": "4_JSON_PARSE_FAILED",
+                "raw_response": resp.text,
+                "error": str(e),
+            },
         )
 
-    # 4. DB 저장 처리 (트랜잭션 격리 및 로깅)
+    # 4. DB 저장 처리
     try:
-        # (1) 단일 S3 경로 저장
         s3_output_path = result.get("s3_output_path")
         if s3_output_path:
-            print(f"💾 [DB 저장] 메인 s3_output_path 저장 시도: {s3_output_path}")
             create_report_path(
                 db,
                 uid=current_user.uid,
@@ -259,17 +268,10 @@ async def post_generate_risk_assessment_form(
                 s3_output_path=s3_output_path,
             )
 
-        # (2) 일자별 업로드 내역 저장
-        daily_uploads = result.get("daily_uploads") or []
-        print(f"💾 [DB 저장] daily_uploads 항목 수: {len(daily_uploads)}개")
-
-        for idx, daily_upload in enumerate(daily_uploads):
+        for daily_upload in result.get("daily_uploads") or []:
             daily_docx_path = daily_upload.get("s3_docx_output_path")
             if daily_docx_path:
                 docx_filename = daily_docx_path.rsplit("/", 1)[-1]
-                print(
-                    f"   ├─ [{idx+1}] Word 리포트 DB 저장: {docx_filename} ({daily_docx_path})"
-                )
                 create_report_path(
                     db,
                     uid=current_user.uid,
@@ -286,9 +288,6 @@ async def post_generate_risk_assessment_form(
                     if date_str
                     else datetime.now()
                 )
-                print(
-                    f"   └─ [{idx+1}] JSON 서브 리포트 DB 저장: {parsed_date.date()} ({daily_json_path})"
-                )
                 create_sub_report_path(
                     db,
                     company_id=current_user.company_id,
@@ -296,8 +295,6 @@ async def post_generate_risk_assessment_form(
                     date=parsed_date,
                 )
 
-        # (3) 알림 생성
-        print(f"🔔 [알림 생성] 사용자({current_user.uid}) 완료 알림 생성 중...")
         create_notification(
             db=db,
             company_id=current_user.company_id,
@@ -308,20 +305,20 @@ async def post_generate_risk_assessment_form(
             user_id=current_user.uid,
         )
 
-        # 명시적 커밋 확인 (함수 내부에 commit이 없거나 롤백 방지용)
         db.commit()
-        print("✅ [DB Commit 완료] 모든 리포트 및 알림 DB 저장 성공!")
 
     except Exception as e:
         db.rollback()
-        print(f"❌ [DB-ERROR] DB 저장/알림 생성 중 예외 발생 (Rollback): {e}")
-        traceback.print_exc()
+        # 브라우저 콘솔로 DB 저장 실패 원인 전송
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"보고서는 생성되었으나 DB 저장 중 오류가 발생했습니다: {e}",
+            detail={
+                "error_stage": "5_DB_SAVE_OR_COMMIT_FAILED",
+                "message": f"DB 저장 중 에러 발생 (Rollback됨): {str(e)}",
+                "traceback": traceback.format_exc(),
+            },
         )
 
-    print("🎉 [위험성평가표 API 완료] 응답 반환\n" + "=" * 60 + "\n")
     return result
 
 
