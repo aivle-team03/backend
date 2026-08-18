@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+import traceback
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Path, Response
@@ -180,19 +181,23 @@ async def post_generate_risk_assessment_form(
 ):
     """위험성평가표 자동 생성 API - report_agent에 생성을 요청하고 결과를 Report 테이블에 저장한다."""
     history_column = build_history_column(db, current_user.uid)
+
     try:
         async with httpx.AsyncClient(timeout=300.0) as client:
-            resp = await client.post(f"{REPORT_AGENT_URL}/api/report/risk-assessment/form/generate", json=history_column)
+            resp = await client.post(
+                f"{REPORT_AGENT_URL}/api/report/risk-assessment/form/generate",
+                json=history_column,
+            )
     except httpx.RequestError as e:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"위험성평가표 생성 서비스에 연결할 수 없습니다: {e}"
+            detail=f"위험성평가표 생성 서비스에 연결할 수 없습니다: {e}",
         )
 
     if resp.status_code != status.HTTP_200_OK:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"위험성평가표 생성 서비스가 요청을 거부했습니다 (status={resp.status_code})."
+            detail=f"위험성평가표 생성 서비스가 요청을 거부했습니다 (status={resp.status_code}).",
         )
 
     result = resp.json()
@@ -225,7 +230,7 @@ async def post_generate_risk_assessment_form(
                 path=daily_json_path,
                 date=datetime.strptime(daily_upload["date"], "%Y-%m-%d"),
             )
-    
+
     create_notification(
         db=db,
         company_id=current_user.company_id,
