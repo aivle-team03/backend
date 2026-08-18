@@ -16,4 +16,5 @@ from app.models.action_history import ActionHistory
 from app.models.report_action_map import ReportActionMap
 from app.models.sub_report import SubReport
 from app.models.video_generation_job import VideoGenerationJob
+from app.models.notification import Notification
 

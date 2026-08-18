@@ -8,6 +8,7 @@ from app.crud.auth import get_current_user
 from app.models import Board
 from app.models import User
 from app.schemas.board import BoardResponse, BoardListResponse, BoardStatusUpdateRequest
+from app.crud.notification import create_notification
 from app.crud.board import (
     create_board,
     get_boards,
@@ -37,7 +38,7 @@ def post_board(
     if image and image.filename:
         image_url = save_image(image, "boards")
 
-    return create_board(
+    new_board = create_board(
         db=db,
         company_id=current_user.company_id,
         uid=current_user.uid,
@@ -48,6 +49,21 @@ def post_board(
         location=location,
         image_url=image_url
     )
+
+    loc_display = f"[{location}] " if location else ""
+    writer_name = current_user.name or current_user.user_id
+
+    create_notification(
+        db=db,
+        company_id=current_user.company_id,
+        category="board",
+        title="위험 신고 접수",
+        message=f"{loc_display} 위험 신고 게시글이 등록되었습니다.",
+        path="/checklists/management",
+        user_id=None
+    )
+
+    return new_board
 
 # 2. 게시글 목록 조회 (GET /api/boards)
 @router.get("", response_model=BoardListResponse)

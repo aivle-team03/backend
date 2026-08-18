@@ -3,9 +3,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db.db import get_db
-from app.models import User
+from app.models import User, InspectionHistory
 from app.crud.auth import get_current_user
 from app.crud import inspection as inspection_crud
+from app.crud.notification import create_notification
 from app.schemas.inspection import (
     InspectionCreate,
     InspectionUpdate,
@@ -216,7 +217,22 @@ def update_inspection_history(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """점검 수행 이력 상태/내용 수정 (점검 완료 처리 등)"""
+    """점검 수행 이력 수정 (담당자 배정 및 완료 알림 포함)"""
+    
+    existing_record = db.query(InspectionHistory).filter(
+        InspectionHistory.inspection_history_id == inspection_history_id,
+        InspectionHistory.company_id == current_user.company_id
+    ).first()
+
+    if not existing_record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 점검 이력을 찾을 수 없거나 수정 권한이 없습니다.",
+        )
+
+    prev_status = existing_record.status
+    prev_handler_uid = getattr(existing_record, "handler_uid", getattr(existing_record, "manager_id", None))
+
     updated_history = inspection_crud.update_inspection_history(
         db=db,
         inspection_history_id=inspection_history_id,
@@ -228,6 +244,50 @@ def update_inspection_history(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="해당 점검 이력을 찾을 수 없거나 수정 권한이 없습니다.",
         )
+
+    try:
+        item_title = (
+            getattr(updated_history, "name", None)
+            or getattr(existing_record, "name", "안전 점검")
+        )
+        location = (
+            getattr(updated_history, "location", None)
+            or getattr(existing_record, "location", None)
+        )
+        loc_prefix = f"[{location}] " if location else ""
+
+        # [케이스 1] 담당자 신규 배정 / 변경 알림 -> 작업자 수신
+        new_uid = getattr(payload, "uid", None)
+        if new_uid and new_uid != prev_handler_uid:
+            create_notification(
+                db=db,
+                company_id=current_user.company_id,
+                category="schedule",
+                title="점검 일정 배정",
+                message=f"{loc_prefix}'{item_title}' 점검 담당자로 배정되었습니다.",
+                path="/checklists", 
+                user_id=new_uid 
+            )
+
+        # [케이스 2] 점검 완료 알림 -> 관리자 전체 수신
+        new_status = getattr(payload, "status", None)
+        if new_status in ["점검 완료", "완료"] and prev_status not in [
+            "점검 완료",
+            "완료",
+        ]:
+            inspector_name = current_user.name or current_user.user_id
+            create_notification(
+                db=db,
+                company_id=current_user.company_id,
+                category="complete",
+                title="점검 완료",
+                message=f"{inspector_name}님이 {loc_prefix}'{item_title}' 점검을 완료했습니다.",
+                path="/actions",
+                user_id=None,
+            )
+    except Exception as noti_err:
+        print(f"[Warning] 알림 생성 중 에러 발생: {noti_err}")
+
     return updated_history
 
 @router.delete("/histories/{inspection_history_id}", status_code=status.HTTP_200_OK)

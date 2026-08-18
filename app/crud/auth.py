@@ -34,7 +34,7 @@ def hash_token(token: str) -> str:
 
 
 def create_access_token(data: dict) -> str:
-    """JWT Access Token 생성 (기본 30분 유효)"""
+    """JWT Access Token 생성 (기본 30분 유효, data에 role 포함 필수)"""
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire, "type": "access"})
