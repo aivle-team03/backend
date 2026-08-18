@@ -79,6 +79,7 @@ def finalize_video_generation(self, task_id: str):
                 category=job.category or status_info.get("category"),
                 type=job.education_type or status_info.get("type"),
                 due_date=job.due_date,
+                video_url_en=status_info.get("video_url_en"),
             )
             job.education_id = education.education_id
             job.publication_status = "PUBLISHED"

@@ -404,6 +404,7 @@ def save_generated_education(
     category: Optional[str] = None,
     type: Optional[str] = None,
     due_date: Optional[date] = None,
+    video_url_en: Optional[str] = None,
 ) -> Education:
     """영상 생성 서비스가 완료한 결과를 Education 테이블에 적재한다.
 
@@ -425,6 +426,8 @@ def save_generated_education(
         existing.category = category or existing.category
         existing.type = type or existing.type
         existing.due_date = due_date
+        # 더빙 실패로 None 이 들어올 수 있다. 이미 저장된 더빙판을 지우지 않는다.
+        existing.video_url_en = video_url_en or existing.video_url_en
         db.commit()
         db.refresh(existing)
         return existing
@@ -433,6 +436,7 @@ def save_generated_education(
         company_id=company_id,
         title=title or "Veo AI 현장 안전 교육",
         video_url=video_url,
+        video_url_en=video_url_en,
         category=category or "공통",
         type=type or "필수",
         due_date=due_date,

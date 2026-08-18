@@ -340,6 +340,7 @@ async def post_generate_veo_video(
     type: Optional[str] = Form("필수"),
     due_date: Optional[date] = Form(None),
     request: Optional[str] = Form(None),
+    language: Optional[str] = Form("ko"),
     current_admin: User = Depends(get_current_admin),
     db: Session = Depends(get_db),
 ):
@@ -347,6 +348,8 @@ async def post_generate_veo_video(
     [Track 2] Google Veo AI 동영상 생성 비동기 요청 API
     - 업로드된 문서(PDF/PPTX/TXT) 또는 텍스트를 영상 생성 서비스로 전달하고 task_id를 반환한다.
     - company_id는 클라이언트 입력이 아니라 인증된 관리자 계정에서 가져온다.
+    - language는 Veo가 발화할 언어다(ko/en). 관리자가 만들 언어판을 고르는 값이라
+      요청한 사람의 화면 언어와는 별개다.
     """
     if not file and not text_content:
         raise HTTPException(
@@ -361,6 +364,7 @@ async def post_generate_veo_video(
         ("type", type),
         ("request", request),
         ("text_content", text_content),
+        ("language", language),
     ):
         if value is not None:
             form[key] = value
@@ -538,6 +542,7 @@ async def publish_generated_veo_video(
         category=category or status_info.get("category"),
         type=type or status_info.get("type"),
         due_date=due_date,
+        video_url_en=status_info.get("video_url_en"),
     )
     job = db.get(VideoGenerationJob, task_id)
     if job and job.company_id == current_admin.company_id:
