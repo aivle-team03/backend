@@ -179,145 +179,67 @@ async def post_generate_risk_assessment_form(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """위험성평가표 자동 생성 API - 브라우저 콘솔 및 Network 탭 전용 상세 에러 반환"""
-
-    # 1. 히스토리 데이터 빌드
-    try:
-        history_column = build_history_column(db, current_user.uid)
-    except Exception as e:
-        # 브라우저 콘솔로 빌드 실패 상세 에러 전송
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={
-                "error_stage": "1_BUILD_HISTORY_DATA",
-                "message": f"히스토리 데이터 추출 실패: {str(e)}",
-                "traceback": traceback.format_exc(),
-            },
-        )
-
-    # 2. report_agent 요청
-    target_url = f"{REPORT_AGENT_URL}/api/report/risk-assessment/form/generate"
+    """위험성평가표 자동 생성 API - report_agent에 생성을 요청하고 결과를 Report 테이블에 저장한다."""
+    history_column = build_history_column(db, current_user.uid)
 
     try:
         async with httpx.AsyncClient(timeout=300.0) as client:
-            resp = await client.post(target_url, json=history_column)
-    except httpx.ConnectError as e:
-        # 브라우저 콘솔로 8004 포트 연결 실패 전송
+            resp = await client.post(
+                f"{REPORT_AGENT_URL}/api/report/risk-assessment/form/generate",
+                json=history_column,
+            )
+    except httpx.RequestError as e:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail={
-                "error_stage": "2_AGENT_CONNECTION_REFUSED",
-                "target_url": target_url,
-                "message": f"Report Agent(8004 포트)에 연결할 수 없습니다. 프로세스가 켜져 있는지 확인하세요.",
-                "error": str(e),
-            },
-        )
-    except httpx.TimeoutException as e:
-        # 브라우저 콘솔로 타임아웃 전송
-        raise HTTPException(
-            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-            detail={
-                "error_stage": "2_AGENT_TIMEOUT",
-                "message": "Report Agent 처리 시간 300초를 초과했습니다.",
-                "error": str(e),
-            },
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail={
-                "error_stage": "2_HTTP_REQUEST_FAILED",
-                "message": f"에이전트 요청 중 예외 발생: {str(e)}",
-                "traceback": traceback.format_exc(),
-            },
+            detail=f"위험성평가표 생성 서비스에 연결할 수 없습니다: {e}",
         )
 
-    # 에이전트가 500 에러를 뱉은 경우 (가장 핵심: 에이전트 에러 원문을 브라우저에 그대로 던짐)
     if resp.status_code != status.HTTP_200_OK:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail={
-                "error_stage": "3_REPORT_AGENT_INTERNAL_ERROR",
-                "agent_status_code": resp.status_code,
-                "agent_error_response": resp.text,  # 🔥 에이전트에서 터진 실제 에러 내용
-                "target_url": target_url,
-            },
+            detail=f"위험성평가표 생성 서비스가 요청을 거부했습니다 (status={resp.status_code}).",
         )
 
-    # 3. JSON 파싱
-    try:
-        result = resp.json()
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail={
-                "error_stage": "4_JSON_PARSE_FAILED",
-                "raw_response": resp.text,
-                "error": str(e),
-            },
+    result = resp.json()
+    s3_output_path = result.get("s3_output_path")
+    if s3_output_path:
+        create_report_path(
+            db,
+            uid=current_user.uid,
+            company_id=current_user.company_id,
+            s3_output_path=s3_output_path,
         )
 
-    # 4. DB 저장 처리
-    try:
-        s3_output_path = result.get("s3_output_path")
-        if s3_output_path:
+    for daily_upload in result.get("daily_uploads") or []:
+        daily_docx_path = daily_upload.get("s3_docx_output_path")
+        if daily_docx_path:
+            docx_filename = daily_docx_path.rsplit("/", 1)[-1]
             create_report_path(
                 db,
                 uid=current_user.uid,
                 company_id=current_user.company_id,
-                s3_output_path=s3_output_path,
+                s3_output_path=daily_docx_path,
+                summary=f"{docx_filename}",
             )
 
-        for daily_upload in result.get("daily_uploads") or []:
-            daily_docx_path = daily_upload.get("s3_docx_output_path")
-            if daily_docx_path:
-                docx_filename = daily_docx_path.rsplit("/", 1)[-1]
-                create_report_path(
-                    db,
-                    uid=current_user.uid,
-                    company_id=current_user.company_id,
-                    s3_output_path=daily_docx_path,
-                    summary=f"{docx_filename}",
-                )
+        daily_json_path = daily_upload.get("s3_json_output_path")
+        if daily_json_path:
+            create_sub_report_path(
+                db,
+                company_id=current_user.company_id,
+                path=daily_json_path,
+                date=datetime.strptime(daily_upload["date"], "%Y-%m-%d"),
+            )
 
-            daily_json_path = daily_upload.get("s3_json_output_path")
-            if daily_json_path:
-                date_str = daily_upload.get("date")
-                parsed_date = (
-                    datetime.strptime(date_str, "%Y-%m-%d")
-                    if date_str
-                    else datetime.now()
-                )
-                create_sub_report_path(
-                    db,
-                    company_id=current_user.company_id,
-                    path=daily_json_path,
-                    date=parsed_date,
-                )
-
-        create_notification(
-            db=db,
-            company_id=current_user.company_id,
-            category="complete",
-            title="위험성평가표 생성 완료",
-            message="요청하신 위험성평가표 생성이 완료되었습니다.",
-            path="/report",
-            user_id=current_user.uid,
-        )
-
-        db.commit()
-
-    except Exception as e:
-        db.rollback()
-        # 브라우저 콘솔로 DB 저장 실패 원인 전송
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={
-                "error_stage": "5_DB_SAVE_OR_COMMIT_FAILED",
-                "message": f"DB 저장 중 에러 발생 (Rollback됨): {str(e)}",
-                "traceback": traceback.format_exc(),
-            },
-        )
+    create_notification(
+        db=db,
+        company_id=current_user.company_id,
+        category="complete",
+        title="위험성평가표 생성 완료",
+        message="요청하신 위험성평가표 생성이 완료되었습니다.",
+        path="/report",
+        user_id=current_user.uid,
+    )
 
     return result
 
