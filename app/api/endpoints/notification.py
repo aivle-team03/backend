@@ -8,6 +8,7 @@ from app.models import User
 from app.schemas.notification import NotificationResponse, NotificationActionResponse
 from app.crud.auth import get_current_user
 from app.crud.notification import (
+    delete_all_notifications,
     get_user_notifications,
     mark_notification_as_read,
     mark_all_notifications_as_read,
@@ -90,11 +91,26 @@ def read_single_notification(
     noti = mark_notification_as_read(
         db=db,
         notification_id=notification_id,
-        company_id=current_user.company_id
+        company_id=current_user.company_id,
+        user_id=current_user.uid
     )
     if not noti:
-        raise HTTPException(status_code=404, detail="알림을 찾을 수 없습니다.")
+        raise HTTPException(status_code=404, detail="알림을 찾을 수 없거나 권한이 없습니다.")
     return {"status": "success", "message": "알림을 읽음 처리했습니다."}
+
+
+@router.delete("/clear-all", response_model=NotificationActionResponse)
+def remove_all_notifications(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """현재 사용자의 모든 알림 일괄 삭제"""
+    deleted_count = delete_all_notifications(
+        db=db,
+        company_id=current_user.company_id,
+        user_id=current_user.uid
+    )
+    return {"status": "success", "message": f"{deleted_count}개의 알림이 삭제되었습니다."}  
 
 
 # 4. 단일 알림 삭제 (DELETE /api/notifications/{notification_id})
@@ -107,8 +123,9 @@ def remove_notification(
     deleted = delete_notification(
         db=db,
         notification_id=notification_id,
-        company_id=current_user.company_id
+        company_id=current_user.company_id,
+        user_id=current_user.uid
     )
     if not deleted:
-        raise HTTPException(status_code=404, detail="알림을 찾을 수 없습니다.")
+        raise HTTPException(status_code=404, detail="알림을 찾을 수 없거나 삭제 권한이 없습니다.")
     return {"status": "success", "message": "알림이 삭제되었습니다."}
