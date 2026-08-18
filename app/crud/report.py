@@ -218,7 +218,16 @@ def create_report_path(
     s3_output_path: str,
     summary: str = "위험성평가표 자동 생성",
 ) -> Report:
-    """위험성평가표 자동 생성 결과(S3 경로)를 Report 테이블에 저장한다."""
+    """위험성평가표 자동 생성 결과(S3 경로)를 Report 테이블에 저장한다.
+    이미 같은 경로로 저장된(삭제되지 않은) 리포트가 있으면 새로 만들지 않고 기존 리포트를 반환한다."""
+    existing = (
+        db.query(Report)
+        .filter(Report.path == s3_output_path, Report.is_deleted == False)
+        .first()
+    )
+    if existing:
+        return existing
+
     writer = None
     user = db.query(User).filter(User.uid == uid).first()
     if user:
