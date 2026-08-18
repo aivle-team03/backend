@@ -23,6 +23,7 @@ class EducationResponse(BaseModel):
     company_id: Optional[int] = None
     title: str
     video_url: str
+    video_url_en: Optional[str] = None   # 영어 더빙판. 없으면 프론트가 video_url 로 폴백
     category: str
     type: str
     due_date: Optional[date] = None
