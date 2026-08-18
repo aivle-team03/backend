@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+import traceback
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Path, Response
@@ -178,64 +179,149 @@ async def post_generate_risk_assessment_form(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """위험성평가표 자동 생성 API - report_agent에 생성을 요청하고 결과를 Report 테이블에 저장한다."""
-    history_column = build_history_column(db, current_user.uid)
+    """위험성평가표 자동 생성 API - 정밀 디버깅 로깅 포함"""
+    print("\n" + "=" * 60)
+    print(f"🚀 [위험성평가표 생성 시작] User UID: {current_user.uid}")
+
+    # 1. 히스토리 데이터 빌드
+    try:
+        history_column = build_history_column(db, current_user.uid)
+        row_count = len(history_column.get("final_history_rows", []))
+        print(f"👉 [1] history_column 생성 완료: 총 {row_count}건 데이터")
+    except Exception as e:
+        print(f"❌ [1-ERROR] history_column 빌드 실패: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500, detail=f"히스토리 데이터 추출 중 오류: {e}"
+        )
+
+    # 2. 에이전트 요청
+    target_url = f"{REPORT_AGENT_URL}/api/report/risk-assessment/form/generate"
+    print(f"👉 [2] 에이전트 요청 URL: {target_url}")
+
+    resp = None
     try:
         async with httpx.AsyncClient(timeout=300.0) as client:
-            resp = await client.post(f"{REPORT_AGENT_URL}/api/report/risk-assessment/form/generate", json=history_column)
-    except httpx.RequestError as e:
+            resp = await client.post(target_url, json=history_column)
+            print(f"👉 [3] 에이전트 응답 코드: {resp.status_code}")
+    except httpx.ConnectError as e:
+        print(
+            f"❌ [2-ERROR] 에이전트 연결 실패 (서버 꺼짐 또는 포트 막힘): {e}"
+        )
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"위험성평가표 생성 서비스에 연결할 수 없습니다: {e}"
+            detail=f"Report Agent({REPORT_AGENT_URL})에 연결할 수 없습니다. 에이전트 프로세스가 켜져 있는지 확인하세요. Error: {e}",
+        )
+    except httpx.TimeoutException as e:
+        print(f"❌ [2-ERROR] 에이전트 응답 시간 초과 (Timeout 300s): {e}")
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail=f"Report Agent 처리 시간이 300초를 초과했습니다. Error: {e}",
+        )
+    except Exception as e:
+        print(f"❌ [2-ERROR] 에이전트 요청 중 기타 HTTP 예외: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"위험성평가표 생성 서비스 통신 에러: {e}",
         )
 
+    # 에이전트가 200이 아닌 코드를 반환한 경우 (예: 500 내부 에러)
     if resp.status_code != status.HTTP_200_OK:
+        print(f"❌ [3-ERROR] 에이전트 비정상 응답 본문:\n{resp.text}")
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"위험성평가표 생성 서비스가 요청을 거부했습니다 (status={resp.status_code})."
+            detail=f"위험성평가표 생성 서비스 오류 (status={resp.status_code}): {resp.text[:300]}",
         )
 
-    result = resp.json()
-    s3_output_path = result.get("s3_output_path")
-    if s3_output_path:
-        create_report_path(
-            db,
-            uid=current_user.uid,
-            company_id=current_user.company_id,
-            s3_output_path=s3_output_path,
+    # 3. 응답 파싱
+    try:
+        result = resp.json()
+        print(
+            f"👉 [4] 에이전트 응답 파싱 성공 (status={result.get('status', 'N/A')})"
+        )
+    except Exception as e:
+        print(f"❌ [4-ERROR] JSON 파싱 실패: {resp.text}")
+        raise HTTPException(
+            status_code=502, detail="에이전트 응답이 유효한 JSON이 아닙니다."
         )
 
-    for daily_upload in result.get("daily_uploads") or []:
-        daily_docx_path = daily_upload.get("s3_docx_output_path")
-        if daily_docx_path:
-            docx_filename = daily_docx_path.rsplit("/", 1)[-1]
+    # 4. DB 저장 처리 (트랜잭션 격리 및 로깅)
+    try:
+        # (1) 단일 S3 경로 저장
+        s3_output_path = result.get("s3_output_path")
+        if s3_output_path:
+            print(f"💾 [DB 저장] 메인 s3_output_path 저장 시도: {s3_output_path}")
             create_report_path(
                 db,
                 uid=current_user.uid,
                 company_id=current_user.company_id,
-                s3_output_path=daily_docx_path,
-                summary=f"{docx_filename}",
+                s3_output_path=s3_output_path,
             )
 
-        daily_json_path = daily_upload.get("s3_json_output_path")
-        if daily_json_path:
-            create_sub_report_path(
-                db,
-                company_id=current_user.company_id,
-                path=daily_json_path,
-                date=datetime.strptime(daily_upload["date"], "%Y-%m-%d"),
-            )
-    
-    create_notification(
-        db=db,
-        company_id=current_user.company_id,
-        category="complete",
-        title="위험성평가표 생성 완료",
-        message="요청하신 위험성평가표 생성이 완료되었습니다.",
-        path="/report",
-        user_id=current_user.uid,
-    )
+        # (2) 일자별 업로드 내역 저장
+        daily_uploads = result.get("daily_uploads") or []
+        print(f"💾 [DB 저장] daily_uploads 항목 수: {len(daily_uploads)}개")
 
+        for idx, daily_upload in enumerate(daily_uploads):
+            daily_docx_path = daily_upload.get("s3_docx_output_path")
+            if daily_docx_path:
+                docx_filename = daily_docx_path.rsplit("/", 1)[-1]
+                print(
+                    f"   ├─ [{idx+1}] Word 리포트 DB 저장: {docx_filename} ({daily_docx_path})"
+                )
+                create_report_path(
+                    db,
+                    uid=current_user.uid,
+                    company_id=current_user.company_id,
+                    s3_output_path=daily_docx_path,
+                    summary=f"{docx_filename}",
+                )
+
+            daily_json_path = daily_upload.get("s3_json_output_path")
+            if daily_json_path:
+                date_str = daily_upload.get("date")
+                parsed_date = (
+                    datetime.strptime(date_str, "%Y-%m-%d")
+                    if date_str
+                    else datetime.now()
+                )
+                print(
+                    f"   └─ [{idx+1}] JSON 서브 리포트 DB 저장: {parsed_date.date()} ({daily_json_path})"
+                )
+                create_sub_report_path(
+                    db,
+                    company_id=current_user.company_id,
+                    path=daily_json_path,
+                    date=parsed_date,
+                )
+
+        # (3) 알림 생성
+        print(f"🔔 [알림 생성] 사용자({current_user.uid}) 완료 알림 생성 중...")
+        create_notification(
+            db=db,
+            company_id=current_user.company_id,
+            category="complete",
+            title="위험성평가표 생성 완료",
+            message="요청하신 위험성평가표 생성이 완료되었습니다.",
+            path="/report",
+            user_id=current_user.uid,
+        )
+
+        # 명시적 커밋 확인 (함수 내부에 commit이 없거나 롤백 방지용)
+        db.commit()
+        print("✅ [DB Commit 완료] 모든 리포트 및 알림 DB 저장 성공!")
+
+    except Exception as e:
+        db.rollback()
+        print(f"❌ [DB-ERROR] DB 저장/알림 생성 중 예외 발생 (Rollback): {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"보고서는 생성되었으나 DB 저장 중 오류가 발생했습니다: {e}",
+        )
+
+    print("🎉 [위험성평가표 API 완료] 응답 반환\n" + "=" * 60 + "\n")
     return result
 
 
