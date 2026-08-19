@@ -657,4 +657,23 @@ def get_admin_education_dashboard(db: Session, company_id: int) -> Dict:
         "total_completion_rate": round(total_completed_count / total_target_count * 100, 1) if total_target_count else 0.0,
         "attendees": [attendee_for(user, education) for user in users for education in educations if is_target(user, education)],
     }
+    
+def delete_education(
+    db: Session, education_id: int, company_id: int
+) -> bool:
+    """물리 삭제 (DB 테이블에서 완전히 삭제)"""
+    education = (
+        db.query(Education)
+        .filter(
+            Education.education_id == education_id,
+            Education.company_id == company_id,
+        )
+        .first()
+    )
+    if not education:
+        return False
+
+    db.delete(education)
+    db.commit()
+    return True
 

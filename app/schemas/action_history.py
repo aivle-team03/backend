@@ -121,6 +121,7 @@ class ActionHistoryListItem(BaseModel):
     ai_verified: Optional[int] = None
     ai_confidence: Optional[float] = None
     ai_summary: Optional[str] = None
+    inspection_content: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

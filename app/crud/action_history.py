@@ -147,6 +147,11 @@ def _serialize_action(
         "ai_verified": getattr(action, "ai_verified", None),
         "ai_confidence": getattr(action, "ai_confidence", None),
         "ai_summary": getattr(action, "ai_summary", None),
+        "inspection_content": (
+            action.inspection_history.content
+            if action.inspection_history
+            else None
+        ),
     }
 
     if include_detail:
