@@ -119,7 +119,7 @@ def delete_report_endpoint(
     db: Session = Depends(get_db)
 ):
     """보고서 삭제 API"""
-    success = delete_report(db, report_id=report_id, uid=current_user.uid, company_id=current_user.company_id)
+    success = delete_report(db, report_id=report_id)
     if not success:
         raise HTTPException(status_code=403, detail="보고서가 존재하지 않거나 삭제 권한이 없습니다.")
     return {"message": "보고서가 성공적으로 삭제되었습니다."}
