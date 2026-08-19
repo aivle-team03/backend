@@ -88,6 +88,7 @@ def _status_response(education: Education, status_row: Optional[EducationStatus]
         "education_id": education.education_id,
         "title": education.title,
         "video_url": education.video_url,
+        "video_url_en": education.video_url_en,
         "category": education.category,
         "type": education.type,
         "due_date": education.due_date,
