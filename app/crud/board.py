@@ -4,6 +4,7 @@ from sqlalchemy import or_
 from typing import Optional
 from app.models.action_history import ActionHistory
 from app.models.board import Board
+from app.models.event_category import EventCategory
 from app.models.user import User
 from app.schemas.action_history import ActionStatus, SourceType
 
@@ -47,8 +48,9 @@ def get_boards(
     keyword: Optional[str] = None
 ):
     query = (
-        db.query(Board, User.name.label("writer_name"))
+        db.query(Board, User.name.label("writer_name"), EventCategory.category_name)
         .outerjoin(User, Board.uid == User.uid)
+        .outerjoin(EventCategory, Board.event_category_id == EventCategory.category_id)
         .filter(
             Board.company_id == company_id,
             Board.is_deleted == False,
@@ -73,7 +75,7 @@ def get_boards(
     rows = query.order_by(Board.created_at.desc()).offset((page - 1) * size).limit(size).all()
 
     items = []
-    for board, writer_name in rows:
+    for board, writer_name, category_name in rows:
         item_dict = {
             "board_id": board.board_id,
             "company_id": board.company_id,
@@ -82,6 +84,7 @@ def get_boards(
             "title": board.title,
             "board_contents": board.board_contents,
             "event_category_id": board.event_category_id,
+            "category_name": category_name,
             "status": board.status,
             "location": board.location,
             "image_url": board.image_url,
@@ -95,8 +98,9 @@ def get_boards(
 # 게시글 ID로 상세 조회
 def get_board_by_id(db: Session, board_id: int, company_id: int):
     row = (
-        db.query(Board, User.name.label("writer_name"))
+        db.query(Board, User.name.label("writer_name"), EventCategory.category_name)
         .outerjoin(User, Board.uid == User.uid)
+        .outerjoin(EventCategory, Board.event_category_id == EventCategory.category_id)
         .filter(
             Board.board_id == board_id,
             Board.company_id == company_id,
@@ -108,7 +112,7 @@ def get_board_by_id(db: Session, board_id: int, company_id: int):
     if not row:
         return None
 
-    board, writer_name = row
+    board, writer_name, category_name = row
     return {
         "board_id": board.board_id,
         "company_id": board.company_id,
@@ -117,6 +121,7 @@ def get_board_by_id(db: Session, board_id: int, company_id: int):
         "title": board.title,
         "board_contents": board.board_contents,
         "event_category_id": board.event_category_id,
+        "category_name": category_name,
         "status": board.status,
         "location": board.location,
         "image_url": board.image_url,
