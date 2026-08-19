@@ -193,21 +193,22 @@ def update_report(db: Session, report_id: int, uid: int, company_id: int, title:
     db.refresh(report)
     return report
 
-def delete_report(db: Session, report_id: int, uid: int, company_id: int) -> bool:
+def delete_report(
+    db: Session, report_id: int, uid: int, company_id: int
+) -> bool:
     report = (
         db.query(Report)
         .filter(
             Report.report_id == report_id,
             Report.company_id == company_id,
             Report.uid == uid,
-            Report.is_deleted == False,
         )
         .first()
     )
     if not report:
         return False
-        
-    report.is_deleted = True
+
+    db.delete(report)
     db.commit()
     return True
 
