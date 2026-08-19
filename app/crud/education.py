@@ -88,6 +88,7 @@ def _status_response(education: Education, status_row: Optional[EducationStatus]
         "education_id": education.education_id,
         "title": education.title,
         "video_url": education.video_url,
+        "video_url_en": education.video_url_en,
         "category": education.category,
         "type": education.type,
         "due_date": education.due_date,
@@ -404,6 +405,7 @@ def save_generated_education(
     category: Optional[str] = None,
     type: Optional[str] = None,
     due_date: Optional[date] = None,
+    video_url_en: Optional[str] = None,
 ) -> Education:
     """영상 생성 서비스가 완료한 결과를 Education 테이블에 적재한다.
 
@@ -425,6 +427,8 @@ def save_generated_education(
         existing.category = category or existing.category
         existing.type = type or existing.type
         existing.due_date = due_date
+        # 더빙 실패로 None 이 들어올 수 있다. 이미 저장된 더빙판을 지우지 않는다.
+        existing.video_url_en = video_url_en or existing.video_url_en
         db.commit()
         db.refresh(existing)
         return existing
@@ -433,6 +437,7 @@ def save_generated_education(
         company_id=company_id,
         title=title or "Veo AI 현장 안전 교육",
         video_url=video_url,
+        video_url_en=video_url_en,
         category=category or "공통",
         type=type or "필수",
         due_date=due_date,
@@ -568,6 +573,8 @@ def get_admin_education_dashboard(db: Session, company_id: int) -> Dict:
             "uid": user.uid,
             "name": user.name,
             "category": user.category,
+            # 관리자 계정은 category 가 비어 있다. 소속 칸을 '-' 로 두지 않도록 역할을 함께 내린다.
+            "role": user.role,
             "education_id": education.education_id,
             "education_title": education.title,
             "status": status.status if status else INCOMPLETE,
@@ -599,25 +606,28 @@ def get_admin_education_dashboard(db: Session, company_id: int) -> Dict:
         if user.category and user.category not in ALL_EMPLOYEE_CATEGORIES and user.category not in categories:
             categories.append(user.category)
 
+    def _assignment_counts(target_users, target_courses) -> tuple:
+        """(사용자 × 교육) 쌍을 세어 이수 건수와 전체 건수를 돌려준다.
+
+        예전에는 '해당 교육을 하나도 빠짐없이 다 들은 사람 수'로 셌다. 그 방식은
+        교육을 하나 새로 등록할 때마다 이수율이 뚝 떨어지고, 5개 중 4개를 끝낸 사람이
+        0으로 잡혀 코스별 이수율과 숫자가 크게 어긋나 보였다.
+        """
+        total = 0
+        completed = 0
+        for user in target_users:
+            for education in target_courses:
+                total += 1
+                status = status_by_assignment.get((user.uid, education.education_id))
+                if status and status.status == COMPLETED:
+                    completed += 1
+        return completed, total
+
     category_items = []
     for category in categories:
         category_users = [user for user in users if user.category == category]
         applicable_courses = [education for education in educations if is_all_employee_course(education) or education.category == category]
-        summary_attendees = []
-        for user in category_users:
-            assignments = [status_by_assignment.get((user.uid, education.education_id)) for education in applicable_courses]
-            is_completed = bool(assignments) and all(item and item.status == COMPLETED for item in assignments)
-            completed_dates = [item.completed_date for item in assignments if item and item.completed_date]
-            summary_attendees.append({
-                "uid": user.uid,
-                "name": user.name,
-                "category": user.category,
-                "education_title": f"{category} 교육 이수 현황",
-                "status": COMPLETED if is_completed else INCOMPLETE,
-                "completed_date": max(completed_dates) if is_completed and completed_dates else None,
-            })
-        completed_count = sum(item["status"] == COMPLETED for item in summary_attendees)
-        target_count = len(summary_attendees)
+        completed_count, target_count = _assignment_counts(category_users, applicable_courses)
         category_items.append({
             "category": category,
             "target_count": target_count,
@@ -630,23 +640,15 @@ def get_admin_education_dashboard(db: Session, company_id: int) -> Dict:
             ],
         })
 
-    overall_summary = []
+    # 전체 카드도 카테고리 카드와 같은 기준으로 센다. 한쪽만 사람 수로 두면
+    # '전체'가 카테고리 합계와 맞지 않아 보인다.
+    total_completed_count = 0
+    total_target_count = 0
     for user in users:
         applicable_courses = [education for education in educations if is_target(user, education)]
-        assignments = [status_by_assignment.get((user.uid, education.education_id)) for education in applicable_courses]
-        is_completed = bool(assignments) and all(item and item.status == COMPLETED for item in assignments)
-        completed_dates = [item.completed_date for item in assignments if item and item.completed_date]
-        overall_summary.append({
-            "uid": user.uid,
-            "name": user.name,
-            "category": user.category,
-            "education_title": "전체 교육 이수 현황",
-            "status": COMPLETED if is_completed else INCOMPLETE,
-            "completed_date": max(completed_dates) if is_completed and completed_dates else None,
-        })
-
-    total_target_count = len(users)
-    total_completed_count = sum(item["status"] == COMPLETED for item in overall_summary)
+        completed, total = _assignment_counts([user], applicable_courses)
+        total_completed_count += completed
+        total_target_count += total
     return {
         "courses": courses,
         "categories": category_items,

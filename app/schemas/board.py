@@ -14,6 +14,7 @@ class BoardResponse(BaseModel):
     title: str
     board_contents: str
     event_category_id: Optional[int] = None
+    category_name: Optional[str] = None   # event_category 조인 결과. 접수 때 지정한 위험 요인명
     status: str
     location: Optional[str] = None
     image_url: Optional[str] = None
