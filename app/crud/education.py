@@ -573,6 +573,8 @@ def get_admin_education_dashboard(db: Session, company_id: int) -> Dict:
             "uid": user.uid,
             "name": user.name,
             "category": user.category,
+            # 관리자 계정은 category 가 비어 있다. 소속 칸을 '-' 로 두지 않도록 역할을 함께 내린다.
+            "role": user.role,
             "education_id": education.education_id,
             "education_title": education.title,
             "status": status.status if status else INCOMPLETE,
