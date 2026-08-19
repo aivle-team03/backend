@@ -154,6 +154,7 @@ def patch_board_status(
             board_id=board_id,
             company_id=current_user.company_id,
             status=status_req.status,
+            risk_category_id=status_req.risk_category_id,
         )
     except ValueError as err:
         raise HTTPException(status_code=400, detail=str(err))
