@@ -25,6 +25,7 @@ from app.crud.education import (
     get_category_completion_stats, # 관리자용 카테고리별 이수 현황 그래프 통계 조회
     get_admin_education_dashboard,
     save_generated_education, # 영상 생성 서비스 결과의 Education 영속화
+    delete_education,
 )
 from app.db.db import get_db
 from app.utils.media import public_url, save_video
@@ -550,3 +551,35 @@ async def publish_generated_veo_video(
         job.publication_status = "PUBLISHED"
         db.commit()
     return {"education_id": education.education_id, "message": "교육 영상이 목록에 등록되었습니다."}
+
+    
+@education_router.delete(
+    "/{education_id}",
+    status_code=status.HTTP_200_OK,
+    summary="[관리자] 안전 교육 삭제 (물리 삭제)",
+)
+def delete_education_endpoint(
+    education_id: int = Path(..., ge=1),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """안전 교육 및 관련 이수 기록을 DB에서 완전히 삭제 (안전관리자 전용)"""
+    if current_user.role != "안전관리자":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="교육 삭제 권한이 없습니다. 안전관리자만 삭제할 수 있습니다.",
+        )
+
+    success = delete_education(
+        db, education_id=education_id, company_id=current_user.company_id
+    )
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="교육을 찾을 수 없습니다.",
+        )
+
+    return {
+        "status": "success",
+        "message": f"교육 ID {education_id}번이 완전히 삭제되었습니다.",
+    }
