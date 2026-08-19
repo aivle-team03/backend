@@ -38,3 +38,4 @@ class BoardListResponse(BaseModel):
 # 상태 변경 요청 스키마
 class BoardStatusUpdateRequest(BaseModel):
     status: str
+    risk_category_id: Optional[int] = None

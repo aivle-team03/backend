@@ -163,6 +163,7 @@ def update_board_status(
     board_id: int,
     company_id: int,
     status: str,
+    risk_category_id: Optional[int] = None,
 ) -> Optional[Board]:
     # Lock the board row so concurrent requests cannot create duplicate actions.
     board = db.query(Board).filter(
@@ -183,16 +184,24 @@ def update_board_status(
         ).first()
 
         if not existing_action:
-            if not board.event_category_id:
+            if not risk_category_id:
                 raise ValueError(
-                    "\uAC8C\uC2DC\uAE00 \uCE74\uD14C\uACE0\uB9AC\uAC00 \uC5C6\uC5B4 \uC870\uCE58 \uD56D\uBAA9\uC744 \uC0DD\uC131\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4."
+                    "\uC811\uC218\uD560 \uC704\uD5D8 \uC694\uC778\uC744 \uC120\uD0DD\uD574 \uC8FC\uC138\uC694."
                 )
+
+            risk_category = db.query(EventCategory).filter(
+                EventCategory.category_id == risk_category_id,
+                EventCategory.company_id == company_id,
+                EventCategory.is_deleted == False,
+            ).first()
+            if not risk_category:
+                raise ValueError("\uC120\uD0DD\uD55C \uC704\uD5D8 \uC694\uC778\uC744 \uCC3E\uC744 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4.")
 
             db.add(ActionHistory(
                 company_id=company_id,
                 board_id=board.board_id,
-                category_id=board.event_category_id,
-                action_name=board.title,
+                category_id=risk_category.category_id,
+                action_name=risk_category.category_name,
                 type=SourceType.BOARD.value,
                 location=board.location or "\uC704\uCE58 \uBBF8\uC9C0\uC815",
                 content=board.board_contents,

@@ -123,11 +123,19 @@ def _serialize_action(
     include_detail: bool = False,
 ) -> Dict:
     category = action.category
+    action_name = action.action_name
+    if (
+        action.type == SourceType.BOARD.value
+        and category
+        and category.category_name
+    ):
+        action_name = category.category_name
+
     data = {
         "action_history_id": action.action_history_id,
         "source_type": action.type,
         "source_id": _source_id(action),
-        "action_name": action.action_name,
+        "action_name": action_name,
         "category_id": action.category_id,
         "category": category.category if category else None,
         "category_name": category.category_name if category else "",
