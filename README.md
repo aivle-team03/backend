@@ -346,11 +346,7 @@ celery -A app.celery_app.celery_app worker --pool=solo --concurrency=1 --logleve
 | | `GET` | `/api/chatbot/recommendations` | 추천 질문 목록 (4종) |
 | **Data** | `GET` | `/api/data/manuals` | 소방법/산업안전 매뉴얼 검색 |
 | **AI Detect** | `POST` | `/api/ai/detect/events` | 이상 감지 시 이벤트 추가 |
-<<<<<<< HEAD
 | | `POST` | `/api/ai/detect/verify-action` | 조치결과 재확인 |
-=======
-| | `POST` | `/api/ai/detect/verify-action` | 조치 완료 시 AI 재검토 |
->>>>>>> c230f3f74bee11843f648759dd4b3a787561d14d
 | **Notification** | `GET` | `/api/notifications/` | 전체 알림 조회 |
 | | `PATCH` | `/api/notifications/read-all` | 전체 알림 읽음 처리 |
 | | `PATCH` | `/api/notifications/{id}/read` | 단일 알림 읽음 처리 |
