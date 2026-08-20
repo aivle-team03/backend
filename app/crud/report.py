@@ -16,6 +16,7 @@ from app.models.board import Board
 from app.models.event import Event
 from app.models.user import User
 from app.crud.risk import calculate_risk_level
+from app.utils.s3_utils_report import delete_report_object_from_s3
 # report_agent 는 상대경로를 자기 BACKEND_BASE_URL 에 붙이는데, 백엔드는 /media/ 를
 # 서빙하지 않는다(nginx 가 S3 로 보낸다). 절대 URL 로 넘겨야 이미지를 받아 문서에 넣는다.
 from app.utils.media import public_url
@@ -30,6 +31,16 @@ TYPE_EVENT = "이벤트"
 
 def _iso(value):
     return value.isoformat() if value else None
+
+def _extract_s3_key(path: str) -> Optional[str]:
+    if not path:
+        return None
+
+    if path.startswith("s3://"):
+        parts = path[len("s3://"):].split("/", 1)
+        return parts[1] if len(parts) == 2 else None
+
+    return path
 
 def create_report(
     db: Session,
@@ -193,20 +204,21 @@ def update_report(db: Session, report_id: int, uid: int, company_id: int, title:
     db.refresh(report)
     return report
 
-def delete_report(
-    db: Session, report_id: int, uid: int, company_id: int
-) -> bool:
+def delete_report(db: Session, report_id: int) -> bool:
     report = (
         db.query(Report)
         .filter(
             Report.report_id == report_id,
-            Report.company_id == company_id,
-            Report.uid == uid,
+            Report.is_deleted == False,
         )
         .first()
     )
     if not report:
         return False
+
+    s3_key = _extract_s3_key(report.path)
+    if s3_key:
+        delete_report_object_from_s3(s3_key)
 
     db.delete(report)
     db.commit()

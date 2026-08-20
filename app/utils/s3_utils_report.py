@@ -69,3 +69,29 @@ def generate_presigned_url(
         print(f"[S3Presign] WARNING: presigned URL 생성 예외 발생: {e}")
 
     return None
+
+
+def delete_report_object_from_s3(
+    object_name: str,
+    bucket_name: Optional[str] = None,
+    region_name: Optional[str] = None,
+) -> None:
+    """Delete a report object from the private report S3 bucket.
+
+    This follows the same non-blocking style as app.utils.s3_utils.delete_object_from_s3:
+    failures are logged, but not raised to the caller.
+    """
+    if not object_name:
+        print("[S3Delete] WARNING: 삭제할 리포트 S3 key가 비어 있습니다.")
+        return
+
+    bucket = bucket_name or os.getenv("AWS_REPORT_S3_BUCKET_NAME")
+
+    if not bucket:
+        print("[S3Delete] WARNING: AWS_REPORT_S3_BUCKET_NAME 설정이 미비하여 삭제를 생략합니다.")
+        return
+
+    try:
+        _create_s3_client(region_name).delete_object(Bucket=bucket, Key=object_name)
+    except Exception as e:
+        print(f"[S3Delete] WARNING: 리포트 S3 삭제 예외 발생 ({object_name}): {e}")
