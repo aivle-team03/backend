@@ -1,5 +1,6 @@
 from datetime import date, timedelta # timedelta : 날짜 간격 계산
 from typing import Optional, List, Dict # List, Dict : 리스트, 딕셔너리
+from urllib.parse import urlparse
 
 from sqlalchemy import and_, or_, func # and_, or_ : 조건 결합, func : 함수 사용
 from sqlalchemy.orm import Session 
@@ -8,6 +9,7 @@ from app.models.education import Education
 from app.models.education_status import EducationStatus
 from app.models.user import User
 from app.crud.signup_code import get_available_categories
+from app.utils.s3_utils import delete_object_from_s3
 
 
 INCOMPLETE = "미이수"
@@ -15,6 +17,29 @@ IN_PROGRESS = "진행중"
 COMPLETED = "이수"
 PROGRESS_STATUSES = (INCOMPLETE, IN_PROGRESS, COMPLETED)
 ALL_EMPLOYEE_CATEGORIES = {"공통"}
+
+def _extract_s3_key(path: Optional[str]) -> Optional[str]:
+    if not path:
+        return None
+
+    # 1. 외부 유튜브 링크는 삭제 대상에서 제외
+    if path.startswith(
+        ("https://www.youtube.com", "https://youtu.be", "http://www.youtube.com")
+    ):
+        return None
+
+    # 2. s3://bucket-name/key/file.mp4 형태 처리
+    if path.startswith("s3://"):
+        parts = path[len("s3://") :].split("/", 1)
+        return parts[1] if len(parts) == 2 else None
+
+    # 3. https://bucket.s3.../key/file.mp4 형태 처리
+    if path.startswith("http://") or path.startswith("https://"):
+        parsed = urlparse(path)
+        return parsed.path.lstrip("/")
+
+    # 4. 순수 S3 Key 경로 (예: educations/videos/sample.mp4)
+    return path
 
 
 def _allowed_education_categories(user: User) -> List[str]:
@@ -661,7 +686,7 @@ def get_admin_education_dashboard(db: Session, company_id: int) -> Dict:
 def delete_education(
     db: Session, education_id: int, company_id: int
 ) -> bool:
-    """물리 삭제 (DB 테이블에서 완전히 삭제)"""
+    """S3 영상 파일 삭제 후 DB 레코드 물리 삭제"""
     education = (
         db.query(Education)
         .filter(
@@ -673,6 +698,12 @@ def delete_education(
     if not education:
         return False
 
+    # 1. S3 영상 삭제 (기본 및 영문 더빙 영상)
+    delete_object_from_s3(education.video_url)
+    if getattr(education, "video_url_en", None):
+        delete_object_from_s3(education.video_url_en)
+
+    # 2. DB 물리 삭제
     db.delete(education)
     db.commit()
     return True
