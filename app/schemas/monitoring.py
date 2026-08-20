@@ -1,6 +1,8 @@
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 from datetime import datetime
 from typing import Optional
+
+from app.utils.datetime_utils import KST
 
 class EventCategoryInfo(BaseModel):
     category_id: int
@@ -30,6 +32,15 @@ class EventDetailResponse(BaseModel):
     current_status: str = "미조치"
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_serializer("date")
+    def serialize_date_as_kst(self, value: datetime) -> str:
+        """Return an explicit UTC+09:00 offset so clients never treat KST as UTC."""
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=KST)
+        else:
+            value = value.astimezone(KST)
+        return value.isoformat()
 
 class ActionRequest(BaseModel):
     target_uid: int

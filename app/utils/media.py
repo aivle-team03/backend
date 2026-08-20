@@ -51,6 +51,11 @@ def public_url(value: Optional[str]) -> Optional[str]:
     if not value or not isinstance(value, str):
         return value
 
+    # 초기 Vision 서버가 `media/...`(앞 슬래시 없음)을 저장한 이벤트와 호환한다.
+    # 이후에는 `/media/...`를 표준 DB 경로로 사용한다.
+    if value.startswith("media/"):
+        value = f"/{value}"
+
     if value.startswith(MEDIA_URL_PREFIX):
         # 운영에서는 프론트와 미디어가 같은 CloudFront 뒤에 있어 상대경로로 충분하다.
         # 로컬에서 S3를 쓸 때만 MEDIA_BASE_URL로 절대주소를 만든다.
