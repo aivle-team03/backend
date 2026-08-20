@@ -307,11 +307,19 @@ celery -A app.celery_app.celery_app worker --pool=solo --concurrency=1 --logleve
 | | `PUT` | `/api/report/{id}` | 보고서 내용 수정 |
 | | `DELETE`| `/api/report/{id}` | 보고서 삭제 |
 | | `GET` | `/api/report/{id}/download` | 보고서 PDF 파일 동적 다운로드 |
+<<<<<<< HEAD
 | | `GET` | `/api/report/{report_id}/file-url` | S3 저장소 저장 파일 임시 URL 발급 |
 | | `POST` | `/api/report/risk-assessment/form/generate` | 위험성평가표 생성 |
 | | `POST` | `/api/report/worker-feedback/generate` | 종사자에 의한 유해 위험요인 보고서 생성 |
 | | `POST` | `/api/report/management-review-order/generate` |경영책임지 검토지시서 생성 |
 | | `POST` | `/api/report/risk-assessment/report/generate` | 위험성평가보고서 생성 |
+=======
+| | `GET` | `/{report_id}/file-url` | S3 저장소 저장 파일 임시 URL 발급 |
+| | `POST` | `/risk-assessment/form/generate` | 위험성평가표 생성 |
+| | `POST` | `/worker-feedback/generate` | 종사자에 의한 유해 위험요인 보고서 생성 |
+| | `POST` | `/management-review-order/generate` |경영책임지 검토지시서 생성 |
+| | `POST` | `/risk-assessment/report/generate` | 위험성평가보고서 생성 |
+>>>>>>> c230f3f74bee11843f648759dd4b3a787561d14d
 | **Dashboard**| `GET` | `/api/dashboard/summary` | 감지, 위반, 조치 대기/완료 건수 요약 |
 | | `GET` | `/api/dashboard/recentevents` | 최근 발생한 이상 항목 리스트 조회 |
 | | `GET` | `/api/dashboard/zones/stats` | 구역별 위험도 집계 통계 |
@@ -345,7 +353,11 @@ celery -A app.celery_app.celery_app worker --pool=solo --concurrency=1 --logleve
 | | `GET` | `/api/chatbot/recommendations` | 추천 질문 목록 (4종) |
 | **Data** | `GET` | `/api/data/manuals` | 소방법/산업안전 매뉴얼 검색 |
 | **AI Detect** | `POST` | `/api/ai/detect/events` | 이상 감지 시 이벤트 추가 |
+<<<<<<< HEAD
 | | `POST` | `/api/ai/detect/verify-action` | 조치결과 재확인 |
+=======
+| | `POST` | `/api/ai/detect/verify-action` | 조치 완료 시 AI 재검토 |
+>>>>>>> c230f3f74bee11843f648759dd4b3a787561d14d
 | **Notification** | `GET` | `/api/notifications/` | 전체 알림 조회 |
 | | `PATCH` | `/api/notifications/read-all` | 전체 알림 읽음 처리 |
 | | `PATCH` | `/api/notifications/{id}/read` | 단일 알림 읽음 처리 |
