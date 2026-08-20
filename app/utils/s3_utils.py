@@ -30,12 +30,11 @@ def _create_s3_client(region_name: Optional[str] = None):
     )
     
 def _extract_s3_key(path: Optional[str]) -> Optional[str]:
-    """URL 또는 경로에서 S3 객체 Key 경로를 추출합니다.
-    """
+    """URL 또는 S3 URI에서 실제 S3 Key 경로 전체를 추출합니다."""
     if not path:
         return None
 
-    # 유튜브/외부 링크는 삭제 대상 제외
+    # 유튜브/외부 링크는 S3 삭제 대상에서 제외
     if path.startswith(
         ("https://www.youtube.com", "https://youtu.be", "http://www.youtube.com")
     ):
@@ -46,14 +45,9 @@ def _extract_s3_key(path: Optional[str]) -> Optional[str]:
         parts = path[len("s3://") :].split("/", 1)
         return parts[1] if len(parts) == 2 else None
 
-    # HTTP(S) URL 처리
     if path.startswith("http://") or path.startswith("https://"):
         parsed = urlparse(path)
-        raw_key = parsed.path.lstrip("/")
-        if raw_key.startswith("media/"):
-            return raw_key[len("media/") :]
-
-        return raw_key
+        return parsed.path.lstrip("/")  # "media/videos/2026_08_20/..."
 
     return path
 
@@ -83,7 +77,7 @@ def delete_object_from_s3(
     bucket: Optional[str] = None,
     region_name: Optional[str] = None,
 ) -> None:
-    """S3 오브젝트를 삭제한다. 버킷 미지정 시 AWS_S3_MEDIA_BUCKET 환경변수를 사용한다."""
+    """S3 오브젝트를 삭제한다. 실패해도 호출부를 막지 않는다."""
     key = _extract_s3_key(key_or_url)
     if not key:
         return
@@ -95,6 +89,5 @@ def delete_object_from_s3(
 
     try:
         _create_s3_client(region_name).delete_object(Bucket=target_bucket, Key=key)
-        print(f"[S3Delete] S3 삭제 완료: {key}")
     except Exception as e:
         print(f"[S3Delete] WARNING: 삭제 예외 발생 ({key}): {e}")
