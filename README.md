@@ -258,6 +258,7 @@ celery -A app.celery_app.celery_app worker --pool=solo --concurrency=1 --logleve
 | | `POST` | `/api/auth/login` | 로그인 및 JWT Access Token 발급 |
 | | `POST` | `/api/auth/logout` | 로그아웃 (토큰 무효화) |
 | | `POST` | `/api/auth/find/password` | 비밀번호 찾기/재설정 |
+| | `POST` | `/api/auth/refresh` | Access Token 재발급 |
 | **Users** | `GET` | `/api/users/me` | 로그인 사용자 내 정보 조회 |
 | | `PATCH` | `/api/users/me/password` | 내 비밀번호 변경 |
 | | `PATCH` | `/api/users/me/notifications` | 항목별 알림 수신 여부 설정 |
@@ -272,22 +273,16 @@ celery -A app.celery_app.celery_app worker --pool=solo --concurrency=1 --logleve
 | **CCTV** | `GET` | `/api/cctvs` | CCTV 목록 및 상태 조회 |
 | | `POST` | `/api/cctvs` | 신규 CCTV 등록 |
 | | `GET` | `/api/cctvs/{camera_id}` | 특정 CCTV 상세 조회 |
+| | `DELETE` | `/api/cctvs/{camera_id}` | 특정 CCTV 삭제 |
 | **Monitoring** | `GET` | `/api/monitoring/events` | 이상 감지 이벤트 목록 조회 |
+| | `GET` | `/api/monitoring/events/{event_id}` | 특정 이상 감지 이벤트 조회 |
 | | `POST` | `/api/monitoring/events/{event_id}/request` | 현장 조치 요청 (체크리스트 생성) |
-| **Checklist** | `GET` | `/api/checklists` | 전체 체크리스트 목록 조회 |
-| | `GET` | `/api/checklists/history` | 조치 완료 및 승인 이력 조회 |
-| | `GET` | `/api/checklists/managers` | 현장 조치 담당자 검색 |
-| | `GET` | `/api/checklists/me` | 내 조치 기록 조회 |
-| | `POST` | `/api/checklists` | 체크리스트 등록 (수동/AI 생성) |
-| | `PATCH` | `/api/checklists/{id}/assign` | 체크리스트 담당자 배정 |
-| | `PATCH` | `/api/checklists/{id}/complete` | 조치 완료 보고 (사진/내용 업로드) |
-| | `PATCH` | `/api/checklists/{id}/status` | 관리자 승인 완료 또는 반려 |
-| | `DELETE`| `/api/checklists/{id}` | 체크리스트 항목 삭제 |
 | **Inspection** | `GET` | `/api/inspection` | 회사의 점검 항목 목록 조회 |
 | | `POST` | `/api/inspection` | 신규 점검 항목 등록 |
 | | `GET` | `/api/inspection/{id}` | 특정 점검 항목 상세 조회 |
 | | `PATCH` | `/api/inspection/{id}` | 점검 항목 정보 수정 |
 | | `DELETE`| `/api/inspection/{id}` | 점검 항목 삭제 |
+| | `GET` | `/api/inspection//{id}/histories` | 특정 점검 항목의 전체 이력 목록 조회 |
 | | `GET` | `/api/inspection/histories/all` | 회사 전체 점검 이력 목록 조회 |
 | | `GET` | `/api/inspection/histories/me` | 내게 배정된 점검 이력 목록 조회 |
 | | `GET` | `/api/inspection/histories/{id}` | 점검 이력 단건 상세 조회 |
@@ -297,9 +292,13 @@ celery -A app.celery_app.celery_app worker --pool=solo --concurrency=1 --logleve
 | | `POST` | `/api/inspection/histories/trigger-scheduled` | 스케줄링 점검 이력 수동 실행 |
 | **ActionHistory** | `GET` | `/api/action-histories` | 전체 조치 이력 목록 조회 |
 | | `POST` | `/api/action-histories` | 조치 이력 생성 |
+| | `GET` | `/api/action-histories/handlers` | 전체 작업자 조회 |
+| | `PATCH` | `/api/action-histories/assignments` | 조치 담당자 배정 |
+| | `GET` | `/api/action-histories/me` | 내게 배정된 조치 이력 조회 |
 | | `GET` | `/api/action-histories/{id}` | 조치 이력 상세 조회 |
-| | `PATCH` | `/api/action-histories/{id}` | 조치 이력 정보 및 상태 수정 |
-| | `DELETE`| `/api/action-histories/{id}` | 조치 이력 삭제 |
+| | `PATCH` | `/api/action-histories/{id}/complete` | 조치 이력 완료 |
+| | `PATCH` | `/api/action-histories/{id}/approve` | 완료된 조치 이력 승인 |
+| | `PATCH` | `/api/action-histories/{id}/reject` | 완료된 조치 이력 반려 |
 | **Risk** | `GET` | `/api/risk/list` | 위험요인 카테고리 목록 조회 |
 | | `PATCH` | `/api/risk/category/{id}/level` | 카테고리별 위험 강도(1~10) 수정 |
 | | `POST` | `/api/risk/category` | 신규 위험요인 카테고리 등록 |
@@ -315,21 +314,29 @@ celery -A app.celery_app.celery_app worker --pool=solo --concurrency=1 --logleve
 | | `POST` | `/worker-feedback/generate` | 종사자에 의한 유해 위험요인 보고서 생성 |
 | | `POST` | `/management-review-order/generate` |경영책임지 검토지시서 생성 |
 | | `POST` | `/risk-assessment/report/generate` | 위험성평가보고서 생성 |
-| **Dashboard**| `GET` | `/api/dashboard/zones/stats` | 구역별 위험도 집계 통계 |
+| **Dashboard**| `GET` | `/api/dashboard/summary` | 감지, 위반, 조치 대기/완료 건수 요약 |
+| | `GET` | `/api/dashboard/recentevents` | 최근 발생한 이상 항목 리스트 조회 |
+| | `GET` | `/api/dashboard/zones/stats` | 구역별 위험도 집계 통계 |
 | | `GET` | `/api/dashboard/safetygrade` | 최근 30일 기반 종합 안전 등급 (A~F) |
 | | `GET` | `/api/dashboard/reports` | 기간별 통계 보고서 조회 |
 | | `GET` | `/api/dashboard/reports/summary` | 보고서 AI 분석 요약 |
-| **Education**| `GET` | `/api/education/summary` | 유저 상단 요약 건수 (마감, 진행중, 이수) |
+| **Education**| `GET` | `/api/education/list` | 내 교육 영상 조회 |
+| | `GET` | `/api/education/summary` | 유저 상단 요약 건수 (마감, 진행중, 이수) |
 | | `GET` | `/api/education/status` | 유저 내 교육 리스트 조회 |
 | | `GET` | `/api/education/completion-rates` | 유저 필수/정기/전체 교육 이수율(%) |
 | | `POST` | `/api/education/{id}/complete` | 비디오 수강 이수 완료 처리 |
+| | `POST` | `/api/education/{id}/progress` | 교육 영상 시청 진척도 업데이트 |
+| | `POST` | `/api/education/add` | 교육 영상 직접 추가 |
 | | `GET` | `/api/admin/education/dashboard` | 관리자 교육 대시보드 종합 통계 조회 |
 | | `GET` | `/api/admin/education/category-stats` | 관리자 카테고리별 이수 현황 통계 |
 | | `GET` | `/api/admin/education/status` | 관리자 대상자별 교육 리스트/이수 요약 |
 | | `GET` | `/api/admin/education/{id}/attendees` | 특정 교육 수강 대상자 목록 조회 |
 | | `GET` | `/api/admin/education/{uid}` | 관리자 특정 유저 교육 상세 조회 |
 | | `POST` | `/api/education/veo-generate` | Google Veo AI 영상 생성 비동기 요청 |
+| | `GET` | `/api/education/veo-generate/pending` | 제작 중이거나 검토가 필요한 비디오 조회 |
 | | `GET` | `/api/education/veo-generate/{task_id}/status` | Veo 영상 생성 진행 상태 및 품질 검수 결과 조회 |
+| | `POST` | `/api/education/veo-generate/{task_id}/publish` | 검토가 완료된 영상 최종 등록 |
+| | `DELETE` | `/api/education/{education_id}` | 교육 영상 삭제 |
 | **Board** | `POST` | `/api/boards` | 게시글 등록 (사진 파일 첨부) |
 | | `GET` | `/api/boards` | 게시글 목록 조회 (검색/필터ing) |
 | | `GET` | `/api/boards/{id}` | 게시글 상세 조회 |
@@ -339,10 +346,13 @@ celery -A app.celery_app.celery_app worker --pool=solo --concurrency=1 --logleve
 | **Chatbot** | `POST` | `/api/chatbot/query` | 안전 질의응답 챗봇 |
 | | `GET` | `/api/chatbot/recommendations` | 추천 질문 목록 (4종) |
 | **Data** | `GET` | `/api/data/manuals` | 소방법/산업안전 매뉴얼 검색 |
-| **AI Detect** | `POST` | `/api/ai/detect/facilities` | 소방시설 바운딩박스 탐지 |
-| | `POST` | `/api/ai/detect/hazards` | 불법 적치물/위험요소 탐지 |
-| | `POST` | `/api/ai/detect/fire` | 화재 및 연기(Smoke) 징후 탐지 |
-| | `POST` | `/api/ai/verify-action` | 조치 전/후 사진 시각 유사도 AI 검증 |
+| **AI Detect** | `POST` | `/api/ai/detect/events` | 이상 감지 시 이벤트 추가 |
+| | `POST` | `/api/ai/detect/verify-action` | 조치 완료 시 AI 재검토 |
+| **Notification** | `GET` | `/api/notifications/` | 전체 알림 조회 |
+| | `PATCH` | `/api/notifications/read-all` | 전체 알림 읽음 처리 |
+| | `PATCH` | `/api/notifications/{id}/read` | 단일 알림 읽음 처리 |
+| | `DELETE` | `/api/notifications/clear-all` | 전체 알림 삭제 |
+| | `DELETE` | `/api/notifications/{id}` | 단일 알림 삭제 |
 
 ---
 
