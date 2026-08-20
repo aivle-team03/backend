@@ -79,33 +79,24 @@ def change_password(
 
     return {"message": "비밀번호가 성공적으로 변경되었습니다."}
 
-
-@router.patch("/me/notifications")
-def patch_user_me_notifications(
-    req: NotificationToggleRequest,
-    current_user: User = Depends(get_current_user)
-):
-    """항목별 알림 수신 여부 설정 API - 명세서 URL /api/users/me/notifications"""
-    return {
-        "message": f"항목 '{req.item}'의 알림 수신 여부가 '{req.is_alert_enabled}'(으)로 변경되었습니다."
-    }
-
-
-@router.get("/find/password", response_model=PasswordFindResponse)
-def get_find_user_password(
-    user_id: str = Query(...),
-    name: str = Query(...),
+@router.delete("/me", status_code=status.HTTP_200_OK, summary="[유저] 회원 탈퇴")
+def delete_me(
+    req: UserDeleteRequest,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """비밀번호 찾기 API - 명세서 URL /api/users/find/password"""
-    u = find_user_password(db, user_id=user_id, name=name)
-    if not u:
-        raise HTTPException(status_code=404, detail="일치하는 사용자 정보를 찾을 수 없습니다.")
-    return {
-        "user_id": u.user_id,
-        "name": u.name,
-        "message": "임시 비밀번호 재발급 안내 메일이 발송되었습니다. (가상 발송)"
-    }
+    """
+    로그인한 유저 본인 계정 탈퇴 API
+    - 비밀번호 검증 후 DB에서 회원 정보를 삭제합니다.
+    """
+    success = delete_user(db, user=current_user, password=req.password)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="비밀번호가 일치하지 않아 회원탈퇴를 진행할 수 없습니다."
+        )
+    
+    return {"message": "회원 탈퇴가 성공적으로 처리되었습니다."}
 
 # =========================================================
 # 안전관리자(총책임자) 전용 API 라우터 (/api/admin)
@@ -228,22 +219,3 @@ def patch_admin_user_role_legacy(
     if not u:
         raise HTTPException(status_code=404, detail="해당 사용자를 찾을 수 없습니다.")
     return u
-
-@router.delete("/me", status_code=status.HTTP_200_OK, summary="[유저] 회원 탈퇴")
-def delete_me(
-    req: UserDeleteRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    로그인한 유저 본인 계정 탈퇴 API
-    - 비밀번호 검증 후 DB에서 회원 정보를 삭제합니다.
-    """
-    success = delete_user(db, user=current_user, password=req.password)
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="비밀번호가 일치하지 않아 회원탈퇴를 진행할 수 없습니다."
-        )
-    
-    return {"message": "회원 탈퇴가 성공적으로 처리되었습니다."}
