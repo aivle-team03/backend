@@ -33,7 +33,12 @@ def create_users(db: Session, user_create: UserCreate):
     # 회원가입 코드가 입력된 경우 자동 역할/카테고리 바인딩
     code_obj = None
     if user_create.code:
-        code_obj = db.query(SignupCode).filter(SignupCode.code == user_create.code).first()
+        # 비밀번호 재설정 코드로는 가입할 수 없다. 허용하면 role 이 빈 계정이 만들어진다.
+        code_obj = (
+            db.query(SignupCode)
+            .filter(SignupCode.code == user_create.code, SignupCode.purpose == "signup")
+            .first()
+        )
         if not code_obj:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

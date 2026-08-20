@@ -120,22 +120,38 @@ def logout(
 
 @router.post("/find/password")
 def reset_password(reset_data: PasswordReset, db: Session = Depends(get_db)):
-    """비밀번호 찾기/재설정 API (로그인 없이 접근 가능)"""
-    
-    # 1. 아이디와 이름이 일치하는 유저 찾기
+    """비밀번호 재설정 API (로그인 없이 접근 가능).
+
+    아이디와 이름은 게시판·점검 이력에 그대로 노출되는 값이라 그것만으로는
+    본인 확인이 되지 않는다. 관리자가 대상 계정을 지정해 발급한 1회용 코드를
+    함께 받아야 통과한다.
+    """
+    from app.crud.signup_code import consume_password_reset_code
+
     user = db.query(User).filter(
         User.user_id == reset_data.user_id,
         User.name == reset_data.name
     ).first()
 
+    # 아이디·이름은 게시판과 점검 이력에 이미 노출되는 값이라 계정 존재 자체가
+    # 비밀이 아니다. 실제 방어선은 코드이므로 두 사유를 나눠 안내한다.
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="일치하는 사용자 정보를 찾을 수 없습니다."
         )
 
-    # 2. 새 비밀번호 해싱 후 DB 업데이트
+    # 틀린 코드·만료·이미 사용됨을 구분하지 않는다. 어느 쪽인지 알려주면
+    # 유효한 코드를 찾는 시도에 단서가 된다.
+    if not consume_password_reset_code(db, reset_data.code, user.uid):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="유효하지 않은 코드입니다."
+        )
+
     user.password = hash_password(reset_data.new_password)
+    # 재설정 후에는 기존 세션을 끊는다. 탈취된 토큰이 살아 있으면 의미가 없다.
+    user.refresh_token = None
     db.commit()
 
     return {"message": "success"}
