@@ -266,6 +266,7 @@ celery -A app.celery_app.celery_app worker --pool=solo --concurrency=1 --logleve
 | | `POST` | `/api/admin/invite-codes` | 가입 회원가입 초대 코드 생성 |
 | | `GET` | `/api/admin/invite-codes` | 발급된 회원가입 초대 코드 목록 조회 |
 | | `GET` | `/api/admin/users` | 관리자용 전체 유저 목록 조회 |
+| | `POST` | `/api/admin//users/{uid}/password-reset-code` | 비밀번호 재설정 코드를 발급 |
 | | `PATCH` | `/api/admin/users/{uid}` | 유저 역할 및 장비 카테고리 수정 |
 | | `PATCH` | `/api/admin/{uid}/role` | 유저 역할 변경 |
 | **CCTV** | `GET` | `/api/cctvs` | CCTV 목록 및 상태 조회 |
@@ -307,19 +308,11 @@ celery -A app.celery_app.celery_app worker --pool=solo --concurrency=1 --logleve
 | | `PUT` | `/api/report/{id}` | 보고서 내용 수정 |
 | | `DELETE`| `/api/report/{id}` | 보고서 삭제 |
 | | `GET` | `/api/report/{id}/download` | 보고서 PDF 파일 동적 다운로드 |
-<<<<<<< HEAD
 | | `GET` | `/api/report/{report_id}/file-url` | S3 저장소 저장 파일 임시 URL 발급 |
 | | `POST` | `/api/report/risk-assessment/form/generate` | 위험성평가표 생성 |
 | | `POST` | `/api/report/worker-feedback/generate` | 종사자에 의한 유해 위험요인 보고서 생성 |
 | | `POST` | `/api/report/management-review-order/generate` |경영책임지 검토지시서 생성 |
 | | `POST` | `/api/report/risk-assessment/report/generate` | 위험성평가보고서 생성 |
-=======
-| | `GET` | `/{report_id}/file-url` | S3 저장소 저장 파일 임시 URL 발급 |
-| | `POST` | `/risk-assessment/form/generate` | 위험성평가표 생성 |
-| | `POST` | `/worker-feedback/generate` | 종사자에 의한 유해 위험요인 보고서 생성 |
-| | `POST` | `/management-review-order/generate` |경영책임지 검토지시서 생성 |
-| | `POST` | `/risk-assessment/report/generate` | 위험성평가보고서 생성 |
->>>>>>> c230f3f74bee11843f648759dd4b3a787561d14d
 | **Dashboard**| `GET` | `/api/dashboard/summary` | 감지, 위반, 조치 대기/완료 건수 요약 |
 | | `GET` | `/api/dashboard/recentevents` | 최근 발생한 이상 항목 리스트 조회 |
 | | `GET` | `/api/dashboard/zones/stats` | 구역별 위험도 집계 통계 |
