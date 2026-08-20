@@ -10,6 +10,7 @@ from app.schemas.user import (
     PasswordChangeRequest,
     NotificationToggleRequest,
     PasswordFindResponse,
+    PasswordResetCodeResponse,
     UserRoleUpdateRequest,
     UserDeleteRequest,
 )
@@ -21,6 +22,7 @@ from app.schemas.signup_code import (
 from app.crud.auth import get_current_user, get_current_admin
 from app.crud.user import (
     get_users,
+    get_user_by_uid,
     change_user_password,
     find_user_password,
     update_user_role,
@@ -29,8 +31,10 @@ from app.crud.user import (
 )
 from app.crud.signup_code import (
     create_signup_code,
+    create_password_reset_code,
     get_all_signup_codes,
-    get_available_categories
+    get_available_categories,
+    RESET_CODE_TTL_HOURS
 )
 from app.models import User
 
@@ -174,6 +178,32 @@ def get_admin_users(
     GET /api/admin/users
     """
     return get_users(db, company_id=admin_user.company_id)
+
+
+@admin_router.post("/users/{uid}/password-reset-code", response_model=PasswordResetCodeResponse)
+def issue_password_reset_code(
+    uid: int = Path(..., description="비밀번호를 재설정할 유저의 UID"),
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_current_admin)
+):
+    """안전관리자 전용: 특정 사용자에게 1회용 비밀번호 재설정 코드를 발급한다.
+
+    기존 가입 코드를 다시 알려주지 않는다. 그 값은 이미 전달돼 노출됐고,
+    되살리면 회수할 수 없는 제2의 비밀번호가 된다.
+    """
+    target = get_user_by_uid(db, uid=uid, company_id=admin_user.company_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="해당 사용자를 찾을 수 없습니다.")
+
+    code_row = create_password_reset_code(
+        db, company_id=admin_user.company_id, target_uid=target.uid
+    )
+    return {
+        "code": code_row.code,
+        "target_uid": target.uid,
+        "target_name": target.name,
+        "expires_in_hours": RESET_CODE_TTL_HOURS,
+    }
 
 
 @admin_router.patch("/users/{uid}", response_model=UserResponse)
